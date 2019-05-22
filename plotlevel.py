@@ -11,7 +11,7 @@ def get_state_color(Jd,P):
     color_list_p = ['red','salmon','orange','darkgoldenrod','yellow','olive',\
             'lime','forestgreen','turquoise','teal','skyblue']
     color_list_n = ['navy','blue','mediumpurple','blueviolet',\
-            'mediumorchid','purple','magent','pink','crimson']
+            'mediumorchid','purple','magenta','pink','crimson']
     idx = int(Jd / 2)
     try:
         if(P=="+"): return color_list_p[idx]
