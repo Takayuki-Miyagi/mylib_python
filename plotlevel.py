@@ -56,6 +56,19 @@ def extract_levels(edict, level_list):
             pass
     return edict2
 
+def ground_state_energy(edict):
+    egs = 0.0
+    for key in edict.keys():
+        egs = min(egs, edict[key])
+    return egs
+
+def energies_wrt_ground(edict):
+    egs = ground_state_energy(edict)
+    edict2 = {}
+    for key in edict.keys():
+        edict2[key] = edict[key] - egs
+    return edict2
+
 def draw_energies(axs, edict, xcenter, width):
     for key in edict.keys():
         J = key[0]

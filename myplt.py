@@ -60,7 +60,9 @@ def colors(number=None):
     if(number != None):
         return [cm.jet_r((1.0*i) / (1.0*number)) for i in range(number)]
 
-def markers():
+def markers(pattern=1):
+    if(pattern == 1): return ["v", "^", "<", ">", "s", "p", "D", "*", "o"]
+    if(pattern == 2): return ["o","s","D","*","p"]
     return ["v", "^", "<", ">", "s", "p", "D", "*", "o"]
 
 def data2d(f,x=0,y=1,nskip=0,comment='#'):
