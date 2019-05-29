@@ -7,11 +7,17 @@ def set_frame(ax, xrng=None, xlab=None):
     ax.set_xticklabels(xlab, rotation=60)
     ax.set_ylabel('Energy (MeV)')
 
-def get_state_color(Jd,P):
-    color_list_p = ['red','salmon','orange','darkgoldenrod','yellow','olive',\
-            'lime','forestgreen','turquoise','teal','skyblue']
-    color_list_n = ['navy','blue','mediumpurple','blueviolet',\
-            'mediumorchid','purple','magenta','pink','crimson']
+def get_state_color(Jd,P,color_index=None):
+    if(color_index == None):
+        color_list_p = ['red','salmon','orange','darkgoldenrod','gold','olive',\
+                'lime','forestgreen','turquoise','teal','skyblue']
+        color_list_n = ['navy','blue','mediumpurple','blueviolet',\
+                'mediumorchid','purple','magenta','pink','crimson']
+    if(color_index == 1):
+        color_list_p = ['red','orange','olive',\
+                'lime','forestgreen','turquoise','teal','skyblue']
+        color_list_n = ['blue','blueviolet',\
+                'mediumorchid','magenta','crimson']
     idx = int(Jd / 2)
     try:
         if(P=="+"): return color_list_p[idx]
@@ -69,22 +75,24 @@ def energies_wrt_ground(edict):
         edict2[key] = edict[key] - egs
     return edict2
 
-def draw_energies(axs, edict, xcenter, width):
+def draw_energies(axs, edict, xcenter, width, color=None, color_index=None):
     for key in edict.keys():
         J = key[0]
         P = key[1]
         i = key[2]
-        c = get_state_color(2*J,P)
+        c = color
+        if(c == None): c = get_state_color(2*J,P, color_index)
         axs.plot([xcenter-width,xcenter+width],[edict[key],edict[key]],c=c,lw=2)
 
-def draw_connections(axs, ldict, rdict, xleft, xright):
+def draw_connections(axs, ldict, rdict, xleft, xright, color=None, color_index=None):
     dct = ldict
     if(len(ldict)>len(rdict)): dct = rdict
     for key in dct.keys():
         if(key in ldict and key in rdict):
             eleft = ldict[key]
             eright = rdict[key]
-            c = get_state_color(2*key[0],key[1])
+            c = color
+            if(c == None): c = get_state_color(2*key[0],key[1], color_index)
             axs.plot([xleft,xright],[eleft,eright],ls=':',c=c,lw=1)
 
 def put_JP_auto(axs, dct, x_base, y_thr, xshift):
