@@ -75,16 +75,16 @@ def energies_wrt_ground(edict):
         edict2[key] = edict[key] - egs
     return edict2
 
-def draw_energies(axs, edict, xcenter, width, color=None, color_index=None):
+def draw_energies(axs, edict, xcenter, width, color=None, color_index=None, lw=4):
     for key in edict.keys():
         J = key[0]
         P = key[1]
         i = key[2]
         c = color
         if(c == None): c = get_state_color(2*J,P, color_index)
-        axs.plot([xcenter-width,xcenter+width],[edict[key],edict[key]],c=c,lw=2)
+        axs.plot([xcenter-width,xcenter+width],[edict[key],edict[key]],c=c,lw=lw)
 
-def draw_connections(axs, ldict, rdict, xleft, xright, color=None, color_index=None):
+def draw_connections(axs, ldict, rdict, xleft, xright, color=None, color_index=None, lw=1):
     dct = ldict
     if(len(ldict)>len(rdict)): dct = rdict
     for key in dct.keys():
@@ -93,7 +93,7 @@ def draw_connections(axs, ldict, rdict, xleft, xright, color=None, color_index=N
             eright = rdict[key]
             c = color
             if(c == None): c = get_state_color(2*key[0],key[1], color_index)
-            axs.plot([xleft,xright],[eleft,eright],ls=':',c=c,lw=1)
+            axs.plot([xleft,xright],[eleft,eright],ls=':',c=c,lw=lw)
 
 def put_JP_auto(axs, dct, x_base, y_thr, xshift):
     eold = 1e20
