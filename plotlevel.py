@@ -18,6 +18,11 @@ def get_state_color(Jd,P,color_index=None):
                 'lime','forestgreen','turquoise','teal','skyblue']
         color_list_n = ['blue','blueviolet',\
                 'mediumorchid','magenta','crimson']
+    if(color_index == 2):
+        color_list_p = ['red',"k",'orange',\
+                'lime','forestgreen','turquoise','teal','skyblue']
+        color_list_n = ['blue','blue',\
+                'lime','magenta','crimson']
     idx = int(Jd / 2)
     try:
         if(P=="+"): return color_list_p[idx]
@@ -40,7 +45,7 @@ def get_energies_dct(summary, absolute = True, snt=None, comment_snt="!"):
         data = line.split()
         try:
             N = int(data[0])
-            J = int(data[1])
+            J = data[1]
             P = data[2]
             i = int(data[3])
             e = float(data[5])
@@ -77,11 +82,14 @@ def energies_wrt_ground(edict):
 
 def draw_energies(axs, edict, xcenter, width, color=None, color_index=None, lw=4):
     for key in edict.keys():
-        J = key[0]
+        try:
+            J = int(key[0])*2
+        except:
+            J = int(key[0][:-2])
         P = key[1]
         i = key[2]
         c = color
-        if(c == None): c = get_state_color(2*J,P, color_index)
+        if(c == None): c = get_state_color(J,P, color_index)
         axs.plot([xcenter-width,xcenter+width],[edict[key],edict[key]],c=c,lw=lw)
 
 def draw_connections(axs, ldict, rdict, xleft, xright, color=None, color_index=None, lw=1):
@@ -92,21 +100,28 @@ def draw_connections(axs, ldict, rdict, xleft, xright, color=None, color_index=N
             eleft = ldict[key]
             eright = rdict[key]
             c = color
-            if(c == None): c = get_state_color(2*key[0],key[1], color_index)
+            try:
+                J = int(key[0])*2
+            except:
+                J = int(key[0][:-2])
+            if(c == None): c = get_state_color(J,key[1], color_index)
             axs.plot([xleft,xright],[eleft,eright],ls=':',c=c,lw=lw)
 
 def put_JP_auto(axs, dct, x_base, y_thr, xshift):
     eold = 1e20
     x = x_base
     for key in dct.keys():
-        J = key[0]
+        try:
+            J = int(key[0])*2
+        except:
+            J = int(key[0][:-2])
         P = key[1]
         i = key[2]
         if(i != 1): continue
         if(abs(eold - dct[key]) < y_thr): x += xshift
         else: x = x_base
-        c = get_state_color(2*key[0],key[1])
-        axs.annotate(str(J)+"$^"+P+"$", xy = (x,dct[key]), color =c)
+        c = get_state_color(J,key[1])
+        axs.annotate(str(key[0])+"$^"+P+"$", xy = (x,dct[key]), color =c)
         eold = dct[key]
 
 

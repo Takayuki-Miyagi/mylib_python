@@ -46,6 +46,15 @@ def set_style(roman=False):
     plt.rcParams['ytick.labelsize'] = 20
     plt.rcParams['axes.labelsize'] = 20
     plt.rcParams['legend.numpoints'] = 1
+    plt.rcParams['xtick.bottom'] = True
+    plt.rcParams['xtick.direction'] = 'in'
+    plt.rcParams['xtick.major.size'] = 5
+    plt.rcParams['xtick.major.width'] = 1
+    plt.rcParams['ytick.left'] = True
+    plt.rcParams['ytick.right'] = True
+    plt.rcParams['ytick.direction'] = 'in'
+    plt.rcParams['ytick.major.size'] = 5
+    plt.rcParams['ytick.major.width'] = 1
     if(roman):
         plt.rcParams['font.family'] = 'Times New Roman'
         plt.rcParams['font.serif'] = 'Times New Roman'
@@ -75,6 +84,7 @@ def data2d(f,x=0,y=1,nskip=0,comment='#'):
         cnt += 1
         if(cnt < nskip): continue
         data = line.split()
+        if(data[0][0] == comment): continue
         try:
             X.append(float(data[x]))
             Y.append(float(data[y]))

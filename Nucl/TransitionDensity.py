@@ -4,7 +4,7 @@ class TransitionDensity:
     def __init__(self, file_td, Jbra, Jket, wfbra, wfket):
         self.one = {}
         self.two = {}
-        self.orbs = []
+        self.orbs = Orbit.Orbits()
         self.Jbra = Jbra
         self.Jket = Jket
         self.wfbra = wfbra

@@ -90,7 +90,7 @@ def main():
 
 def calc_observable(Op,TD):
     orbs = Op.orbs
-
+    TD.set_orbits(Op.orbs)
     zero = Op.zero
     one = 0.0
     for a in range(1,orbs.norbs+1):
