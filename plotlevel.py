@@ -21,7 +21,7 @@ def get_state_color(Jd,P,color_index=None):
     if(color_index == 2):
         color_list_p = ['red',"k",'orange',\
                 'lime','forestgreen','turquoise','teal','skyblue']
-        color_list_n = ['blue','blue',\
+        color_list_n = ['red','blue',\
                 'lime','magenta','crimson']
     idx = int(Jd / 2)
     try:
@@ -72,6 +72,14 @@ def ground_state_energy(edict):
     for key in edict.keys():
         egs = min(egs, edict[key])
     return egs
+
+def ground_state(edict):
+    egs = 0.0
+    for key in edict.keys():
+        if(egs > edict[key]):
+            gs = key
+            egs = edict[key]
+    return gs
 
 def energies_wrt_ground(edict):
     egs = ground_state_energy(edict)
