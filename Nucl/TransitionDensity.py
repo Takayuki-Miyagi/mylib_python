@@ -33,7 +33,6 @@ class TransitionDensity:
         except:
             #print("Warning: not found one-body transition density: (a,b)=", a, b)
             return 0.0
-
     def _get_phase(self,a,b,Jab):
         oa = self.orbs.get_orbit(a)
         ob = self.orbs.get_orbit(b)
@@ -70,7 +69,54 @@ class TransitionDensity:
 
     def read_td_file(self):
         f = open(self.file_td, 'r')
+        lines = f.readlines()
+        f.close()
+        i = 0
+        i_obtd = 0
+        i_tbtd = 0
+        store_obtd=False
+        store_tbtd=False
+        for line in lines:
+            i += 1
+            if(not line.startswith("OBTD:")): i_obtd = 0
+            if(not line.startswith("TBTD:")): i_tbtd = 0
+            if(line.startswith("OBTD:")):
+                if(i_obtd == 0):
+                    str1 = lines[i-3]
+                    if(str1[0:4] != 'w.f.'): print("see file "+self.file_td+" at line "+str(i))
+                    d = str1.split()
+                    j2_bra = int(d[2][:-3])
+                    j2_ket = int(d[5][:-3])
+                    if(j2_bra == int(2*self.Jbra) and j2_ket == int(2*self.Jket)): store_obtd=True
+                    if(j2_bra != int(2*self.Jbra) or j2_ket != int(2*self.Jket)): store_obtd=False
+                if(store_obtd):
+                    data = line.split()
+                    a, b, jr, wf_label_bra, wf_label_ket, me = int(data[1]), int(data[2]), int(data[4]), \
+                            int(data[6]), int(data[7]), float(data[9])
+                    self.set_obtd(a,b,jr,me)
+                    i_obtd += 1
+                continue
+            if(line.startswith("TBTD")):
+                if(i_tbtd == 0):
+                    str1 = lines[i-3]
+                    if(str1[0:4] != 'w.f.'): print("see file "+self.file_td+" at line "+str(i))
+                    d = str1.split()
+                    j2_bra = int(d[2][:-3])
+                    j2_ket = int(d[5][:-3])
+                    if(j2_bra == int(2*self.Jbra) and j2_ket == int(2*self.Jket)): store_tbtd=True
+                    if(j2_bra != int(2*self.Jbra) or j2_ket != int(2*self.Jket)): store_tbtd=False
+                if(store_tbtd):
+                    data = line.split()
+                    a, b, c, d, Jab, Jcd, Jr, wf_label_bra, wf_label_ket, me = \
+                            int(data[1]), int(data[2]), int(data[3]), int(data[4]), \
+                            int(data[6]), int(data[7]), int(data[8]), \
+                            int(data[10]), int(data[11]), float(data[13])
+                    self.set_tbtd(a,b,c,d,Jab,Jcd,Jr,me)
+                    i_tbtd += 1
+                continue
 
+    def read_td_file_old(self):
+        f = open(self.file_td, 'r')
         self._find_label(f)
 
         tf = False

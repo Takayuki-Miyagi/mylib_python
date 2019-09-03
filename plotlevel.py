@@ -68,13 +68,13 @@ def extract_levels(edict, level_list):
     return edict2
 
 def ground_state_energy(edict):
-    egs = 0.0
+    egs = 100.0
     for key in edict.keys():
         egs = min(egs, edict[key])
     return egs
 
 def ground_state(edict):
-    egs = 0.0
+    egs = 100.0
     for key in edict.keys():
         if(egs > edict[key]):
             gs = key
