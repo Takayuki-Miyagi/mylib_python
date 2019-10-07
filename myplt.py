@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+import sys
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
@@ -135,6 +137,11 @@ def data_point_string(f, r=0, c=0, comment='#'):
     return r
 
 if(__name__=='__main__'):
+    #plt.rcParams = set_style()
+    #fig, axs = set_canvas()
+    #f = sys.argv[1]
+    #data = np.loadtxt(f,delimiter=',',comments="#")
+    #print(data)
     x = np.arange(-10,10,0.1)
     plt.plot(x,x)
     plt.show()
