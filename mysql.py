@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import csv
+import datetime
 import pymysql.cursors
 
 def open_connection(db, host="localhost", user="root"):
@@ -61,12 +62,28 @@ def set_data_line_by_line(connection, tabname, data):
         if( len(key.strip().split()) == 1 ):
             key_tmp += key.strip() + ","
         val_tmp += "'" + str(data[key]).strip() +"',"
-    key_tmp = key_tmp[:-1] + ")"
-    val_tmp = val_tmp[:-1] + ")"
+    now = datetime.datetime.utcnow()
+    key_tmp += "date)"
+    val_tmp += "'{:s}')".format(now.strftime('%Y-%m-%d %H:%M:%S'))
     sql = "insert ignore into " + tabname + " " + key_tmp + " values " + val_tmp
     results = execute_mysql_command(connection, sql)
 
-def set_data_csv(connection, tabname, csv_file):
+def replace_data_line_by_line(connection, tabname, data):
+    key_tmp = "("
+    val_tmp = "("
+    for key in data.keys():
+        if( len(key.strip().split()) > 1 ):
+            key_tmp += "`" + key.strip() + "`,"
+        if( len(key.strip().split()) == 1 ):
+            key_tmp += key.strip() + ","
+        val_tmp += "'" + str(data[key]).strip() +"',"
+    now = datetime.datetime.utcnow()
+    key_tmp += "`date (UCT)`)"
+    val_tmp += "'{:s}')".format(now.strftime('%Y-%m-%d %H:%M:%S'))
+    sql = "replace into " + tabname + " " + key_tmp + " values " + val_tmp
+    results = execute_mysql_command(connection, sql)
+
+def set_data_from_csv(connection, tabname, csv_file):
     f = open(csv_file, "r")
     reader = csv.reader(f)
     header = next(reader)
@@ -78,16 +95,37 @@ def set_data_csv(connection, tabname, csv_file):
     f.close()
     connection.commit()
 
+def replace_data_from_csv(connection, tabname, csv_file):
+    f = open(csv_file, "r")
+    reader = csv.reader(f)
+    header = next(reader)
+    for row in reader:
+        data = {}
+        for i in range(len(row)):
+            data[header[i].strip()] = row[i].strip()
+        replace_data_line_by_line(connection, tabname, data)
+    f.close()
+    connection.commit()
+
 def show_example():
+    print('---- open connection ----')
     print('connection = mysql.open_connection("HFMBPT")')
     print('tabname = "ground_state"')
     print('---- insert the data from csv ----')
     print('f = "energy.csv"')
-    print('mysql.set_data_csv(connection, tabname, f)')
+    print('mysql.set_data_from_csv(connection, tabname, f)')
+    print('')
+    print('---- repalce the data from csv ----')
+    print('f = "energy.csv"')
+    print('mysql.replace_data_from_csv(connection, tabname, f)')
+    print('')
     print('---- output to csv file ----')
     print('mysql.save_csv(connection, "select emax,e3max,`hw target (MeV)`,`Ehf (Mev)`,`EMBPT (MeV)` from ground_state where A=208", "text.csv")')
+    print('')
     print('---- output to dictionary type ----')
     print('results=mysql.get_dict(connection, "select emax,e3max,`hw target (MeV)`,`Ehf (Mev)` from ground_state where A=208", ("emax", "e3max", "hw target (MeV)"), ("Ehf (MeV)"))')
+    print('')
+    print('---- close connection ----')
     print('mysql.close_connection(connection)')
 
 
@@ -96,7 +134,7 @@ if(__name__=="__main__"):
             user="root", db="HFMBPT", cursorclass=pymysql.cursors.DictCursor)
     #tabname = "ground_state"
     #f = "energy.csv"
-    #set_data_csv(connection, tabname, f)
+    #set_data_from_csv(connection, tabname, f)
     #save_csv(connection, "select emax,e3max,`hw target (MeV)`,`Ehf (Mev)`,`EMBPT (MeV)` from ground_state where A=208", "text.csv")
     connection.close()
 
