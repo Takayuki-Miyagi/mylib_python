@@ -53,7 +53,7 @@ def save_csv(connection, sql_command, csv_file):
     f.write(prt)
     f.close()
 
-def set_data_line_by_line(connection, tabname, data):
+def set_data_line_by_line(connection, tabname, data, date=True):
     key_tmp = "("
     val_tmp = "("
     for key in data.keys():
@@ -62,13 +62,17 @@ def set_data_line_by_line(connection, tabname, data):
         if( len(key.strip().split()) == 1 ):
             key_tmp += key.strip() + ","
         val_tmp += "'" + str(data[key]).strip() +"',"
-    now = datetime.datetime.utcnow()
-    key_tmp += "date)"
-    val_tmp += "'{:s}')".format(now.strftime('%Y-%m-%d %H:%M:%S'))
+    if(date):
+        now = datetime.datetime.utcnow()
+        key_tmp += "`date (UCT)`)"
+        val_tmp += "'{:s}')".format(now.strftime('%Y-%m-%d %H:%M:%S'))
+    if(not date):
+        key_tmp = key_tmp[:-1] + ")"
+        val_tmp = val_tmp[:-1] + ")"
     sql = "insert ignore into " + tabname + " " + key_tmp + " values " + val_tmp
     results = execute_mysql_command(connection, sql)
 
-def replace_data_line_by_line(connection, tabname, data):
+def replace_data_line_by_line(connection, tabname, data, date=True):
     key_tmp = "("
     val_tmp = "("
     for key in data.keys():
@@ -77,13 +81,17 @@ def replace_data_line_by_line(connection, tabname, data):
         if( len(key.strip().split()) == 1 ):
             key_tmp += key.strip() + ","
         val_tmp += "'" + str(data[key]).strip() +"',"
-    now = datetime.datetime.utcnow()
-    key_tmp += "`date (UCT)`)"
-    val_tmp += "'{:s}')".format(now.strftime('%Y-%m-%d %H:%M:%S'))
+    if(date):
+        now = datetime.datetime.utcnow()
+        key_tmp += "`date (UCT)`)"
+        val_tmp += "'{:s}')".format(now.strftime('%Y-%m-%d %H:%M:%S'))
+    if(not date):
+        key_tmp = key_tmp[:-1] + ")"
+        val_tmp = val_tmp[:-1] + ")"
     sql = "replace into " + tabname + " " + key_tmp + " values " + val_tmp
     results = execute_mysql_command(connection, sql)
 
-def set_data_from_csv(connection, tabname, csv_file):
+def set_data_from_csv(connection, tabname, csv_file, date=True):
     f = open(csv_file, "r")
     reader = csv.reader(f)
     header = next(reader)
@@ -91,11 +99,11 @@ def set_data_from_csv(connection, tabname, csv_file):
         data = {}
         for i in range(len(row)):
             data[header[i].strip()] = row[i].strip()
-        set_data_line_by_line(connection, tabname, data)
+        set_data_line_by_line(connection, tabname, data, date)
     f.close()
     connection.commit()
 
-def replace_data_from_csv(connection, tabname, csv_file):
+def replace_data_from_csv(connection, tabname, csv_file, date=True):
     f = open(csv_file, "r")
     reader = csv.reader(f)
     header = next(reader)
@@ -103,7 +111,7 @@ def replace_data_from_csv(connection, tabname, csv_file):
         data = {}
         for i in range(len(row)):
             data[header[i].strip()] = row[i].strip()
-        replace_data_line_by_line(connection, tabname, data)
+        replace_data_line_by_line(connection, tabname, data, date)
     f.close()
     connection.commit()
 
