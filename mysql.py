@@ -64,7 +64,7 @@ def set_data_line_by_line(connection, tabname, data, date=True):
         val_tmp += "'" + str(data[key]).strip() +"',"
     if(date):
         now = datetime.datetime.utcnow()
-        key_tmp += "`date (UCT)`)"
+        key_tmp += "`date (UTC)`)"
         val_tmp += "'{:s}')".format(now.strftime('%Y-%m-%d %H:%M:%S'))
     if(not date):
         key_tmp = key_tmp[:-1] + ")"
@@ -83,7 +83,7 @@ def replace_data_line_by_line(connection, tabname, data, date=True):
         val_tmp += "'" + str(data[key]).strip() +"',"
     if(date):
         now = datetime.datetime.utcnow()
-        key_tmp += "`date (UCT)`)"
+        key_tmp += "`date (UTC)`)"
         val_tmp += "'{:s}')".format(now.strftime('%Y-%m-%d %H:%M:%S'))
     if(not date):
         key_tmp = key_tmp[:-1] + ")"
