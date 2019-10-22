@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import os
+import subprocess
+import time
 from . import Orbit
 class TransitionDensity:
     def __init__(self, file_td, Jbra, Jket, wfbra, wfket):
@@ -173,6 +176,41 @@ class TransitionDensity:
                 i_ket = int(data[6][:-1])
                 if(i_bra == self.wfbra and i_ket == self.wfket): return
 
+    def calc_density(kshl_dir, fn_snt, fn_ptn_bra, fn_ptn_ket, fn_wf_bra, fn_wf_ket, fn_density=None, \
+            header="", batch_cmd=None, run_cmd=None, fn_input="transit.input"):
+        if(fn_density==None): fn_out = "density_" + os.path.splitext(fn_snt)[0] + ".dat"
+        fn_script = os.path.splitext(fn_out)[0] + ".sh"
+        cmd = "cp " + kshl_dir + "/transit.exe ./"
+        subprocess.call(cmd,shell=True)
+        prt = header + '\n'
+        prt += 'echo "start runnning ' + fn_out + ' ..."\n'
+        prt += 'cat >' + fn_input + ' <<EOF\n'
+        prt += '&input\n'
+        prt += '  fn_int   = "' + fn_snt + '"\n'
+        prt += '  fn_ptn_l = "' + fn_ptn_bra + '"\n'
+        prt += '  fn_ptn_r = "' + fn_ptn_ket + '"\n'
+        prt += '  fn_load_wave_l = "' + fn_wf_bra + '"\n'
+        prt += '  fn_load_wave_r = "' + fn_wf_ket + '"\n'
+        prt += '  hw_type = 2\n'
+        prt += '  eff_charge = 1.5, 0.5\n'
+        prt += '  gl = 1.0, 0.0\n'
+        prt += '  gs = 3.91, -2.678\n'
+        prt += '  is_tbtd = .true.\n'
+        prt += '&end\n'
+        prt += 'EOF\n'
+        if(run_cmd == None):
+            prt += './transit.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
+        if(run_cmd != None):
+            prt += run_cmd + './transit.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
+        prt += 'rm ' + fn_input + '\n'
+        f = open(fn_script,'w')
+        f.write(prt)
+        f.close()
+        os.chmod(fn_script, 0o755)
+        if(batch_cmd == None): cmd = "./" + fn_script
+        if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
+        subprocess.call(cmd, shell=True)
+        time.sleep(1)
 
 def main():
     file_td="transition-density-file-name"
