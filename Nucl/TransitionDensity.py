@@ -178,7 +178,10 @@ class TransitionDensity:
 
     def calc_density(kshl_dir, fn_snt, fn_ptn_bra, fn_ptn_ket, fn_wf_bra, fn_wf_ket, fn_density=None, \
             header="", batch_cmd=None, run_cmd=None, fn_input="transit.input"):
-        if(fn_density==None): fn_out = "density_" + os.path.splitext(fn_snt)[0] + ".dat"
+        if(fn_density==None):
+            basename = os.path.basename(fn_snt)
+            fn_out = "density_" + os.path.splitext(basename)[0] + ".dat"
+        if(fn_density!=None): fn_out = fn_density
         fn_script = os.path.splitext(fn_out)[0] + ".sh"
         cmd = "cp " + kshl_dir + "/transit.exe ./"
         subprocess.call(cmd,shell=True)
@@ -201,7 +204,7 @@ class TransitionDensity:
         if(run_cmd == None):
             prt += './transit.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
         if(run_cmd != None):
-            prt += run_cmd + './transit.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
+            prt += run_cmd + ' ./transit.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
         prt += 'rm ' + fn_input + '\n'
         f = open(fn_script,'w')
         f.write(prt)
