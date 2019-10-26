@@ -236,7 +236,113 @@ def scalar(spfile, intfile, sntfile):
     out += out_tbme
     out = comment + out
 
-    fp_out  = open(fn_out, 'w')
+    fp_out  = open(sntfile, 'w')
+    fp_out.write(out)
+    fp_out.close()
+
+def tensor(spfile, op1_file, op2_file, sntfile):
+    fp = open(spfile)
+    t_pn_isospin = read_comment_skip(fp)
+    if(t_pn_isospin[0] == "t"):
+        t_pn = False
+        print(" Nushell interaction in isospin formalism ")
+    elif(t_pn_isospin[0] == "pn"):
+        print(" Nushell interaction in proton-neutron formalism ")
+        t_pn = True
+    else:
+        raise "sp file type error"
+
+    out=""
+
+    acore, zcore = read_comment_skip(fp)
+    ncore = acore - zcore
+    nnorb = read_comment_skip(fp)
+    nnorb = nnorb[0]
+    nspe = nnorb
+    n_major_list = read_comment_skip(fp)
+    if(t_pn):
+        num, norb_p, norb_n = n_major_list
+    else:
+        num = n_major_list.pop(0)
+        norb_p = sum(n_major_list)
+        norb_n = norb_p
+    nljtz2i, i2nljtz = {}, {}
+    for i,a in enumerate(range(nnorb)):
+        ii,n,l,j = read_comment_skip(fp)
+        n = n-1  # Nushell n=1,2,3,...
+        if(a < norb_p): tz=-1
+        else: tz = 1
+        nljtz2i[(n,l,j,tz)] = i+1
+        i2nljtz[i+1] = (n,l,j,tz)
+    fp.close()
+
+    out+="! model space \n"
+
+    if(not t_pn):
+        for i in range(1, nnorb+1):
+            n,l,j,tz = i2nljtz[i]
+            nljtz2i[(n,l,j,-tz)] = i+nnorb
+            i2nljtz[i+nnorb] = (n,l,j,-tz)
+        nnorb *= 2
+
+    # write model space
+    num_p, num_n = 0, 0
+    for i in range(1, nnorb+1):
+        n,l,j,tz = i2nljtz[i]
+        if(tz==-1): num_p += 1
+        if(tz== 1): num_n += 1
+    out += " %3d %3d   %3d %3d\n" % (num_p, num_n, zcore, ncore)
+    for i in range(1,nnorb+1):
+        n,l,j,tz = i2nljtz[i]
+        out += "%5d   %3d %3d %3d %3d  !  %2d = %c%2d%c_%2d/2\n" \
+            % (i, n, l, j, tz, i, tz2c[tz], n, lorb2c[l], j)
+
+    ### read header of op1_file
+    fp = open(op1_file)
+    v_obme = {}
+    arr = read_comment_skip(fp)
+    v_obme[(int(arr[0]),int(arr[1]))] = float(arr[2])
+    nline = 10000000
+    for i in range(nline):
+        arr = fp.readline().split()
+        if not arr: break
+        ij = ( int(arr[0]), int(arr[1]) )
+        v = float(arr[2])
+        v_obme[ij] = v
+    # print  one-body part
+    out += "! one-body part\n"
+    out += " %3d %3d %3d\n" % (len(v_obme), 0, 0)
+    for ij in v_obme.keys():
+        out += "%3d %3d % 15.8f\n" % (ij[0],ij[1],v_obme[ij])
+
+    ### read header of op2_file
+    fp = open(op2_file)
+    v_tbme = {}
+    arr = read_comment_skip(fp)
+    ijklJ = tuple( int(i) for i in arr[:6])
+    v = float(arr[6])
+    v_tbme[ijklJ] = v
+    nline = 10000000
+    for i in range(nline):
+        arr = fp.readline().split()
+        if not arr: break
+        ijklJ = tuple( int(i) for i in arr[:6])
+        v = float(arr[6])
+        v_tbme[ijklJ] = v
+    # print  two-body part
+    out += "! two-body part\n"
+    out += " %8d %3d %3d\n" % (len(v_tbme), 0, 0)
+    for ijklJ in v_tbme.keys():
+        out += "%3d %3d %3d %3d %3d %3d % 15.8f\n" % (ijklJ[0],\
+                ijklJ[1],ijklJ[2],ijklJ[3],ijklJ[4],ijklJ[5],v_tbme[ijklJ])
+    f = open(op2_file,'r')
+    lines = f.readlines()
+    comment = ""
+    for line in lines:
+        if(line[0] == "!"): comment += line
+        if(line[0] != "!"): break
+    out = comment + out
+    fp_out  = open(sntfile, 'w')
     fp_out.write(out)
     fp_out.close()
 
