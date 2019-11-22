@@ -90,8 +90,13 @@ class TransitionDensity:
                     d = str1.split()
                     j2_bra = int(d[2][:-3])
                     j2_ket = int(d[5][:-3])
-                    if(j2_bra == int(2*self.Jbra) and j2_ket == int(2*self.Jket)): store_obtd=True
-                    if(j2_bra != int(2*self.Jbra) or j2_ket != int(2*self.Jket)): store_obtd=False
+                    i_bra = int(d[3][:-1])
+                    i_ket = int(d[6][:-1])
+                    if(j2_bra == int(2*self.Jbra) and j2_ket == int(2*self.Jket) and
+                            i_bra == self.wfbra and i_ket == self.wfket): store_obtd=True
+                    if(j2_bra != int(2*self.Jbra) or j2_ket != int(2*self.Jket) or
+                            i_bra != self.wfbra or i_ket != self.wfket): store_obtd=False
+                    if(not store_obtd): i_obtd = -1
                 if(store_obtd):
                     data = line.split()
                     a, b, jr, wf_label_bra, wf_label_ket, me = int(data[1]), int(data[2]), int(data[4]), \
@@ -106,8 +111,13 @@ class TransitionDensity:
                     d = str1.split()
                     j2_bra = int(d[2][:-3])
                     j2_ket = int(d[5][:-3])
-                    if(j2_bra == int(2*self.Jbra) and j2_ket == int(2*self.Jket)): store_tbtd=True
-                    if(j2_bra != int(2*self.Jbra) or j2_ket != int(2*self.Jket)): store_tbtd=False
+                    i_bra = int(d[3][:-1])
+                    i_ket = int(d[6][:-1])
+                    if(j2_bra == int(2*self.Jbra) and j2_ket == int(2*self.Jket) and
+                            i_bra == self.wfbra and i_ket == self.wfket): store_tbtd=True
+                    if(j2_bra != int(2*self.Jbra) or j2_ket != int(2*self.Jket) or
+                            i_bra != self.wfbra or i_ket != self.wfket): store_tbtd=False
+                    if(not store_tbtd): i_tbtd = -1
                 if(store_tbtd):
                     data = line.split()
                     a, b, c, d, Jab, Jcd, Jr, wf_label_bra, wf_label_ket, me = \
