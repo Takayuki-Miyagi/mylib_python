@@ -301,14 +301,15 @@ def tensor(spfile, op1_file, op2_file, sntfile):
     fp = open(op1_file)
     v_obme = {}
     arr = read_comment_skip(fp)
-    v_obme[(int(arr[0]),int(arr[1]))] = float(arr[2])
-    nline = 10000000
-    for i in range(nline):
-        arr = fp.readline().split()
-        if not arr: break
-        ij = ( int(arr[0]), int(arr[1]) )
-        v = float(arr[2])
-        v_obme[ij] = v
+    if arr:
+        v_obme[(int(arr[0]),int(arr[1]))] = float(arr[2])
+        nline = 10000000
+        for i in range(nline):
+            arr = fp.readline().split()
+            if not arr: break
+            ij = ( int(arr[0]), int(arr[1]) )
+            v = float(arr[2])
+            v_obme[ij] = v
     # print  one-body part
     out += "! one-body part\n"
     out += " %3d %3d %3d\n" % (len(v_obme), 0, 0)
@@ -319,16 +320,17 @@ def tensor(spfile, op1_file, op2_file, sntfile):
     fp = open(op2_file)
     v_tbme = {}
     arr = read_comment_skip(fp)
-    ijklJ = tuple( int(i) for i in arr[:6])
-    v = float(arr[6])
-    v_tbme[ijklJ] = v
-    nline = 10000000
-    for i in range(nline):
-        arr = fp.readline().split()
-        if not arr: break
+    if arr:
         ijklJ = tuple( int(i) for i in arr[:6])
         v = float(arr[6])
         v_tbme[ijklJ] = v
+        nline = 10000000
+        for i in range(nline):
+            arr = fp.readline().split()
+            if not arr: break
+            ijklJ = tuple( int(i) for i in arr[:6])
+            v = float(arr[6])
+            v_tbme[ijklJ] = v
     # print  two-body part
     out += "! two-body part\n"
     out += " %8d %3d %3d\n" % (len(v_tbme), 0, 0)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import numpy as np
 from . import Orbit
 class Op:
     def __init__(self, file_op, rankJ=0, rankP=1, rankZ=0, file_format="snt"):
@@ -181,6 +182,23 @@ class Op:
                 a, b, c, d = int(data[0]), int(data[1]), int(data[2]), int(data[3])
                 Jab, Jcd, me = int(data[4]), int(data[5]), float(data[6])
             self.set_tbme(a,b,c,d,Jab,Jcd,me)
+        f.close()
+
+    def write_nme_file(self):
+        out = ""
+        for key in self.two.keys():
+            a,b,c,d,Jab,Jcd = key
+            oa = self.orbs.get_orbit(a)
+            ob = self.orbs.get_orbit(b)
+            oc = self.orbs.get_orbit(c)
+            od = self.orbs.get_orbit(d)
+            out += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d}".format(\
+                    oa.n, oa.l, oa.j, ob.n, ob.l, ob.j)
+            out += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d}".format(\
+                    oc.n, oc.l, oc.j, od.n, od.l, od.j)
+            out += "{0:3d} {1:16.10f}".format(Jab, self.two[key] / np.sqrt(2*Jab+1)) + "\n"
+        f=open("nme.dat","w")
+        f.write(out)
         f.close()
 
     def PrintOperator(self):

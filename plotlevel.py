@@ -132,5 +132,23 @@ def put_JP_auto(axs, dct, x_base, y_thr, xshift):
         axs.annotate(str(key[0])+"$^"+P+"$", xy = (x,dct[key]), color =c)
         eold = dct[key]
 
+def draw_spe(axs, spe, xcenter, width=0.3, pn = "proton",lw=4):
+    if(pn == "proton"): c = "red"
+    if(pn == "neutron"): c = "blue"
+    for key in spe.keys():
+        if(key[1] != pn): continue
+        if(key[2] == "hole"): ls = "-"
+        if(key[2] == "particle"): ls = "--"
+        axs.plot([xcenter-width,xcenter+width],[spe[key],spe[key]],c=c,lw=lw,ls=ls)
+
+def draw_connection_spe(axs, spel, sper, xleft=0, xright=1, pn="proton",lw=1):
+    if(len(spel) != len(sper)): return
+    if(pn == "proton"): c = "red"
+    if(pn == "neutron"): c = "blue"
+    for key in spel.keys():
+        if(key[1] != pn): continue
+        axs.plot([xleft,xright],[spel[key],sper[key]],ls=":",c=c,lw=lw)
+
+
 
 
