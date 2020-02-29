@@ -2,7 +2,11 @@
 import numpy as np
 from . import Orbit
 class Op:
-    def __init__(self, file_op, rankJ=0, rankP=1, rankZ=0, file_format="snt"):
+    def __init__(self, file_op=None, file_sp=None, file_op2=None, rankJ=0, rankP=1, rankZ=0, file_format="snt"):
+        self.n_porb = 0
+        self.n_norb = 0
+        self.zcore = 0
+        self.ncore = 0
         self.zero = 0.0
         self.one = {}
         self.two = {}
@@ -11,6 +15,8 @@ class Op:
         self.rankP = rankP
         self.rankZ = rankZ
         self.file_op = file_op
+        self.file_op2 = file_op2
+        self.file_sp = file_sp
         self.file_format = file_format
 
     def set_orbits(self, orbs):
@@ -41,7 +47,7 @@ class Op:
         if((b,a) in self.one): v = self.one[(b,a)]; ex_bk = True
         fact = 1.0
         if(ex_bk):
-            fact *= (-1.0) ** ((oa.j - ob.j)/2)
+            fact *= (-1.0) ** ((ob.j - oa.j)/2)
         try:
             return v * fact
         except:
@@ -86,7 +92,7 @@ class Op:
         if((d,c,b,a,Jcd,Jab) in self.two): v = self.two[(d,c,b,a,Jcd,Jab)]; ex_ab = True; ex_cd = True; ex_bk = True
 
         fact = 1.0
-        if(ex_bk): fact *= (-1.0) ** (Jab-Jcd)
+        if(ex_bk): fact *= (-1.0) ** (Jcd-Jab)
         if(ex_ab): fact *= self._get_phase(a,b,Jab)
         if(ex_cd): fact *= self._get_phase(c,d,Jcd)
         try:
@@ -97,14 +103,32 @@ class Op:
 
     def read_operator_file(self, comment="!"):
         if(self.file_format == "snt"):
-            self._read_operator_snt(comment)
+            self._read_operator_snt(self.file_op, comment)
             return
-        print("In NuHamil.py: Unknown file format")
+        if(self.file_format == "int"):
+            if(self.file_sp == None):
+                print("No sp file!"); return
+            if(self.file_op == None):
+                print("No op file!"); return
+            import nushell2snt
+            if( rankJ==0 and rankP==1 and rankZ==0 ):
+                nushell2snt.scalar( self.file_sp, self.file_op, "tmp.snt" )
+            else:
+                if(self.file_op == None):
+                    print("No op2 file!"); return
+                nushell2snt.tensor( self.file_sp, self.file_op, self.file_op2, "tmp.snt" )
+            self._read_operator_snt("tmp.snt", "!")
+            subprocess.call("rm tmp.snt", shell=True)
+            return
+        if(self.file_format == "lotta"):
+            self._read_lotta_format(self.file_op)
+            return
+        print("In Op.py: Unknown file format")
         return
 
-    def _read_operator_snt(self, comment="!"):
+    def _read_operator_snt(self, filename, comment="!"):
         orbs = Orbit.Orbits()
-        f = open(self.file_op, 'r')
+        f = open(filename, 'r')
         line = f.readline()
         b = True
         while b == True:
@@ -122,6 +146,10 @@ class Op:
             b = line.startswith(comment)
         data = line.split()
         norbs = int(data[0]) + int(data[1])
+        self.n_porb = int(data[0])
+        self.n_norb = int(data[0])
+        self.zcore = int(data[2])
+        self.ncore = int(data[3])
 
         b = True
         while b == True:
@@ -184,6 +212,57 @@ class Op:
             self.set_tbme(a,b,c,d,Jab,Jcd,me)
         f.close()
 
+    def _read_lotta_format(self, filename ):
+        orbs = Orbit.Orbits()
+        f = open(filename, "r")
+        lines = f.readlines()
+        f.close()
+        idx = 0
+        for line in lines[1:]:
+            entry = line.split()
+            p_n = int(entry[3])
+            p_l = int(entry[4])
+            p_j = int(entry[5])
+            exist = False
+            for key in orbs.idx_orb.keys():
+                o = orbs.get_orbit(key)
+                if( o.n == p_n and o.l == p_l and o.j == p_j and o.z == -1 ):
+                    exist=True; break
+            if( not exist ):
+                idx += 1
+                orbs.add_orbit(p_n, p_l, p_j, -1, idx)
+        self.n_porb = idx
+        for line in lines[1:]:
+            entry = line.split()
+            n_n = int(entry[0])
+            n_l = int(entry[1])
+            n_j = int(entry[2])
+            exist = False
+            for key in orbs.idx_orb.keys():
+                o = orbs.get_orbit(key)
+                if( o.n == n_n and o.l == n_l and o.j == n_j and o.z == 1 ):
+                    exist=True; break
+            if( not exist ):
+                idx += 1
+                orbs.add_orbit(n_n, n_l, n_j, 1, idx)
+        norbs = idx
+        self.n_norb = norbs - self.n_porb
+        self.set_orbits(orbs)
+        for line in lines[1:]:
+            entry = line.split()
+            n_n = int(entry[0])
+            n_l = int(entry[1])
+            n_j = int(entry[2])
+            p_n = int(entry[3])
+            p_l = int(entry[4])
+            p_j = int(entry[5])
+            mes = [ float(entry[i+7]) for i in range(len(entry)-7) ]
+            i = self.orbs.nljz_idx[(n_n,n_l,n_j, 1)]
+            j = self.orbs.nljz_idx[(p_n,p_l,p_j,-1)]
+            me = mes[2]
+            if( abs(me) < 1.e-8): continue
+            self.set_obme( i, j, me )
+
     def write_nme_file(self):
         out = ""
         for key in self.two.keys():
@@ -199,6 +278,30 @@ class Op:
             out += "{0:3d} {1:16.10f}".format(Jab, self.two[key] / np.sqrt(2*Jab+1)) + "\n"
         f=open("nme.dat","w")
         f.write(out)
+        f.close()
+
+    def write_operator_file(self, filename):
+        prt = ""
+        prt += "! model space \n"
+        prt += " {0:3d} {1:3d} {2:3d} {3:3d} \n".format( self.n_porb, self.n_norb, self.zcore, self.ncore )
+        for i in range(1, 1+self.n_porb+self.n_norb):
+            o = self.orbs.get_orbit(i)
+            prt += "{0:5d} {1:3d} {2:3d} {3:3d} {4:3d}\n".format( i, o.n, o.l, o.j, o.z )
+        prt += "! one-body part\n"
+        prt += "{0:5d} {1:3d}\n".format( len(self.one), 0 )
+        for key in self.one.keys():
+            prt += "{0:3d} {1:3d} {2:15.8f}\n".format( key[0], key[1], self.one[key] )
+        prt += "! two-body part\n"
+        prt += "{0:10d} {1:3d}\n".format( len(self.two), 0 )
+        scalar = False
+        if(self.rankJ == 0 and self.rankZ == 0): scalar = True
+        for key in self.two.keys():
+            if(scalar):
+                prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:15.8f}\n".format( key[0], key[1], key[2], key[3], key[4], self.two[key])
+            else:
+                prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d} {6:15.8f}\n".format( key[0], key[1], key[2], key[3], key[4], key[5], self.two[key])
+        f = open(filename, "w")
+        f.write(prt)
         f.close()
 
     def PrintOperator(self):
