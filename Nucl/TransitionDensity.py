@@ -40,7 +40,7 @@ class TransitionDensity:
         try:
             return self.one[abj]*fact
         except:
-            print("Warning: not found one-body transition density: (a,b)=", a, b)
+            #print("Warning: not found one-body transition density: (a,b)=", a, b)
             return 0.0
     def _get_phase(self,a,b,Jab):
         oa = self.orbs.get_orbit(a)
@@ -60,7 +60,7 @@ class TransitionDensity:
         od = self.orbs.get_orbit(d)
         if(self._triag(Jab,Jcd,Jr)): return 0.0
         if(oa.z + ob.z - oc.z - od.z - 2*Zr != 0): return 0.0
-        ex_ab, ex_cd = False, False
+        ex_ab, ex_cd, ex_bk = False, False, False
 
         if((a,b,c,d,Jab,Jcd,Jr) in self.two): v = self.two[(a,b,c,d,Jab,Jcd,Jr)]
         if((c,d,a,b,Jcd,Jab,Jr) in self.two): v = self.two[(c,d,a,b,Jcd,Jab,Jr)]; ex_bk = True

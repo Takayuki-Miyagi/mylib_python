@@ -51,7 +51,7 @@ class Op:
         try:
             return v * fact
         except:
-            print("Warning: not found one-body matrix element: (a,b) = ", a, b)
+            #print("Warning: not found one-body matrix element: (a,b) = ", a, b)
             return 0.0
 
     def _get_phase(self,a,b,Jab):
@@ -98,7 +98,7 @@ class Op:
         try:
             return v * fact
         except:
-            print("Warning: not found two-body matrix element, (a,b,c,d,Jab,Jcd)=",a,b,c,d,Jab,Jcd)
+            #print("Warning: not found two-body matrix element, (a,b,c,d,Jab,Jcd)=",a,b,c,d,Jab,Jcd)
             return 0.0
 
     def read_operator_file(self, comment="!"):
