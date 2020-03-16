@@ -70,13 +70,13 @@ class Op:
         oc = self.orbs.get_orbit(c)
         od = self.orbs.get_orbit(d)
         if(self._triag(Jab,Jcd,self.rankJ)):
-            print("warining: J")
+            #print("warining: J")
             return 0.0
         if(oa.z+ob.z-oc.z-od.z - 2*self.rankZ != 0):
-            print("warining: Z")
+            #print("warining: Z")
             return 0.0
         if((-1)**(oa.l + ob.l + oc.l + od.l) * self.rankP != 1):
-            print("warining: P")
+            #print("warining: P")
             return 0.0
         ex_ab, ex_cd, ex_bk = False, False, False
         if((a,b,c,d,Jab,Jcd) in self.two): v = self.two[(a,b,c,d,Jab,Jcd)]
@@ -101,7 +101,7 @@ class Op:
             #print("Warning: not found two-body matrix element, (a,b,c,d,Jab,Jcd)=",a,b,c,d,Jab,Jcd)
             return 0.0
 
-    def read_operator_file(self, comment="!"):
+    def read_operator_file(self, comment="!", istore=None):
         if(self.file_format == "snt"):
             self._read_operator_snt(self.file_op, comment)
             return
@@ -121,7 +121,8 @@ class Op:
             subprocess.call("rm tmp.snt", shell=True)
             return
         if(self.file_format == "lotta"):
-            self._read_lotta_format(self.file_op)
+            if( istore == None ): self._read_lotta_format(self.file_op,0)
+            if( istore != None ): self._read_lotta_format(self.file_op,istore)
             return
         print("In Op.py: Unknown file format")
         return
@@ -212,7 +213,7 @@ class Op:
             self.set_tbme(a,b,c,d,Jab,Jcd,me)
         f.close()
 
-    def _read_lotta_format(self, filename ):
+    def _read_lotta_format(self, filename, ime ):
         orbs = Orbit.Orbits()
         f = open(filename, "r")
         lines = f.readlines()
@@ -256,10 +257,10 @@ class Op:
             p_n = int(entry[3])
             p_l = int(entry[4])
             p_j = int(entry[5])
-            mes = [ float(entry[i+7]) for i in range(len(entry)-7) ]
+            mes = [ float(entry[i+6]) for i in range(len(entry)-6) ]
             i = self.orbs.nljz_idx[(n_n,n_l,n_j, 1)]
             j = self.orbs.nljz_idx[(p_n,p_l,p_j,-1)]
-            me = mes[2]
+            me = mes[ime]
             if( abs(me) < 1.e-8): continue
             self.set_obme( i, j, me )
 
@@ -281,7 +282,115 @@ class Op:
         f.close()
 
     def write_operator_file(self, filename):
+        if(filename.find(".snt") != -1):
+            self._write_operator_snt( filename )
+        if(filename.find(".op.me2j") != -1):
+            self._write_general_operator( filename )
+
+    def _write_general_operator(self, filename):
         prt = ""
+        prt += " Written by python script \n"
+        E = 0
+        for orb in self.orbs.idx_orb:
+            orbit = self.orbs.idx_orb[orb]
+            E = max(E, 2*orbit.n+orbit.l)
+        prt += " {:3d} {:3d} {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ, E, 2*E )
+        prt += "{:14.8f}\n".format( self.zero )
+
+        nlj = []
+        for N in range(E+1):
+            for l in range(N+1):
+                if( (N-l)%2==1 ): continue
+                n = (N-l)//2
+                for j in [2*l-1, 2*l+1]:
+                    if(j < 0): continue
+                    nlj.append( (n, l, j) )
+        for nlj1 in nlj:
+            try:
+                pi = self.orbs.nljz_idx[ (nlj1[0], nlj1[1], nlj1[2], -1) ]
+                ni = self.orbs.nljz_idx[ (nlj1[0], nlj1[1], nlj1[2],  1) ]
+            except:
+                pi = -1
+                ni = -1
+            for nlj2 in nlj:
+                try:
+                    pj = self.orbs.nljz_idx[ (nlj2[0], nlj2[1], nlj2[2], -1) ]
+                    nj = self.orbs.nljz_idx[ (nlj2[0], nlj2[1], nlj2[2],  1) ]
+                except:
+                    pj = -1
+                    nj = -1
+                if( (-1)**(nlj1[1]+nlj2[1]) * self.rankP != 1): continue
+                if( self._triag(nlj1[2], nlj2[2], 2*self.rankJ ) ): continue
+                me_pp = 0.0; me_nn = 0.0; me_np = 0.0; me_pn = 0.0
+                if(pi>=0 and pj>=0 ):
+                    me_pp = self.get_obme(pi,pj)
+                    me_nn = self.get_obme(ni,nj)
+                    me_np = self.get_obme(ni,pj)
+                    me_pn = self.get_obme(pi,nj)
+                prt += "{:14.8f} {:14.8f} {:14.8f} {:14.8f}\n".format(\
+                        me_pp, me_nn, me_np, me_pn )
+
+        for i in range(len(nlj)):
+            nlj1 = nlj[i]
+            try:
+                pi = self.orbs.nljz_idx[ (nlj1[0], nlj1[1], nlj1[2], -1) ]
+                ni = self.orbs.nljz_idx[ (nlj1[0], nlj1[1], nlj1[2],  1) ]
+            except:
+                pi = -1
+                ni = -1
+            for j in range(i+1):
+                nlj2 = nlj[j]
+                try:
+                    pj = self.orbs.nljz_idx[ (nlj2[0], nlj2[1], nlj2[2], -1) ]
+                    nj = self.orbs.nljz_idx[ (nlj2[0], nlj2[1], nlj2[2],  1) ]
+                except:
+                    pj = -1
+                    nj = -1
+
+                for k in range(len(nlj)):
+                    nlj3 = nlj[k]
+                    try:
+                        pk = self.orbs.nljz_idx[ (nlj3[0], nlj3[1], nlj3[2], -1) ]
+                        nk = self.orbs.nljz_idx[ (nlj3[0], nlj3[1], nlj3[2],  1) ]
+                    except:
+                        pk = -1
+                        nk = -1
+                    for l in range(k+1):
+                        nlj4 = nlj[l]
+                        try:
+                            pl = self.orbs.nljz_idx[ (nlj4[0], nlj4[1], nlj4[2], -1) ]
+                            nl = self.orbs.nljz_idx[ (nlj4[0], nlj4[1], nlj4[2],  1) ]
+                        except:
+                            pl = -1
+                            nl = -1
+                        if( (-1)**( nlj1[1]+nlj2[1]+nlj3[1]+nlj4[1] ) * self.rankP != 1): continue
+                        for Jij in range( int(abs( nlj1[2]-nlj2[2] ))//2, (nlj1[2]+nlj2[2])//2 ):
+                            for Jkl in range( int(abs( nlj3[2]-nlj4[2] ))//2, (nlj3[2]+nlj4[2])//2 ):
+                                if( self._triag(Jij, Jkl, self.rankJ ) ): continue
+
+                                me_pppp = 0.0; me_pppn = 0.0; me_ppnp = 0.0; me_ppnn = 0.0; me_pnpn = 0.0
+                                me_pnnp = 0.0; me_pnnn = 0.0; me_npnp = 0.0; me_npnn = 0.0; me_nnnn = 0.0
+                                if(pi>=0 and pj>=0 and pk>=0 and pl>= 0):
+                                    me_pppp = self.get_tbme(pi,pj,pk,pl,Jij,Jkl)
+                                    me_pppn = self.get_tbme(pi,pj,pk,nl,Jij,Jkl)
+                                    me_ppnp = self.get_tbme(pi,pj,nk,pl,Jij,Jkl)
+                                    me_ppnn = self.get_tbme(pi,pj,nk,nl,Jij,Jkl)
+                                    me_pnpn = self.get_tbme(pi,nj,pk,nl,Jij,Jkl)
+                                    me_pnnp = self.get_tbme(pi,nj,nk,pl,Jij,Jkl)
+                                    me_pnnn = self.get_tbme(pi,nj,nk,nl,Jij,Jkl)
+                                    me_npnp = self.get_tbme(ni,pj,nk,pl,Jij,Jkl)
+                                    me_npnn = self.get_tbme(ni,pj,nk,nl,Jij,Jkl)
+                                    me_nnnn = self.get_tbme(ni,nj,nk,nl,Jij,Jkl)
+                                prt += "{:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} \n".format(\
+                                        me_pppp, me_pppn, me_ppnp, me_ppnn, me_pnpn, me_pnnp, me_pnnn, me_npnp, me_npnn, me_nnnn)
+        f = open(filename, "w")
+        f.write(prt)
+        f.close()
+
+
+    def _write_operator_snt(self, filename):
+        prt = ""
+        pr  += " {:3d} {:3d} {:3d}".format( self.rankJ, self.rankP, self.rankZ )
         prt += "! model space \n"
         prt += " {0:3d} {1:3d} {2:3d} {3:3d} \n".format( self.n_porb, self.n_norb, self.zcore, self.ncore )
         for i in range(1, 1+self.n_porb+self.n_norb):

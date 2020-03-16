@@ -141,6 +141,14 @@ def draw_spe(axs, spe, xcenter, width=0.3, pn = "proton",lw=4):
         if(key[2] == "particle"): ls = "--"
         axs.plot([xcenter-width,xcenter+width],[spe[key],spe[key]],c=c,lw=lw,ls=ls)
 
+def put_spe_label(axs, spe, xcenter, pn="proton", fontsize=12):
+    if(pn == "proton"): c = "red"
+    if(pn == "neutron"): c = "blue"
+    for key in spe.keys():
+        if(key[1] != pn): continue
+        axs.annotate(key[0], xy=(xcenter,spe[key]),color=c,fontsize=fontsize)
+
+
 def draw_connection_spe(axs, spel, sper, xleft=0, xright=1, pn="proton",lw=1):
     if(len(spel) != len(sper)): return
     if(pn == "proton"): c = "red"
