@@ -40,7 +40,7 @@ class Op:
         oa = self.orbs.get_orbit(a)
         ob = self.orbs.get_orbit(b)
         if(self._triag(oa.j,ob.j,2*self.rankJ)): return 0.0
-        if(oa.z - ob.z - 2*self.rankZ != 0): return 0.0
+        if(abs(oa.z-ob.z) != 2*self.rankZ): return 0.0
         if((-1)**(oa.l+ob.l) * self.rankP != 1): return 0.0
         ex_bk = False
         if((a,b) in self.one): v = self.one[(a,b)]
@@ -72,7 +72,7 @@ class Op:
         if(self._triag(Jab,Jcd,self.rankJ)):
             #print("warining: J")
             return 0.0
-        if(oa.z+ob.z-oc.z-od.z - 2*self.rankZ != 0):
+        if(abs(oa.z+ob.z-oc.z-od.z) != 2*self.rankZ):
             #print("warining: Z")
             return 0.0
         if((-1)**(oa.l + ob.l + oc.l + od.l) * self.rankP != 1):
@@ -263,6 +263,7 @@ class Op:
             me = mes[ime]
             if( abs(me) < 1.e-8): continue
             self.set_obme( i, j, me )
+            self.set_obme( j, i, me*(-1.0)**( ( p_j-n_j )/2 ) )
 
     def write_nme_file(self):
         out = ""
@@ -305,14 +306,16 @@ class Op:
                 for j in [2*l-1, 2*l+1]:
                     if(j < 0): continue
                     nlj.append( (n, l, j) )
-        for nlj1 in nlj:
+        for i in range(len(nlj)):
+            nlj1 = nlj[i]
             try:
                 pi = self.orbs.nljz_idx[ (nlj1[0], nlj1[1], nlj1[2], -1) ]
                 ni = self.orbs.nljz_idx[ (nlj1[0], nlj1[1], nlj1[2],  1) ]
             except:
                 pi = -1
                 ni = -1
-            for nlj2 in nlj:
+            for j in range(len(nlj)):
+                nlj2 = nlj[j]
                 try:
                     pj = self.orbs.nljz_idx[ (nlj2[0], nlj2[1], nlj2[2], -1) ]
                     nj = self.orbs.nljz_idx[ (nlj2[0], nlj2[1], nlj2[2],  1) ]

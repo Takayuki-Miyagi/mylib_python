@@ -245,7 +245,7 @@ class TransitionDensity:
             print("{0:3d}, {1:3d}, {2:3d}, {3:3d}, {4:3d}, {5:3d}, {6:3d}, {7:12.6f}".format(a,b,c,d,Jab,Jcd,Jr,self.two[key]))
 
 
-    def calc_density(kshl_dir, fn_snt, fn_ptn_bra, fn_ptn_ket, fn_wf_bra, fn_wf_ket, fn_density=None, \
+    def calc_density(kshl_dir, fn_snt, fn_ptn_bra, fn_ptn_ket, fn_wf_bra, fn_wf_ket, i_wfs=None, fn_density=None, \
             header="", batch_cmd=None, run_cmd=None, fn_input="transit.input"):
         if(fn_density==None):
             basename = os.path.basename(fn_snt)
@@ -263,6 +263,11 @@ class TransitionDensity:
         prt += '  fn_ptn_r = "' + fn_ptn_ket + '"\n'
         prt += '  fn_load_wave_l = "' + fn_wf_bra + '"\n'
         prt += '  fn_load_wave_r = "' + fn_wf_ket + '"\n'
+        if(i_wfs!=None):
+            prt += '  n_eig_lr_pair = '
+            for lr in i_wfs:
+                prt += str(lr[0]) + ', ' + str(lr[1]) + ', '
+            prt += '\n'
         prt += '  hw_type = 2\n'
         prt += '  eff_charge = 1.5, 0.5\n'
         prt += '  gl = 1.0, 0.0\n'
