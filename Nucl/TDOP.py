@@ -97,7 +97,7 @@ def calc_observable(Op,TD):
         oa = orbs.get_orbit(a)
         for b in range(1,orbs.norbs+1):
             ob = orbs.get_orbit(b)
-            if(Op.rankJ == 0 and Op.rankZ ==0):
+            if(Op.rankJ == 0 and Op.rankZ ==0 and Op.rankP==1):
                 one += Op.get_obme(a,b) * TD.get_obtd(a,b,Op.rankJ,Op.rankZ) * \
                         np.sqrt(oa.j+1) / np.sqrt(2*TD.Jbra+1)
             else:
@@ -122,7 +122,7 @@ def calc_observable(Op,TD):
                         for Jcd in range( int(abs(oc.j-od.j)/2), int((oc.j+od.j)/2+1)):
                             if(c == d and Jcd%2 == 1): continue
                             if(not abs(Jab-Jcd) <= Op.rankJ <= (Jab+Jcd)): continue
-                            if(Op.rankJ == 0 and Op.rankZ ==0):
+                            if(Op.rankJ == 0 and Op.rankZ ==0 and Op.rankP==1):
                                 two += Op.get_tbme(a,b,c,d,Jab,Jcd) * TD.get_tbtd(a,b,c,d,Jab,Jcd,Op.rankJ,Op.rankZ) * \
                                         np.sqrt(2*Jab+1)/np.sqrt(2*TD.Jbra+1)
 

@@ -30,13 +30,9 @@ class TransitionDensity:
         oa = self.orbs.get_orbit(a)
         ob = self.orbs.get_orbit(b)
         if(self._triag(oa.j,ob.j,2*jr)): return 0.0
-        if(oa.z - ob.z - 2*Zr != 0): return 0.0
-        if((a,b,jr) in self.one):
-            abj = (a,b,jr)
-            fact = 1.0
-        if((b,a,jr) in self.one):
-            abj = (b,a,jr)
-            fact = (-1.0)**((ob.j-oa.j)/2)
+        if( abs(oa.z - ob.z) != 2*Zr ): return 0.0
+        abj = (a,b,jr)
+        fact = 1.0
         try:
             return self.one[abj]*fact
         except:
@@ -59,17 +55,17 @@ class TransitionDensity:
         oc = self.orbs.get_orbit(c)
         od = self.orbs.get_orbit(d)
         if(self._triag(Jab,Jcd,Jr)): return 0.0
-        if(oa.z + ob.z - oc.z - od.z - 2*Zr != 0): return 0.0
+        if(abs(oa.z + ob.z - oc.z - od.z) != 2*Zr ): return 0.0
         ex_ab, ex_cd, ex_bk = False, False, False
 
         if((a,b,c,d,Jab,Jcd,Jr) in self.two): v = self.two[(a,b,c,d,Jab,Jcd,Jr)]
-        if((c,d,a,b,Jcd,Jab,Jr) in self.two): v = self.two[(c,d,a,b,Jcd,Jab,Jr)]; ex_bk = True
         if((b,a,c,d,Jab,Jcd,Jr) in self.two): v = self.two[(b,a,c,d,Jab,Jcd,Jr)]; ex_ab = True
-        if((c,d,b,a,Jcd,Jab,Jr) in self.two): v = self.two[(c,d,b,a,Jcd,Jab,Jr)]; ex_ab = True; ex_bk = True
         if((a,b,d,c,Jab,Jcd,Jr) in self.two): v = self.two[(a,b,d,c,Jab,Jcd,Jr)]; ex_cd = True
-        if((d,c,a,b,Jcd,Jab,Jr) in self.two): v = self.two[(d,c,a,b,Jcd,Jab,Jr)]; ex_cd = True; ex_bk = True
         if((b,a,d,c,Jab,Jcd,Jr) in self.two): v = self.two[(b,a,d,c,Jab,Jcd,Jr)]; ex_ab = True; ex_cd = True
-        if((d,c,b,a,Jcd,Jab,Jr) in self.two): v = self.two[(d,c,b,a,Jcd,Jab,Jr)]; ex_ab = True; ex_cd = True; ex_bk = True
+        #if((c,d,a,b,Jcd,Jab,Jr) in self.two): v = self.two[(c,d,a,b,Jcd,Jab,Jr)]; ex_bk = True
+        #if((c,d,b,a,Jcd,Jab,Jr) in self.two): v = self.two[(c,d,b,a,Jcd,Jab,Jr)]; ex_ab = True; ex_bk = True
+        #if((d,c,a,b,Jcd,Jab,Jr) in self.two): v = self.two[(d,c,a,b,Jcd,Jab,Jr)]; ex_cd = True; ex_bk = True
+        #if((d,c,b,a,Jcd,Jab,Jr) in self.two): v = self.two[(d,c,b,a,Jcd,Jab,Jr)]; ex_ab = True; ex_cd = True; ex_bk = True
 
         fact = 1.0
         if(ex_ab): fact *= self._get_phase(a,b,Jab)
@@ -314,7 +310,7 @@ class TransitionDensity:
         prt += '&end\n'
         prt += 'EOF\n'
         from . import Op
-        nme = Op(fn_0v_snt, rankJ=0, rankP=1, rankZ=-2)
+        nme = Op(fn_0v_snt, rankJ=0, rankP=1, rankZ=2)
         nme.read_operator_file()
         nme.write_nme_file()
         if(run_cmd == None):

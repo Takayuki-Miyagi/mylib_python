@@ -228,7 +228,7 @@ class Op:
             for key in orbs.idx_orb.keys():
                 o = orbs.get_orbit(key)
                 if( o.n == p_n and o.l == p_l and o.j == p_j and o.z == -1 ):
-                    exist=True; break
+                    exist=True
             if( not exist ):
                 idx += 1
                 orbs.add_orbit(p_n, p_l, p_j, -1, idx)
@@ -242,7 +242,7 @@ class Op:
             for key in orbs.idx_orb.keys():
                 o = orbs.get_orbit(key)
                 if( o.n == n_n and o.l == n_l and o.j == n_j and o.z == 1 ):
-                    exist=True; break
+                    exist=True
             if( not exist ):
                 idx += 1
                 orbs.add_orbit(n_n, n_l, n_j, 1, idx)
@@ -289,14 +289,14 @@ class Op:
             self._write_general_operator( filename )
 
     def _write_general_operator(self, filename):
-        prt = ""
-        prt += " Written by python script \n"
+        f = open(filename, "w")
+        f.write(" Written by python script \n")
         E = 0
         for orb in self.orbs.idx_orb:
             orbit = self.orbs.idx_orb[orb]
             E = max(E, 2*orbit.n+orbit.l)
-        prt += " {:3d} {:3d} {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ, E, 2*E )
-        prt += "{:14.8f}\n".format( self.zero )
+        f.write(" {:3d} {:3d} {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ, E, 2*E ))
+        f.write("{:14.8f}\n".format( self.zero ) )
 
         nlj = []
         for N in range(E+1):
@@ -330,8 +330,8 @@ class Op:
                     me_nn = self.get_obme(ni,nj)
                     me_np = self.get_obme(ni,pj)
                     me_pn = self.get_obme(pi,nj)
-                prt += "{:14.8f} {:14.8f} {:14.8f} {:14.8f}\n".format(\
-                        me_pp, me_nn, me_np, me_pn )
+                f.write("{:14.8f} {:14.8f} {:14.8f} {:14.8f}\n".format(\
+                        me_pp, me_nn, me_np, me_pn ) )
 
         for i in range(len(nlj)):
             nlj1 = nlj[i]
@@ -384,21 +384,20 @@ class Op:
                                     me_npnp = self.get_tbme(ni,pj,nk,pl,Jij,Jkl)
                                     me_npnn = self.get_tbme(ni,pj,nk,nl,Jij,Jkl)
                                     me_nnnn = self.get_tbme(ni,nj,nk,nl,Jij,Jkl)
-                                prt += "{:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} \n".format(\
-                                        me_pppp, me_pppn, me_ppnp, me_ppnn, me_pnpn, me_pnnp, me_pnnn, me_npnp, me_npnn, me_nnnn)
-        f = open(filename, "w")
-        f.write(prt)
+                                f.write("{:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} \n".format(\
+                                        me_pppp, me_pppn, me_ppnp, me_ppnn, me_pnpn, me_pnnp, me_pnnn, me_npnp, me_npnn, me_nnnn))
         f.close()
 
 
     def _write_operator_snt(self, filename):
         prt = ""
-        pr  += " {:3d} {:3d} {:3d}".format( self.rankJ, self.rankP, self.rankZ )
+        prt  += " {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ )
         prt += "! model space \n"
         prt += " {0:3d} {1:3d} {2:3d} {3:3d} \n".format( self.n_porb, self.n_norb, self.zcore, self.ncore )
         for i in range(1, 1+self.n_porb+self.n_norb):
             o = self.orbs.get_orbit(i)
-            prt += "{0:5d} {1:3d} {2:3d} {3:3d} {4:3d}\n".format( i, o.n, o.l, o.j, o.z )
+            prt += "{0:5d} {1:3d} {2:3d} {3:3d} {4:3d} \n".format( i, o.n, o.l, o.j, o.z )
+            #prt += "{0:5d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d} \n".format( i, o.n, o.l, o.j, o.z, 2*o.n+o.l )
         prt += "! one-body part\n"
         prt += "{0:5d} {1:3d}\n".format( len(self.one), 0 )
         for key in self.one.keys():
