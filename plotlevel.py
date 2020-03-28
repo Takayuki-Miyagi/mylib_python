@@ -25,11 +25,18 @@ def get_state_color(Jd,P,color_index=None):
                 'lime','magenta','crimson']
     idx = int(Jd / 2)
     try:
+        if(Jd<0): return "k"
         if(P=="+"): return color_list_p[idx]
         if(P=="-"): return color_list_n[idx]
     except:
         if(P!="+" and P!="-"): print("something wrong (parity)")
         return "k"
+
+def get_state_symbol(Jd):
+    if( Jd<0 ): return "x"
+    symbol_list = ["o","^","v","<",">","s","D","p","H","P","X"]
+    idx = int(Jd / 2) % len(symbol_list)
+    return symbol_list[ idx ]
 
 def get_energies_dct(summary, absolute = True, snt=None, comment_snt="!"):
     zero_body = 0.0
@@ -99,6 +106,19 @@ def draw_energies(axs, edict, xcenter, width, color=None, color_index=None, lw=4
         c = color
         if(c == None): c = get_state_color(J,P, color_index)
         axs.plot([xcenter-width,xcenter+width],[edict[key],edict[key]],c=c,lw=lw)
+
+def plot_energies(axs, edict, xcenter, ms=10, color=None, color_index=None):
+    for key in edict.keys():
+        try:
+            J = int(key[0])*2
+        except:
+            J = int(key[0][:-2])
+        P = key[1]
+        i = key[2]
+        c = color
+        if(c == None): c = get_state_color(J,P, color_index)
+        m = get_state_symbol(J)
+        axs.plot([xcenter],[edict[key]],c=c,marker=m, ms=ms)
 
 def draw_connections(axs, ldict, rdict, xleft, xright, color=None, color_index=None, lw=1):
     dct = ldict
