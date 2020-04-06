@@ -203,7 +203,7 @@ class Op:
         for i in range(int(data[0])):
             line = f.readline()
             data = line.split()
-            if(self.rankJ == 0 and self.rankZ == 0):
+            if(self.rankJ==0 and self.rankZ==0 and self.rankP==1):
                 a, b, c, d = int(data[0]), int(data[1]), int(data[2]), int(data[3])
                 Jab, me = int(data[4]), float(data[5])
                 Jcd = Jab

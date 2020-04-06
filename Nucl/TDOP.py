@@ -90,18 +90,22 @@ def main():
 
 def calc_observable(Op,TD):
     orbs = Op.orbs
-    TD.set_orbits(Op.orbs)
+    #TD.set_orbits(Op.orbs)
     zero = Op.zero
     one = 0.0
     for a in range(1,orbs.norbs+1):
         oa = orbs.get_orbit(a)
+        a_td = TD.orbs.nljz_idx[(oa.n, oa.l, oa.j, oa.z)]
         for b in range(1,orbs.norbs+1):
             ob = orbs.get_orbit(b)
+            b_td = TD.orbs.nljz_idx[(ob.n, ob.l, ob.j, ob.z)]
             if(Op.rankJ == 0 and Op.rankZ ==0 and Op.rankP==1):
-                one += Op.get_obme(a,b) * TD.get_obtd(a,b,Op.rankJ,Op.rankZ) * \
+                one += Op.get_obme(a,b) * TD.get_obtd(a_td,b_td,Op.rankJ,Op.rankZ) * \
                         np.sqrt(oa.j+1) / np.sqrt(2*TD.Jbra+1)
             else:
-                one += Op.get_obme(a,b) * TD.get_obtd(a,b,Op.rankJ,Op.rankZ)
+                one += Op.get_obme(a,b) * TD.get_obtd(a_td,b_td,Op.rankJ,Op.rankZ)
+            #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f},{:12.6f}".format(\
+            #        oa.n, oa.l, oa.j, oa.z, ob.n, ob.l, ob.j, ob.z, Op.get_obme(a,b), TD.get_obtd(a_td,b_td,Op.rankJ,Op.rankZ)))
 
     two = 0.0
     for a in range(1,orbs.norbs+1):
@@ -113,6 +117,10 @@ def calc_observable(Op,TD):
                     ob = orbs.get_orbit(b)
                     oc = orbs.get_orbit(c)
                     od = orbs.get_orbit(d)
+                    a_td = TD.orbs.nljz_idx[(oa.n, oa.l, oa.j, oa.z)]
+                    b_td = TD.orbs.nljz_idx[(ob.n, ob.l, ob.j, ob.z)]
+                    c_td = TD.orbs.nljz_idx[(oc.n, oc.l, oc.j, oc.z)]
+                    d_td = TD.orbs.nljz_idx[(od.n, od.l, od.j, od.z)]
 
                     if((-1)**(oa.l+ob.l+oc.l+od.l) * Op.rankP != 1): continue
                     if(oa.z + ob.z - oc.z - od.z - 2*Op.rankZ != 0): continue
@@ -123,11 +131,10 @@ def calc_observable(Op,TD):
                             if(c == d and Jcd%2 == 1): continue
                             if(not abs(Jab-Jcd) <= Op.rankJ <= (Jab+Jcd)): continue
                             if(Op.rankJ == 0 and Op.rankZ ==0 and Op.rankP==1):
-                                two += Op.get_tbme(a,b,c,d,Jab,Jcd) * TD.get_tbtd(a,b,c,d,Jab,Jcd,Op.rankJ,Op.rankZ) * \
+                                two += Op.get_tbme(a,b,c,d,Jab,Jcd) * TD.get_tbtd(a_td,b_td,c_td,d_td,Jab,Jcd,Op.rankJ,Op.rankZ) * \
                                         np.sqrt(2*Jab+1)/np.sqrt(2*TD.Jbra+1)
-
                             else:
-                                two += Op.get_tbme(a,b,c,d,Jab,Jcd) * TD.get_tbtd(a,b,c,d,Jab,Jcd,Op.rankJ,Op.rankZ)
+                                two += Op.get_tbme(a,b,c,d,Jab,Jcd) * TD.get_tbtd(a_td,b_td,c_td,d_td,Jab,Jcd,Op.rankJ,Op.rankZ)
     return zero,one,two
 
 if(__name__ == "__main__"):
