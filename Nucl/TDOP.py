@@ -123,7 +123,7 @@ def calc_observable(Op,TD):
                     d_td = TD.orbs.nljz_idx[(od.n, od.l, od.j, od.z)]
 
                     if((-1)**(oa.l+ob.l+oc.l+od.l) * Op.rankP != 1): continue
-                    if(oa.z + ob.z - oc.z - od.z - 2*Op.rankZ != 0): continue
+                    if(abs(oa.z + ob.z - oc.z - od.z) != 2*Op.rankZ): continue
 
                     for Jab in range( int(abs(oa.j-ob.j)/2), int((oa.j+ob.j)/2)+1):
                         if(a == b and Jab%2 == 1): continue
@@ -135,6 +135,7 @@ def calc_observable(Op,TD):
                                         np.sqrt(2*Jab+1)/np.sqrt(2*TD.Jbra+1)
                             else:
                                 two += Op.get_tbme(a,b,c,d,Jab,Jcd) * TD.get_tbtd(a_td,b_td,c_td,d_td,Jab,Jcd,Op.rankJ,Op.rankZ)
+
     return zero,one,two
 
 if(__name__ == "__main__"):

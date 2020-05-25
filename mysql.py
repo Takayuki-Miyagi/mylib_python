@@ -80,7 +80,10 @@ def replace_data_line_by_line(connection, tabname, data, date=True):
             key_tmp += "`" + key.strip() + "`,"
         if( len(key.strip().split()) == 1 ):
             key_tmp += key.strip() + ","
-        val_tmp += "'" + str(data[key]).strip() +"',"
+        if( data[key] == "NULL"):
+            val_tmp += "NULL,"
+        else:
+            val_tmp += "'" + str(data[key]).strip() +"',"
     if(date):
         now = datetime.datetime.utcnow()
         key_tmp += "`date (UTC)`)"

@@ -107,7 +107,8 @@ def draw_energies(axs, edict, xcenter, width, color=None, color_index=None, lw=4
         if(c == None): c = get_state_color(J,P, color_index)
         axs.plot([xcenter-width,xcenter+width],[edict[key],edict[key]],c=c,lw=lw)
 
-def plot_energies(axs, edict, xcenter, ms=10, color=None, color_index=None):
+def plot_energies(axs, edict, xcenter, ms=10, color=None, mfc=None, color_index=None):
+    if(mfc == None): mfc = color
     for key in edict.keys():
         try:
             J = int(key[0])*2
@@ -118,7 +119,7 @@ def plot_energies(axs, edict, xcenter, ms=10, color=None, color_index=None):
         c = color
         if(c == None): c = get_state_color(J,P, color_index)
         m = get_state_symbol(J)
-        axs.plot([xcenter],[edict[key]],c=c,marker=m, ms=ms)
+        axs.plot([xcenter],[edict[key]],c=c,marker=m, ms=ms, mfc=mfc)
 
 def draw_connections(axs, ldict, rdict, xleft, xright, color=None, color_index=None, lw=1):
     dct = ldict
