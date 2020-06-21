@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 from . import Orbit
+import gzip
 class Op:
     def __init__(self, file_op=None, file_sp=None, file_op2=None, rankJ=0, rankP=1, rankZ=0, file_format="snt"):
         self.n_porb = 0
@@ -104,6 +105,12 @@ class Op:
     def read_operator_file(self, comment="!", istore=None):
         if(self.file_format == "snt"):
             self._read_operator_snt(self.file_op, comment)
+            return
+        if(self.file_format == "op.me2j"):
+            self._read_general_operator(self.file_op, comment)
+            return
+        if(self.file_format == "navratil"):
+            self._read_general_operator_navratil(self.file_op, comment)
             return
         if(self.file_format == "int"):
             if(self.file_sp == None):
@@ -282,6 +289,169 @@ class Op:
         f.write(out)
         f.close()
 
+    def _read_general_operator(self, filename, comment="!"):
+        if(filename.find(".gz") != -1): f = gzip.open(filename, "r")
+        else: f = open(filename,"r")
+        header = f.readline()
+        header = f.readline()
+        dat = header.split()
+        self.rankJ = int(dat[0])
+        self.rankP = int(dat[1])
+        self.rankZ = int(dat[2])
+        emax = int(dat[3])
+        e2max = int(dat[4])
+
+        orbs = Orbit.Orbits()
+        idx = 0
+        for N in range(emax+1):
+            for l in range(N+1):
+                if( (N-l)%2==1 ): continue
+                n = (N-l)//2
+                for j in [2*l-1, 2*l+1]:
+                    if(j < 0): continue
+                    for z in [-1,1]:
+                        idx += 1
+                        orbs.add_orbit( n, l, j, z, idx )
+        self.set_orbits(orbs)
+        self.n_porb = orbs.norbs//2
+        self.n_norb = orbs.norbs//2
+        nlj = []
+        for N in range(emax+1):
+            for l in range(N+1):
+                if( (N-l)%2==1 ): continue
+                n = (N-l)//2
+                for j in [2*l-1, 2*l+1]:
+                    if(j < 0): continue
+                    nlj.append( (n, l, j) )
+
+        data = f.readline()
+        self.zero = float(data)
+        for i in range(len(nlj)):
+            nlj1 = nlj[i]
+            try:
+                pi = self.orbs.nljz_idx[ (nlj1[0], nlj1[1], nlj1[2], -1) ]
+                ni = self.orbs.nljz_idx[ (nlj1[0], nlj1[1], nlj1[2],  1) ]
+            except:
+                pi = -1
+                ni = -1
+            for j in range(len(nlj)):
+                nlj2 = nlj[j]
+                try:
+                    pj = self.orbs.nljz_idx[ (nlj2[0], nlj2[1], nlj2[2], -1) ]
+                    nj = self.orbs.nljz_idx[ (nlj2[0], nlj2[1], nlj2[2],  1) ]
+                except:
+                    pj = -1
+                    nj = -1
+                if( (-1)**(nlj1[1]+nlj2[1]) * self.rankP != 1): continue
+                if( self._triag(nlj1[2], nlj2[2], 2*self.rankJ ) ): continue
+                data = [ float(x) for x in f.readline().split() ]
+                if( abs(data[0]) > 1.e-10 ): self.set_obme( pi,pj,data[0] )
+                if( abs(data[1]) > 1.e-10 ): self.set_obme( ni,nj,data[1] )
+                if( abs(data[2]) > 1.e-10 ): self.set_obme( ni,pj,data[2] )
+                if( abs(data[3]) > 1.e-10 ): self.set_obme( pi,nj,data[3] )
+
+        for i in range(len(nlj)):
+            nlj1 = nlj[i]
+            try:
+                pi = self.orbs.nljz_idx[ (nlj1[0], nlj1[1], nlj1[2], -1) ]
+                ni = self.orbs.nljz_idx[ (nlj1[0], nlj1[1], nlj1[2],  1) ]
+            except:
+                pi = -1
+                ni = -1
+            for j in range(i+1):
+                nlj2 = nlj[j]
+                try:
+                    pj = self.orbs.nljz_idx[ (nlj2[0], nlj2[1], nlj2[2], -1) ]
+                    nj = self.orbs.nljz_idx[ (nlj2[0], nlj2[1], nlj2[2],  1) ]
+                except:
+                    pj = -1
+                    nj = -1
+                if( 2*nlj1[0]+nlj1[1]+2*nlj2[0]+nlj2[1] > e2max ): continue
+
+                for k in range(len(nlj)):
+                    nlj3 = nlj[k]
+                    try:
+                        pk = self.orbs.nljz_idx[ (nlj3[0], nlj3[1], nlj3[2], -1) ]
+                        nk = self.orbs.nljz_idx[ (nlj3[0], nlj3[1], nlj3[2],  1) ]
+                    except:
+                        pk = -1
+                        nk = -1
+                    for l in range(k+1):
+                        nlj4 = nlj[l]
+                        try:
+                            pl = self.orbs.nljz_idx[ (nlj4[0], nlj4[1], nlj4[2], -1) ]
+                            nl = self.orbs.nljz_idx[ (nlj4[0], nlj4[1], nlj4[2],  1) ]
+                        except:
+                            pl = -1
+                            nl = -1
+                        if( 2*nlj3[0]+nlj3[1] + 2*nlj4[0]+nlj4[1] > e2max ): continue
+                        if( (-1)**( nlj1[1]+nlj2[1]+nlj3[1]+nlj4[1] ) * self.rankP != 1): continue
+                        for Jij in range( int(abs( nlj1[2]-nlj2[2] ))//2, (nlj1[2]+nlj2[2])//2+1 ):
+                            for Jkl in range( int(abs( nlj3[2]-nlj4[2] ))//2, (nlj3[2]+nlj4[2])//2+1 ):
+                                if( self._triag(Jij, Jkl, self.rankJ ) ): continue
+                                data = [ float(x) for x in f.readline().split() ]
+                                if( abs(data[0]) > 1.e-10 ): self.set_tbme(pi,pj,pk,pl,Jij,Jkl,data[0])
+                                if( abs(data[1]) > 1.e-10 ): self.set_tbme(pi,pj,pk,nl,Jij,Jkl,data[1])
+                                if( abs(data[2]) > 1.e-10 ): self.set_tbme(pi,pj,nk,pl,Jij,Jkl,data[2])
+                                if( abs(data[3]) > 1.e-10 ): self.set_tbme(pi,pj,nk,nl,Jij,Jkl,data[3])
+                                if( abs(data[4]) > 1.e-10 ): self.set_tbme(pi,nj,pk,nl,Jij,Jkl,data[4])
+                                if( abs(data[5]) > 1.e-10 ): self.set_tbme(pi,nj,nk,pl,Jij,Jkl,data[5])
+                                if( abs(data[6]) > 1.e-10 ): self.set_tbme(pi,nj,nk,nl,Jij,Jkl,data[6])
+                                if( abs(data[7]) > 1.e-10 ): self.set_tbme(ni,pj,nk,pl,Jij,Jkl,data[7])
+                                if( abs(data[8]) > 1.e-10 ): self.set_tbme(ni,pj,nk,nl,Jij,Jkl,data[8])
+                                if( abs(data[9]) > 1.e-10 ): self.set_tbme(ni,nj,nk,nl,Jij,Jkl,data[9])
+        f.close()
+    def _read_general_operator_navratil(self, filename, comment="!"):
+        emax=16
+        orbs = Orbit.Orbits()
+        idx=0
+        for N in range(emax+1):
+            for l in range(N+1):
+                if( (N-l)%2==1 ): continue
+                n = (N-l)//2
+                for j in [2*l-1, 2*l+1]:
+                    if(j < 0): continue
+                    for z in [-1,1]:
+                        idx += 1
+                        orbs.add_orbit( n, l, j, z, idx )
+        self.set_orbits(orbs)
+        self.n_porb = orbs.norbs//2
+        self.n_norb = orbs.norbs//2
+        if(filename.find(".gz") != -1): f = gzip.open(filename, "r")
+        else: f = open(filename,"r")
+        header = f.readline()
+        while header[0] == comment:
+            header = f.readline()
+        self.rankJ = int(header)
+        header = f.readline()
+        self.rankZ = int(header)
+        header = f.readline()
+        self.rankP = int(header)
+        header = f.readline()
+        while header[0] == comment:
+            header = f.readline()
+        line = header
+
+        nlj = []
+        for N in range(emax+1):
+            for l in range(N+1):
+                if( (N-l)%2==1 ): continue
+                n = (N-l)//2
+                for j in [2*l-1, 2*l+1]:
+                    if(j < 0): continue
+                    nlj.append( (n, l, j) )
+        while len(line) != 0:
+            data = [ int(x) for x in line.split()[:-1] ]
+            data.append(float(line.split()[-1]))
+            ni = self.orbs.nljz_idx[ (nlj[data[0]-1][0], nlj[data[0]-1][1], nlj[data[0]-1][2], 1) ]
+            nj = self.orbs.nljz_idx[ (nlj[data[1]-1][0], nlj[data[1]-1][1], nlj[data[1]-1][2], 1) ]
+            pk = self.orbs.nljz_idx[ (nlj[data[2]-1][0], nlj[data[2]-1][1], nlj[data[2]-1][2],-1) ]
+            pl = self.orbs.nljz_idx[ (nlj[data[3]-1][0], nlj[data[3]-1][1], nlj[data[3]-1][2],-1) ]
+            if(abs(data[-1]) > 1.e-10): self.set_tbme(ni,nj,pk,pl,data[4],data[5],data[-1])
+            line = f.readline()
+        f.close()
+
+
     def write_operator_file(self, filename):
         if(filename.find(".snt") != -1):
             self._write_operator_snt( filename )
@@ -367,8 +537,8 @@ class Op:
                             pl = -1
                             nl = -1
                         if( (-1)**( nlj1[1]+nlj2[1]+nlj3[1]+nlj4[1] ) * self.rankP != 1): continue
-                        for Jij in range( int(abs( nlj1[2]-nlj2[2] ))//2, (nlj1[2]+nlj2[2])//2 ):
-                            for Jkl in range( int(abs( nlj3[2]-nlj4[2] ))//2, (nlj3[2]+nlj4[2])//2 ):
+                        for Jij in range( int(abs( nlj1[2]-nlj2[2] ))//2, (nlj1[2]+nlj2[2])//2+1 ):
+                            for Jkl in range( int(abs( nlj3[2]-nlj4[2] ))//2, (nlj3[2]+nlj4[2])//2+1 ):
                                 if( self._triag(Jij, Jkl, self.rankJ ) ): continue
 
                                 me_pppp = 0.0; me_pppn = 0.0; me_ppnp = 0.0; me_ppnn = 0.0; me_pnpn = 0.0
@@ -449,6 +619,54 @@ class Op:
                                 me = self.get_tbme(a,b,c,d,Jab,Jcd)
                                 if(abs(me) < 1e-8): continue
                                 print("{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d} {6:12.6f}".format(a,b,c,d,Jab,Jcd,me))
+    def truncate(self, emax, e2max=None):
+        if(e2max==None): e2max=2*emax
+        op = Op(rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ)
+        orbs = Orbit.Orbits()
+        idx = 0
+        for N in range(emax+1):
+            for l in range(N+1):
+                if( (N-l)%2==1 ): continue
+                n = (N-l)//2
+                for j in [2*l-1, 2*l+1]:
+                    if(j < 0): continue
+                    for z in [-1,1]:
+                        idx += 1
+                        orbs.add_orbit( n, l, j, z, idx )
+        op.set_orbits(orbs)
+        op.n_porb = orbs.norbs//2
+        op.n_norb = orbs.norbs//2
+        for i in range(1,op.orbs.norbs+1):
+            oi = op.orbs.get_orbit(i)
+            i_old = self.orbs.nljz_idx[ (oi.n, oi.l, oi.j, oi.z) ]
+            for j in range(1,op.orbs.norbs+1):
+                oj = op.orbs.get_orbit(j)
+                j_old = self.orbs.nljz_idx[ (oj.n, oj.l, oj.j, oj.z) ]
+                me = self.get_obme(i_old,j_old)
+                if(abs(me) > 1.e-10): op.set_obme(i,j,op.me)
+        for key in self.two.keys():
+            i_old = key[0]
+            j_old = key[1]
+            k_old = key[2]
+            l_old = key[3]
+            oi = self.orbs.get_orbit(i_old)
+            oj = self.orbs.get_orbit(j_old)
+            ok = self.orbs.get_orbit(k_old)
+            ol = self.orbs.get_orbit(l_old)
+            if( 2*oi.n+oi.l > emax): continue
+            if( 2*oj.n+oj.l > emax): continue
+            if( 2*ok.n+ok.l > emax): continue
+            if( 2*ol.n+ol.l > emax): continue
+            if( 2*oi.n+oi.l+2*oj.n+oj.l > e2max): continue
+            if( 2*ok.n+ok.l+2*ol.n+ol.l > e2max): continue
+            i = op.orbs.nljz_idx[ (oi.n, oi.l, oi.j, oi.z ) ]
+            j = op.orbs.nljz_idx[ (oj.n, oj.l, oj.j, oj.z ) ]
+            k = op.orbs.nljz_idx[ (ok.n, ok.l, ok.j, ok.z ) ]
+            l = op.orbs.nljz_idx[ (ol.n, ol.l, ol.j, ol.z ) ]
+            Jij = key[4]
+            Jkl = key[5]
+            op.set_tbme(i,j,k,l,Jij,Jkl,self.two[key])
+        return op
 
 def main():
     file_op="snt-file"
