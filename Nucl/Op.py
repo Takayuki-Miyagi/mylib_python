@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
-from . import Orbit
+from . import Orbits
 import gzip
 class Op:
     def __init__(self, file_op=None, file_sp=None, file_op2=None, rankJ=0, rankP=1, rankZ=0, file_format="snt"):

@@ -3,7 +3,7 @@ import sys
 import readline
 import numpy as np
 #
-from . import Orbit
+from . import Orbits
 from . import Op
 from . import TransitionDensity
 

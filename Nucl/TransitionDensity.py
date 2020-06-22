@@ -2,7 +2,7 @@
 import os
 import subprocess
 import time
-from . import Orbit
+from . import Orbits
 class TransitionDensity:
     def __init__(self, file_td=None, Jbra=0, Jket=0, wfbra=1, wfket=1, file_format="kshell"):
         self.one = {}
