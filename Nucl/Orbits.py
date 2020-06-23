@@ -155,7 +155,7 @@ class OrbitsIsospin:
         for label in strings:
             self.add_orbit_from_label(label)
     def get_orbit(self,idx):
-        return self.orbits[idx]
+        return self.orbits[idx-1]
     def get_orbit_index(self,*nlj):
         return self.nlj_idx[nlj]
     def get_orbit_index_from_orbit(self,o):

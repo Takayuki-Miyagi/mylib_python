@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-if(__package__==None):
+if(__package__==None or __package__==""):
     import Orbits
+else:
+    from . import Orbits
 class ThreeBodyChannel:
     def __init__(self,J=None,P=None,T=None,orbits=None,e2max=None,e3max=None):
         self.J = J

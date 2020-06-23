@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-if(__package__==None):
+if(__package__==None or __package__==""):
     import Orbits
+else:
+    from . import Orbits
 class TwoBodyChannel:
     def __init__(self,J=None,P=None,Z=None,orbits=None,e2max=None):
         self.J = J
@@ -59,7 +61,7 @@ class TwoBodySpace:
         self.number_channels = 0
         if( self.orbits != None ):
             if( self.e2max == None ): self.e2max = 2*self.orbits.emax
-            for J in range(self.e2max+1):
+            for J in range(self.e2max+2):
                 for P in [1,-1]:
                     for Z in [-1,0,1]:
                         channel = TwoBodyChannel(J=J,P=P,Z=Z,orbits=self.orbits,e2max=e2max)
