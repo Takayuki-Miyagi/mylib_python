@@ -25,7 +25,7 @@ class OrbitIsospin:
         return (self.n, self.l, self.j)
 
 class Orbits:
-    def __init__(self, emax=None, lmax=None, shell_model_space=None, verbose=True):
+    def __init__(self, emax=None, lmax=None, shell_model_space=None, verbose=False):
         self.nljz_idx = {}
         self.orbits  = []
         self.norbs = -1
@@ -113,12 +113,13 @@ class Orbits:
             print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d}".format(idx,*nljz,o.e) )
 
 class OrbitsIsospin:
-    def __init__(self, emax=None, lmax=None, shell_model_space=None):
+    def __init__(self, emax=None, lmax=None, shell_model_space=None, verbose=False):
         self.nlj_idx = {}
         self.orbits  = []
         self.norbs = -1
         self.emax = -1
         self.lmax = -1
+        self.verbose=verbose
         self._labels_orbital_angular_momentum = ('s',\
                 'p','d','f','g','h','i','k','l','m','n',\
                 'o','q','r','t','u','v','w','x','y','z')
@@ -126,7 +127,7 @@ class OrbitsIsospin:
         self.set_orbits(emax=emax,lmax=lmax,shell_model_space=shell_model_space)
     def add_orbit(self,*nlj):
         if(nlj in self.nlj_idx):
-            print("The orbit ({:3d},{:3d},{:3d}) is already there.".format(*nlj) )
+            if(self.verbose): print("The orbit ({:3d},{:3d},{:3d}) is already there.".format(*nlj) )
             return
         self.norbs = len(self.orbits)+1
         idx = self.norbs

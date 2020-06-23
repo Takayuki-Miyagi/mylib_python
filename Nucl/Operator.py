@@ -3,14 +3,14 @@ import sys
 import numpy as np
 import copy
 import gzip
-if(__package__==None or __package==""):
+if(__package__==None or __package__==""):
     import ModelSpace
 else:
-    from . import Orbits
+    from . import Orbits, OrbitsIsospin
     from . import ModelSpace
 
 class Operator:
-    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=False, verbose=True):
+    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=False, verbose=False):
         self.ms = ms
         self.rankJ = rankJ
         self.rankP = rankP
@@ -269,13 +269,13 @@ class Operator:
             b = line.startswith(comment)
         f.seek(x)
 
-        orbs = Orbits.Orbits()
+        orbs = Orbits()
         for i in range(norbs):
             line = f.readline()
             data = line.split()
             idx, n, l, j, z = int(data[0]), int(data[1]), int(data[2]), int(data[3]), int(data[4])
             orbs.add_orbit(n,l,j,z)
-        ms = ModelSpace.ModelSpace()
+        ms = ModelSpace()
         ms.set_modelspace_from_orbits( orbs )
         self.allocate_operator( ms )
         self.set_0bme( zerobody )
@@ -328,7 +328,7 @@ class Operator:
         f.close()
 
     def _read_lotta_format(self, filename, ime ):
-        orbs = Orbits.Orbits(verbose=False)
+        orbs = Orbits(verbose=False)
         f = open(filename, "r")
         lines = f.readlines()
         f.close()
@@ -347,7 +347,7 @@ class Operator:
             n_j = int(entry[2])
             exist = False
             orbs.add_orbit(n_n, n_l, n_j, 1)
-        ms = ModelSpace.ModelSpace(rank=1)
+        ms = ModelSpace(rank=1)
         ms.set_modelspace_from_orbits( orbs )
         self.allocate_operator( ms )
         self.set_0bme( 0.0 )
@@ -379,10 +379,10 @@ class Operator:
         emax = int(dat[3])
         e2max = int(dat[4])
 
-        ms = ModelSpace.ModelSpace()
+        ms = ModelSpace()
         ms.set_modelspace_from_boundaries( emax=emax )
         self.allocate_operator( ms )
-        iorbits = Orbits.OrbitsIsospin( emax=emax )
+        iorbits = OrbitsIsospin( emax=emax )
         orbits = ms.orbits
         data = f.readline()
         self.set_0bme( float(data) )
@@ -438,10 +438,10 @@ class Operator:
         f.close()
     def _read_general_operator_navratil(self, filename, comment="!"):
         emax=16
-        ms = ModelSpace.ModelSpace()
+        ms = ModelSpace()
         ms.set_modelspace_from_boundaries( emax=emax, e2max=emax )
         self.allocate_operator( ms )
-        iorbits = Orbits.OrbitsIsospin( emax=emax )
+        iorbits = OrbitsIsospin( emax=emax )
         orbits = ms.orbits
 
         if(filename.find(".gz") != -1): f = gzip.open(filename, "r")
@@ -512,7 +512,7 @@ class Operator:
         f.write(" {:3d} {:3d} {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ, E, 2*E ))
         f.write("{:14.8f}\n".format( self.zero ) )
 
-        iorbits = Orbits.OrbitsIsospin( emax=E )
+        iorbits = OrbitsIsospin( emax=E )
         norbs = iorbits.get_num_orbits() + 1
         for i in range(1,norbs):
             oi = iorbits.get_orbit(i)
@@ -657,7 +657,9 @@ class Operator:
 def main():
     ms = ModelSpace.ModelSpace()
     ms.set_modelspace_from_boundaries(4)
-    ms.print_modelspace_summary()
+    op = Operator(verbose=False)
+    op.allocate_operator(ms)
+    op.print_operator()
 if(__name__=="__main__"):
     main()
 
