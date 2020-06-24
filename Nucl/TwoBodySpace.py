@@ -36,7 +36,7 @@ class TwoBodyChannel:
             self.index_from_indices[(ia,ib)] = idx
             self.index_from_indices[(ib,ia)] = idx
             self.phase_from_indices[(ia,ib)] = 1
-            self.phase_from_indices[(ib,ia)] = (-1)**( (oa.j+ob.j)//2 - self.J )
+            self.phase_from_indices[(ib,ia)] = -(-1)**( (oa.j+ob.j)//2 - self.J )
         self.number_states = len( self.orbit1_index )
     def get_number_states(self):
         return self.number_states

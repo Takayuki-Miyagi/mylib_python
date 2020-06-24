@@ -10,7 +10,7 @@ else:
     from . import ModelSpace
 
 class TransitionDensity:
-    def __init__(self, Jbra=None, Jket=None, wflabel_bra=None, wflabel_ket=None, ms=None, filename=None, file_format="kshell", verbose=True):
+    def __init__(self, Jbra=None, Jket=None, wflabel_bra=None, wflabel_ket=None, ms=None, filename=None, file_format="kshell", verbose=False):
         self.Jbra = Jbra
         self.Jket = Jket
         self.wflabel_bra = wflabel_bra
@@ -57,7 +57,7 @@ class TransitionDensity:
         ob = orbits.get_orbit(b)
         me_rank = {jrank: me}
         self.one[(a,b,jrank)] = me
-        self.one[(b,a,jrank)] = me * (-1)**( (ob.j+oa.j)//2 -jrank )
+        self.one[(b,a,jrank)] = me * (-1)**( (ob.j-oa.j)//2 )
     def set_2tbtd_from_mat_indices( self, chbra, chket, bra, ket, jrank, me ):
         if( chbra < chket ):
             if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
@@ -87,7 +87,7 @@ class TransitionDensity:
         else:
             ichbra = ichket_tmp
             ichket = ichbra_tmp
-            phase *=  (-1)**(Jcd+Jab-jrank)
+            phase *=  (-1)**(Jcd-Jab)
             aa, bb, cc, dd, = c, d, a, b
         chbra = two.get_channel(ichbra)
         chket = two.get_channel(ichket)
@@ -145,7 +145,7 @@ class TransitionDensity:
         else:
             ichbra = ichket_tmp
             ichket = ichbra_tmp
-            phase *=  (-1)**(Jcd+Jab-jrank)
+            phase *=  (-1)**(Jcd-Jab)
             aa, bb, cc, dd, = c, d, a, b
         chbra = two.get_channel(ichbra)
         chket = two.get_channel(ichket)
@@ -470,6 +470,8 @@ class TransitionDensity:
                                 if(op.rankJ==0 and op.rankP==1 and op.rankZ==0):
                                     two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ) * \
                                             np.sqrt(2*Jij+1)/np.sqrt(2*self.Jbra+1)
+                                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ,self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
+                                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl)))
                                 else:
                                     two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)
         return zero,one,two
@@ -477,7 +479,5 @@ class TransitionDensity:
 def main():
     file_td="transition-density-file-name"
     TD = TransitionDensity()
-
-
 if(__name__=="__main__"):
     main()

@@ -10,20 +10,20 @@ else:
     from . import ModelSpace
 
 class Operator:
-    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=False, verbose=False):
+    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=False, filename=None, verbose=False):
         self.ms = ms
         self.rankJ = rankJ
         self.rankP = rankP
         self.rankZ = rankZ
         self.reduced = reduced
         self.verbose = verbose
+        self.zero = 0.0
+        self.one = None
+        self.two = {}
+        self.three = {}
         if( rankJ != 0 ): self.reduced = True
-        if(ms == None):
-            self.zero = 0.0
-            self.one = None
-            self.two = {}
-            self.three = {}
-            return
+        if( ms != None ): self.allocate_operator( ms )
+        if( filename != None ): self.read_operator_file( filename )
 
     def allocate_operator(self, ms):
         self.ms = copy.deepcopy(ms)
@@ -100,7 +100,7 @@ class Operator:
         oc = orbits.get_orbit(c)
         od = orbits.get_orbit(d)
         Pab = (-1)**(oa.l+ob.l)
-        Pcd = (-1)**(oa.l+ob.l)
+        Pcd = (-1)**(oc.l+od.l)
         Zab = (oa.z + ob.z)//2
         Zcd = (oc.z + od.z)//2
         if( self._triag( Jab, Jcd, self.rankJ )):
