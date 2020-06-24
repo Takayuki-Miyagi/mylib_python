@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 if(__package__==None or __package__==""):
-    import Orbits
+    import OrbitsIsospin
 else:
-    from . import Orbits
+    from . import OrbitsIsospin
 class ThreeBodyChannel:
     def __init__(self,J=None,P=None,T=None,orbits=None,e2max=None,e3max=None):
         self.J = J
@@ -90,7 +90,7 @@ class ThreeBodySpace:
     def get_index(self,*JPT):
         return self.index_from_JPT[JPT]
     def get_channel(self,idx):
-        return self.channel[idx]
+        return self.channels[idx]
     def get_channel_from_JPT(self,*JPT):
         return self.get_channel( self.get_index(*JPT) )
     def print_channels(self):

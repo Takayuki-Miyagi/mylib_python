@@ -47,7 +47,7 @@ class Operator:
                 chket = three.get_channel(ichket)
                 if( self._triag( chbra.J, chket.J, self.rankJ )): continue
                 if( chbra.P * chket.P * self.rankP != 1): continue
-                if( self._triag( chbra.T, chket.T, self.rankT )): continue
+                if( self._triag( chbra.T, chket.T, self.rankZ )): continue
                 self.three[(ichbra,ichket)] = {}
     def count_nonzero_1bme(self):
         counter = 0
@@ -137,6 +137,53 @@ class Operator:
         c = orbits.orbit_index_from_orbit( oc )
         d = orbits.orbit_index_from_orbit( od )
         self.set_2bme_from_indices( a, b, c, d, Jab, Jcd, me )
+    def set_3bme_from_mat_indices( self, chbra, chket, bra, ket, me ):
+        if( chbra < chket ):
+            if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
+            return
+        self.three[(chbra,chket)][(bra,ket)] = me
+        if( chbra == chket ): self.three[(chbra,chket)][ket,bra] = me
+    def set_3bme_from_indices( self, a, b, c, Jab, Tab, d, e, f, Jde, Tde, Jbra, Tbra, Jket, Tket, me ):
+        three = self.ms.three
+        iorbits = three.orbits
+        if( not a>=b>=c ): print( "In three body exchange of indices is not supported. " )
+        if( not d>=e>=f ): print( "In three body exchange of indices is not supported. " )
+        oa = iorbits.get_orbit(a)
+        ob = iorbits.get_orbit(b)
+        oc = iorbits.get_orbit(c)
+        od = iorbits.get_orbit(d)
+        oe = iorbits.get_orbit(d)
+        of = iorbits.get_orbit(d)
+        Pbra = (-1)**(oa.l+ob.l+oc.l)
+        Pket = (-1)**(od.l+oe.l+oe.l)
+        if( self._triag( Jbra, Jket, 2*self.rankJ )):
+            if(self.verbose): print("Warning: J, " + sys._getframe().f_code.co_name )
+            return
+        if( Pbra * Pket * self.rankP != 1):
+            if(self.verbose): print("Warning: Parity, " + sys._getframe().f_code.co_name )
+            return
+        if( self._triag( Tbra, Tket, 2*self.rankZ) ):
+            if(self.verbose): print("Warning: Z, " + sys._getframe().f_code.co_name )
+            return
+        ichbra_tmp = three.get_index(Jbra,Pbra,Tbra)
+        ichket_tmp = three.get_index(Jket,Pket,Tket)
+        phase = 1
+        if( ichbra_tmp >= ichket_tmp ):
+            ichbra = ichbra_tmp
+            ichket = ichket_tmp
+            i, j, k, l, m, n = a, b, c, d, e, f
+            Jij, Tij, Jlm, Tlm = Jab, Tab, Jde, Tde
+        else:
+            ichbra = ichket_tmp
+            ichket = ichbra_tmp
+            phase *=  (-1)**(Jket-Jbra)
+            i, j, k, l, m, n = d, e, f, a, b, c
+            Jij, Tij, Jlm, Tlm = Jde, Tde, Jab, Tab
+        chbra = three.get_channel(ichbra)
+        chket = three.get_channel(ichket)
+        bra = chbra.index_from_indices[(i,j,k,Jij,Tij)]
+        ket = chket.index_from_indices[(l,m,n,Jlm,Tlm)]
+        self.set_3bme_from_mat_indices(ichbra,ichket,bra,ket,me*phase)
 
     def get_0bme(self):
         return self.zero
@@ -206,6 +253,52 @@ class Operator:
         c = orbits.orbit_index_from_orbit( oc )
         d = orbits.orbit_index_from_orbit( od )
         return self.get_2bme_from_indices( a, b, c, d, Jab, Jcd )
+    def get_3bme_from_mat_indices( self, chbra, chket, bra, ket ):
+        if( chbra < chket ):
+            if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
+            return
+        return self.three[(chbra,chket)][(bra,ket)]
+    def get_3bme_from_indices( self, a, b, c, Jab, Tab, d, e, f, Jde, Tde, Jbra, Tbra, Jket, Tket ):
+        three = self.ms.three
+        iorbits = three.orbits
+        if( not a>=b>=c ): print( "In three body exchange of indices is not supported. " )
+        if( not d>=e>=f ): print( "In three body exchange of indices is not supported. " )
+        oa = orbits.get_orbit(a)
+        ob = orbits.get_orbit(b)
+        oc = orbits.get_orbit(c)
+        od = orbits.get_orbit(d)
+        oe = orbits.get_orbit(d)
+        of = orbits.get_orbit(d)
+        Pbra = (-1)**(oa.l+ob.l+oc.l)
+        Pket = (-1)**(od.l+oe.l+oe.l)
+        if( self._triag( Jbra, Jket, 2*self.rankJ )):
+            if(self.verbose): print("Warning: J, " + sys._getframe().f_code.co_name )
+            return
+        if( Pbra * Pket * self.rankP != 1):
+            if(self.verbose): print("Warning: Parity, " + sys._getframe().f_code.co_name )
+            return
+        if( self._triag( Tbra, Tket, 2*self.rankZ) ):
+            if(self.verbose): print("Warning: Z, " + sys._getframe().f_code.co_name )
+            return
+        ichbra_tmp = three.get_index(Jbra,Pbra,Tbra)
+        ichket_tmp = three.get_index(Jket,Pket,Tket)
+        phase = 1
+        if( ichbra_tmp >= ichket_tmp ):
+            ichbra = ichbra_tmp
+            ichket = ichket_tmp
+            i, j, k, l, m, n = a, b, c, d, e, f
+            Jij, Tij, Jlm, Tlm = Jab, Tab, Jde, Tde
+        else:
+            ichbra = ichket_tmp
+            ichket = ichbra_tmp
+            phase *=  (-1)**(Jket-Jbra)
+            i, j, k, l, m, n = d, e, f, a, b, c
+            Jij, Tij, Jlm, Tlm = Jde, Tde, Jab, Tab
+        chbra = three.get_channel(ichbra)
+        chket = three.get_channel(ichket)
+        bra = chbra.index_from_indices[(i,j,k,Jij,Tij)]
+        ket = chket.index_from_indices[(l,m,n,Jlm,Tlm)]
+        return self.set_3bme_from_mat_indices(ichbra,ichket,bra,ket) * phase
 
     def read_operator_file(self, filename, spfile=None, opfile2=None, comment="!", istore=None):
         if(filename.find(".snt") != -1):
@@ -216,6 +309,9 @@ class Operator:
             return
         if(filename.find(".navratil") != -1):
             self._read_general_operator_navratil(filename, comment)
+            return
+        if(filename.find(".readable.txt") != -1):
+            self._read_3b_operator_readabletxt(filename, comment)
             return
         if(filename.find(".int") != -1):
             if(spfile == None):
@@ -436,6 +532,24 @@ class Operator:
                                 if( abs(data[8]) > 1.e-10 ): self.set_2bme_from_indices(ni,pj,nk,nl,Jij,Jkl,data[8])
                                 if( abs(data[9]) > 1.e-10 ): self.set_2bme_from_indices(ni,nj,nk,nl,Jij,Jkl,data[9])
         f.close()
+    def _read_3b_operator_readabletxt(self, filename, comment="!"):
+        if( len( self.ms.three.channels ) == 0 ):
+            ms = ModelSpace()
+            ms.set_modelspace_from_boundaries( emax=6, e2max=6, e3max=6 )
+            self.allocate_operator( ms )
+        iorbits = self.ms.iorbits
+        f = open(filename,"r")
+        header = f.readline()
+        header = f.readline()
+
+        line = f.readline()
+        while len(line) != 0:
+            data = [ int(x) for x in line.split()[:-1] ]
+            data.append(float(line.split()[-1]))
+            i, j, k, Jij, Tij, l, m, n, Jlm, Tlm, Jbra, Tbra, Jket, Tket, ME = data
+            if(abs(ME) > 1.e-10): self.set_3bme_from_indices(i,j,k,Jij,Tij,l,m,n,Jlm,Tlm,Jbra,Tbra,Jket,Tket,ME)
+            line = f.readline()
+        f.close()
     def _read_general_operator_navratil(self, filename, comment="!"):
         emax=16
         ms = ModelSpace()
@@ -653,6 +767,35 @@ class Operator:
                                 me = self.get_2bme_from_indices(a,b,c,d,Jab,Jcd)
                                 if(abs(me) < 1e-8): continue
                                 print("{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d} {6:12.6f}".format(a,b,c,d,Jab,Jcd,me))
+        three = self.ms.three
+        print("three-body term:")
+        print("   a   b   c Jab Tab d  e  f Jde Tde Jbra Tbra Jket Tket      MtxElm")
+        for ichbra in range(three.get_number_channels()):
+            chbra = three.get_channel(ichbra)
+            for ichket in range(ichbra+1):
+                chket = three.get_channel(ichket)
+                if( self._triag( chbra.J, chket.J, self.rankJ )): continue
+                if( chbra.P * chket.P * self.rankP != 1): continue
+                if( self._triag( chbra.T, chket.T, self.rankZ )): continue
+                for key in self.three[(ichbra,ichket)].keys():
+                    bra, ket = key
+                    a = chbra.orbit1_index[bra]
+                    b = chbra.orbit2_index[bra]
+                    c = chbra.orbit3_index[bra]
+                    Jab = chbra.J12_index[bra]
+                    Tab = chbra.T12_index[bra]
+                    d = chket.orbit1_index[ket]
+                    e = chket.orbit2_index[ket]
+                    f = chket.orbit3_index[ket]
+                    Jde = chket.J12_index[ket]
+                    Tde = chket.T12_index[ket]
+                    ME = self.three[(ichbra,ichket)][(bra,ket)]
+                    if(abs(ME) < 1e-8): continue
+                    line = "{:3d} {:3d} {:3d} {:3d} {:3d}".format(a,b,c,Jab,Tab)
+                    line += "{:3d} {:3d} {:3d} {:3d} {:3d}".format(d,e,f,Jde,Tde)
+                    line += "{:3d} {:3d} {:3d} {:3d}".format(chbra.J, chbra.T, chket.J, chket.T)
+                    line += "{:12.6f}".format(ME)
+                    print(line)
 
 def main():
     ms = ModelSpace.ModelSpace()

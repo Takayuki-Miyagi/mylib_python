@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import copy
 if(__package__==None or __package__==""):
-    import Orbits
+    import Orbits, OrbitsIsospin
     import TwoBodySpace
     import ThreeBodySpace
 else:
-    from . import Orbits
+    from . import Orbits, OrbitsIsospin
     from . import TwoBodySpace
     from . import ThreeBodySpace
 
@@ -25,10 +25,10 @@ class ModelSpace:
         self.e3max = e3max
         if(e2max == None): self.e2max=2*self.emax
         if(e3max == None): self.e3max=3*self.emax
-        self.orbits = Orbits.Orbits( emax=emax )
-        if(self.rank==2): self.two = TwoBodySpace.TwoBodySpace( orbits=self.orbits, e2max=e2max )
-        if(self.rank==3): self.iorbits = Orbits.OrbitsIsospin(emax=emax)
-        if(self.rank==3): self.three = ThreeBodySpace.ThreeBodySpace( orbits=self.iorbits, e2max=e2max, e3max=e3max )
+        self.orbits = Orbits( emax=emax )
+        if(self.rank>=2): self.two = TwoBodySpace.TwoBodySpace( orbits=self.orbits, e2max=e2max )
+        if(self.rank>=3): self.iorbits = OrbitsIsospin(emax=emax)
+        if(self.rank>=3): self.three = ThreeBodySpace.ThreeBodySpace( orbits=self.iorbits, e2max=e2max, e3max=e3max )
     def set_modelspace_from_orbits(self, orbits, e2max=None, e3max=None, iorbits=None):
         self.orbits = copy.deepcopy(orbits)
         self.emax = self.orbits.emax
@@ -36,14 +36,14 @@ class ModelSpace:
         self.e3max = e3max
         if( self.e2max == None ): self.e2max=2*orbits.emax
         if( self.e3max == None ): self.e3max=3*orbits.emax
-        if(self.rank==2): self.two = TwoBodySpace.TwoBodySpace( orbits=self.orbits, e2max=e2max )
-        if(self.rank==3 and iorbits!=None): self.iorbits = copy.deepcopy(iorbits)
-        if(self.rank==3 and iorbits!=None): self.three = ThreeBodySpace.ThreeBodySpace( orbits=self.iorbits, e2max=e2max, e3max=e3max )
+        if(self.rank>=2): self.two = TwoBodySpace.TwoBodySpace( orbits=self.orbits, e2max=e2max )
+        if(self.rank>=3 and iorbits!=None): self.iorbits = copy.deepcopy(iorbits)
+        if(self.rank>=3 and iorbits!=None): self.three = ThreeBodySpace.ThreeBodySpace( orbits=self.iorbits, e2max=e2max, e3max=e3max )
     def print_modelspace_summary(self):
         self.orbits.print_orbits()
-        if(self.rank==2): self.two.print_channels()
-        if(self.rank==3): self.iorbits.print_orbits()
-        if(self.rank==3): self.three.print_channels()
+        if(self.rank>=2): self.two.print_channels()
+        if(self.rank>=3): self.iorbits.print_orbits()
+        if(self.rank>=3): self.three.print_channels()
 
 
 def main():
