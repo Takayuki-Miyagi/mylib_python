@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import copy
-print(__package__)
 if(__package__==None or __package__==""):
     import Orbits
     import TwoBodySpace
