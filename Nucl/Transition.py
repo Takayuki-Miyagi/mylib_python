@@ -3,6 +3,21 @@ import numpy as np
 from sympy import N
 from sympy.physics.wigner import wigner_3j
 from scipy.special import factorial2
+from scipy.constants import physical_constants
+def Rp2_to_Rch2( Rp2, Z, N ):
+    """
+    inputs:
+        Rp2: mean squared point proton radius
+        Z: proton number
+        N: neutron number
+    output:
+        mean squared charge radii
+    """
+    rcp2 = 0.8783**2
+    rcn2 = -0.115
+    DF = 0.033
+    return Rp2 + rcp2 + N/Z * rcn2 + DF
+
 def ME_to_moment( ME, J, lam ):
     """
     inputs:

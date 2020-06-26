@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-import sys
+import os, sys, copy, gzip, subprocess, time
 import numpy as np
-import copy
-import gzip
 if(__package__==None or __package__==""):
     import ModelSpace
 else:
