@@ -303,15 +303,23 @@ class Operator:
     def read_operator_file(self, filename, spfile=None, opfile2=None, comment="!", istore=None):
         if(filename.find(".snt") != -1):
             self._read_operator_snt(filename, comment)
+            if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
+                print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         if(filename.find(".op.me2j") != -1):
             self._read_general_operator(filename, comment)
+            if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
+                print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         if(filename.find(".navratil") != -1):
             self._read_general_operator_navratil(filename, comment)
+            if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
+                print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         if(filename.find(".readable.txt") != -1):
             self._read_3b_operator_readabletxt(filename, comment)
+            if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
+                print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         if(filename.find(".int") != -1):
             if(spfile == None):
@@ -325,10 +333,14 @@ class Operator:
                 nushell2snt.tensor( spfile, filename, opfile2, "tmp.snt" )
             self._read_operator_snt("tmp.snt", "!")
             subprocess.call("rm tmp.snt", shell=True)
+            if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
+                print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         if(filename.find(".lotta") != -1):
             if( istore == None ): self._read_lotta_format(filename,0)
             if( istore != None ): self._read_lotta_format(filename,istore)
+            if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
+                print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         print("Unknown file format in " + sys._getframe().f_code.co_name )
         return
@@ -342,6 +354,7 @@ class Operator:
         f = open(filename, 'r')
         line = f.readline()
         b = True
+        zerobody=0
         while b == True:
             line = f.readline()
             if(line.find("zero body") != -1 or \
@@ -743,6 +756,7 @@ class Operator:
                 me = self.get_1bme(a,b)
                 if(abs(me) < 1e-8): continue
                 print("{0:3d} {1:3d} {2:12.6f}".format(a,b,me))
+        if(self.ms.rank==1): return
         print("two-body term:")
         print("  a   b   c   d Jab Jcd       MtxElm")
         for a in range(1, orbits.get_num_orbits()+1):
@@ -767,6 +781,7 @@ class Operator:
                                 me = self.get_2bme_from_indices(a,b,c,d,Jab,Jcd)
                                 if(abs(me) < 1e-8): continue
                                 print("{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d} {6:12.6f}".format(a,b,c,d,Jab,Jcd,me))
+        if(self.ms.rank==2): return
         three = self.ms.three
         print("three-body term:")
         print("   a   b   c Jab Tab d  e  f Jde Tde Jbra Tbra Jket Tket      MtxElm")

@@ -6,3 +6,4 @@ from .Orbits import Orbits, OrbitsIsospin
 from .ModelSpace import ModelSpace
 from .Operator import Operator
 from .TransitionDensity import TransitionDensity
+from .PeriodicTable import periodic_table

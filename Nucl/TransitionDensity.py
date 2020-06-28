@@ -37,9 +37,9 @@ class TransitionDensity:
             for ichket in range(three.get_number_channels()):
                 chket = three.get_channel(ichket)
                 self.three[(ichbra,ichket)] = {}
-    def count_nonzero_1bme(self):
+    def count_nonzero_1btd(self):
         return len(self.one)
-    def count_nonzero_2bme(self):
+    def count_nonzero_2btd(self):
         counter = 0
         two = self.ms.two
         nch = two.get_number_channels()
@@ -174,9 +174,13 @@ class TransitionDensity:
             return
         if( file_format=="kshell"):
             self._read_td_kshell_format(filename)
+            if( self.count_nonzero_1btd() + self.count_nonzero_2btd() == 0):
+                print("The number of non-zero transition density matrix elements is 0 better to check: "+ filename + "!!")
             return
         if( file_format=="nutbar"):
             self._read_td_nutbar_format(filename)
+            if( self.count_nonzero_1btd() + self.count_nonzero_2btd() == 0):
+                print("The number of non-zero transition density matrix elements is 0 better to check: "+ filename + "!!")
             return
 
     def _skip_comment(self,f,comment="#"):
