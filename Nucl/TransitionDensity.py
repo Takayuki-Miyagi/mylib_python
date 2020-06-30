@@ -175,7 +175,8 @@ class TransitionDensity:
         if( file_format=="kshell"):
             self._read_td_kshell_format(filename)
             if( self.count_nonzero_1btd() + self.count_nonzero_2btd() == 0):
-                print("The number of non-zero transition density matrix elements is 0 better to check: "+ filename + "!!")
+                print("The number of non-zero transition density matrix elements is 0 better to check: "+ filename + "!! " + \
+                        "Jbra=" + str(self.Jbra) + " (wf label:"+ str(self.wflabel_bra)+"), Jket="+str(self.Jket)+" (wf label:"+str(self.wflabel_ket)+")")
             return
         if( file_format=="nutbar"):
             self._read_td_nutbar_format(filename)
@@ -443,6 +444,7 @@ class TransitionDensity:
             for j in range(1, norbs+1):
                 oj = orbits_op.get_orbit(j)
                 j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
+                if( oi.z-oj.z != 2*op.rankZ): continue # only <n|O|p> if rankZ != 0
                 if( op.rankJ==0 and op.rankP==1 and op.rankZ==0 ):
                     one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) * np.sqrt(oj.j+1) / np.sqrt(2*self.Jbra+1)
                 else:
@@ -463,7 +465,7 @@ class TransitionDensity:
                         k_d = orbits_de.get_orbit_index(ok.n, ok.l, ok.j, ok.z)
                         l_d = orbits_de.get_orbit_index(ol.n, ol.l, ol.j, ol.z)
                         if((-1)**(oi.l+oj.l+ok.l+ol.l) * op.rankP != 1): continue
-                        if(abs(oi.z + oj.z - ok.z - ol.z) != 2*op.rankZ): continue
+                        if( oi.z+oj.z-ok.z-ol.z != 2*op.rankZ): continue # only <nn|O|pp>, <nn|O|np>, <np|O|pp> if rankZ !=0
                         for Jij in range( int(abs(oi.j-oj.j)/2), int((oi.j+oj.j)/2)+1):
                             if(i == j and Jij%2 == 1): continue
                             for Jkl in range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2+1)):
