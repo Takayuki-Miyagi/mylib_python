@@ -33,7 +33,16 @@ def get_occupation(logs):
                     nlist = []
                     for i in range(len(data)-2):
                         nlist.append(float(data[i+2]))
-                e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist)
+                while len(line)!=0:
+                    line = f.readline()
+                    data = line.split()
+                    if(line[0:4] ==" hw:"):
+                        hws = {}
+                        for i in range(len(data)-1):
+                            hw, prob = data[i+1].split(":")
+                            hws[int(hw)] = float(prob)
+                        break
+                e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist, hws)
         f.close()
     return e_data
 

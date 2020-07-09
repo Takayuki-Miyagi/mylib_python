@@ -81,7 +81,8 @@ def ground_state_energy(edict):
     return egs
 
 def ground_state(edict):
-    egs = 100.0
+    egs = 1e10
+    gs = ("0","+",1)
     for key in edict.keys():
         if(egs > edict[key]):
             gs = key

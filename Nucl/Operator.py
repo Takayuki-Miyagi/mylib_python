@@ -146,8 +146,12 @@ class Operator:
     def set_3bme_from_indices( self, a, b, c, Jab, Tab, d, e, f, Jde, Tde, Jbra, Tbra, Jket, Tket, me ):
         three = self.ms.three
         iorbits = three.orbits
-        if( not a>=b>=c ): print( "In three body exchange of indices is not supported. " )
-        if( not d>=e>=f ): print( "In three body exchange of indices is not supported. " )
+        if( not a>=b>=c ):
+            print( "In three body exchange of indices is not supported. " )
+            return
+        if( not d>=e>=f ):
+            print( "In three body exchange of indices is not supported. " )
+            return
         oa = iorbits.get_orbit(a)
         ob = iorbits.get_orbit(b)
         oc = iorbits.get_orbit(c)
