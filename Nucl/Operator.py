@@ -45,9 +45,9 @@ class Operator:
             chbra = three.get_channel(ichbra)
             for ichket in range(ichbra+1):
                 chket = three.get_channel(ichket)
-                if( self._triag( chbra.J, chket.J, self.rankJ )): continue
+                if( self._triag( chbra.J, chket.J, 2*self.rankJ )): continue
                 if( chbra.P * chket.P * self.rankP != 1): continue
-                if( self._triag( chbra.T, chket.T, self.rankZ )): continue
+                if( self._triag( chbra.T, chket.T, 2*self.rankZ )): continue
                 self.three[(ichbra,ichket)] = {}
     def count_nonzero_1bme(self):
         counter = 0
@@ -68,6 +68,19 @@ class Operator:
                 if( chbra.P * chket.P * self.rankP != 1): continue
                 if( abs(chbra.Z-chket.Z) != self.rankZ): continue
                 counter += len( self.two[(i,j)] )
+        return counter
+    def count_nonzero_3bme(self):
+        counter = 0
+        three = self.ms.three
+        nch = three.get_number_channels()
+        for i in range(nch):
+            chbra = three.get_channel(i)
+            for j in range(i+1):
+                chket = three.get_channel(j)
+                if( self._triag( chbra.J, chket.J, 2*self.rankJ )): continue
+                if( self._triag( chbra.T, chket.T, 2*self.rankZ )): continue
+                if( chbra.P * chket.P * self.rankP != 1): continue
+                counter += len( self.three[(i,j)] )
         return counter
     def set_0bme( self, me ):
         self.zero = me
@@ -158,6 +171,26 @@ class Operator:
         od = iorbits.get_orbit(d)
         oe = iorbits.get_orbit(d)
         of = iorbits.get_orbit(d)
+        ea = 2*oa.n + oa.l
+        eb = 2*ob.n + ob.l
+        ec = 2*oc.n + oc.l
+        ed = 2*od.n + od.l
+        ee = 2*oe.n + oe.l
+        ef = 2*of.n + of.l
+        if(ea > self.ms.emax ): return
+        if(eb > self.ms.emax ): return
+        if(ec > self.ms.emax ): return
+        if(ed > self.ms.emax ): return
+        if(ee > self.ms.emax ): return
+        if(ef > self.ms.emax ): return
+        if(ea+eb > self.ms.e2max ): return
+        if(ea+ec > self.ms.e2max ): return
+        if(eb+ec > self.ms.e2max ): return
+        if(ed+ee > self.ms.e2max ): return
+        if(ed+ef > self.ms.e2max ): return
+        if(ee+ef > self.ms.e2max ): return
+        if(ea+eb+ec > self.ms.e3max ): return
+        if(ed+ee+ef > self.ms.e3max ): return
         Pbra = (-1)**(oa.l+ob.l+oc.l)
         Pket = (-1)**(od.l+oe.l+oe.l)
         if( self._triag( Jbra, Jket, 2*self.rankJ )):
@@ -322,7 +355,7 @@ class Operator:
             return
         if(filename.find(".readable.txt") != -1):
             self._read_3b_operator_readabletxt(filename, comment)
-            if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
+            if( self.count_nonzero_1bme() + self.count_nonzero_2bme() + self.count_nonzero_3bme() == 0):
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         if(filename.find(".int") != -1):
@@ -564,7 +597,7 @@ class Operator:
             data = [ int(x) for x in line.split()[:-1] ]
             data.append(float(line.split()[-1]))
             i, j, k, Jij, Tij, l, m, n, Jlm, Tlm, Jbra, Tbra, Jket, Tket, ME = data
-            if(abs(ME) > 1.e-10): self.set_3bme_from_indices(i,j,k,Jij,Tij,l,m,n,Jlm,Tlm,Jbra,Tbra,Jket,Tket,ME)
+            if(abs(ME) > 1.e-6): self.set_3bme_from_indices(i,j,k,Jij,Tij,l,m,n,Jlm,Tlm,Jbra,Tbra,Jket,Tket,ME)
             line = f.readline()
         f.close()
     def _read_general_operator_navratil(self, filename, comment="!"):

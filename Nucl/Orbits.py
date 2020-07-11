@@ -75,6 +75,11 @@ class Orbits:
             self.add_orbit_from_label(label)
     def get_orbit(self,idx):
         return self.orbits[idx-1]
+    def get_orbit_label(self,idx):
+        o = self.get_orbit(idx)
+        pn = "p"
+        if(o.z==1): pn="n"
+        return pn+str(o.n)+self._labels_orbital_angular_momentum[o.l]+str(o.j)
     def get_orbit_index(self,*nljz):
         return self.nljz_idx[nljz]
     def get_orbit_index_from_orbit(self,o):
