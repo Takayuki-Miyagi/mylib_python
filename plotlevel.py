@@ -108,6 +108,32 @@ def draw_energies(axs, edict, xcenter, width, color=None, color_index=None, lw=4
         if(c == None): c = get_state_color(J,P, color_index)
         axs.plot([xcenter-width,xcenter+width],[edict[key],edict[key]],c=c,lw=lw)
 
+def draw_single_particle_energies(axs, spe, xcenter, width=0.3, lw=1, jmax=None, proton=True, neutron=True):
+    if(jmax == None):
+        jmax = 0
+        for key in spe.keys():
+            jmax = max( key[2], jmax )
+
+    for key in spe.keys():
+        n = key[0]
+        l = key[1]
+        j = key[2]
+        z = key[3]
+        ls = "-"
+        if( not proton and z==-1): continue
+        if( not neutron and z==1): continue
+        if( spe[key][1] == 0.0 ): ls = "--"
+        if(z ==1):
+            c = "b"
+            xmax = xcenter + float(j) / float(jmax) * width
+            xmin = xcenter
+        if(z ==-1):
+            c = "r"
+            xmax = xcenter
+            xmin = xcenter - float(j) / float(jmax) * width
+        axs.plot( [xmin, xmax], [spe[key][0], spe[key][0]], ls=ls, c=c, lw=lw )
+
+
 def plot_energies(axs, edict, xcenter, ms=10, color=None, mfc=None, color_index=None):
     if(mfc == None): mfc = color
     for key in edict.keys():

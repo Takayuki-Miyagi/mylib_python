@@ -25,6 +25,8 @@ class ModelSpace:
         self.e3max = e3max
         if(e2max == None): self.e2max=2*self.emax
         if(e3max == None): self.e3max=3*self.emax
+        if( self.rank==1 ): self.e2max=-1
+        if( self.rank==1 ): self.e3max=-1
         self.orbits = Orbits( emax=emax )
         if(self.rank>=2): self.two = TwoBodySpace.TwoBodySpace( orbits=self.orbits, e2max=e2max )
         if(self.rank>=3): self.iorbits = OrbitsIsospin(emax=emax)
@@ -36,6 +38,8 @@ class ModelSpace:
         self.e3max = e3max
         if( self.e2max == None ): self.e2max=2*orbits.emax
         if( self.e3max == None ): self.e3max=3*orbits.emax
+        if( self.rank==1 ): self.e2max=-1
+        if( self.rank==1 ): self.e3max=-1
         if(self.rank>=2): self.two = TwoBodySpace.TwoBodySpace( orbits=self.orbits, e2max=e2max )
         if(self.rank>=3 and iorbits!=None): self.iorbits = copy.deepcopy(iorbits)
         if(self.rank>=3 and iorbits!=None): self.three = ThreeBodySpace.ThreeBodySpace( orbits=self.iorbits, e2max=e2max, e3max=e3max )

@@ -56,7 +56,7 @@ class TransitionDensity:
         me_rank = {jrank: me}
         self.one[(a,b,jrank)] = me
         self.one[(b,a,jrank)] = me * (-1)**( (ob.j-oa.j)//2 )
-    def set_2tbtd_from_mat_indices( self, chbra, chket, bra, ket, jrank, me ):
+    def set_2btd_from_mat_indices( self, chbra, chket, bra, ket, jrank, me ):
         if( chbra < chket ):
             if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
             return
@@ -92,7 +92,7 @@ class TransitionDensity:
         bra = chbra.index_from_indices[(aa,bb)]
         ket = chket.index_from_indices[(cc,dd)]
         phase *= chbra.phase_from_indices[(aa,bb)] * chket.phase_from_indices[(cc,dd)]
-        self.set_2tbtd_from_mat_indices(ichbra,ichket,bra,ket,jrank,me*phase)
+        self.set_2btd_from_mat_indices(ichbra,ichket,bra,ket,jrank,me*phase)
     def set_2btd_from_orbits( self, oa, ob, oc, od, Jab, Jcd, jrank, me ):
         orbits = self.ms.orbits
         a = orbits.orbit_index_from_orbit( oa )
@@ -448,6 +448,7 @@ class TransitionDensity:
                 if( op.rankJ==0 and op.rankP==1 and op.rankZ==0 ):
                     one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) * np.sqrt(oj.j+1) / np.sqrt(2*self.Jbra+1)
                 else:
+                    #print(op.get_1bme(i,j), self.get_1btd(i_d,j_d,op.rankJ), op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) / np.sqrt(2*op.rankJ+1))
                     one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ)
 
         two = 0

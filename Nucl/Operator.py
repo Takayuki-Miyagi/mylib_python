@@ -169,8 +169,8 @@ class Operator:
         ob = iorbits.get_orbit(b)
         oc = iorbits.get_orbit(c)
         od = iorbits.get_orbit(d)
-        oe = iorbits.get_orbit(d)
-        of = iorbits.get_orbit(d)
+        oe = iorbits.get_orbit(e)
+        of = iorbits.get_orbit(f)
         ea = 2*oa.n + oa.l
         eb = 2*ob.n + ob.l
         ec = 2*oc.n + oc.l
@@ -192,7 +192,7 @@ class Operator:
         if(ea+eb+ec > self.ms.e3max ): return
         if(ed+ee+ef > self.ms.e3max ): return
         Pbra = (-1)**(oa.l+ob.l+oc.l)
-        Pket = (-1)**(od.l+oe.l+oe.l)
+        Pket = (-1)**(od.l+oe.l+of.l)
         if( self._triag( Jbra, Jket, 2*self.rankJ )):
             if(self.verbose): print("Warning: J, " + sys._getframe().f_code.co_name )
             return
@@ -304,10 +304,10 @@ class Operator:
         ob = orbits.get_orbit(b)
         oc = orbits.get_orbit(c)
         od = orbits.get_orbit(d)
-        oe = orbits.get_orbit(d)
-        of = orbits.get_orbit(d)
+        oe = orbits.get_orbit(e)
+        of = orbits.get_orbit(f)
         Pbra = (-1)**(oa.l+ob.l+oc.l)
-        Pket = (-1)**(od.l+oe.l+oe.l)
+        Pket = (-1)**(od.l+oe.l+of.l)
         if( self._triag( Jbra, Jket, 2*self.rankJ )):
             if(self.verbose): print("Warning: J, " + sys._getframe().f_code.co_name )
             return
@@ -376,7 +376,7 @@ class Operator:
         if(filename.find(".lotta") != -1):
             if( istore == None ): self._read_lotta_format(filename,0)
             if( istore != None ): self._read_lotta_format(filename,istore)
-            if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
+            if( self.count_nonzero_1bme() == 0):
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         print("Unknown file format in " + sys._getframe().f_code.co_name )
@@ -484,14 +484,14 @@ class Operator:
             p_n = int(entry[3])
             p_l = int(entry[4])
             p_j = int(entry[5])
-            exist = False
+            #if(2*p_n + p_l != 2): continue
             orbs.add_orbit(p_n, p_l, p_j, -1)
         for line in lines[1:]:
             entry = line.split()
             n_n = int(entry[0])
             n_l = int(entry[1])
             n_j = int(entry[2])
-            exist = False
+            #if(2*n_n + n_l != 2): continue
             orbs.add_orbit(n_n, n_l, n_j, 1)
         ms = ModelSpace(rank=1)
         ms.set_modelspace_from_orbits( orbs )
@@ -506,6 +506,8 @@ class Operator:
             p_n = int(entry[3])
             p_l = int(entry[4])
             p_j = int(entry[5])
+            #if(2*p_n + p_l != 2): continue
+            #if(2*n_n + n_l != 2): continue
             mes = [ float(entry[i+6]) for i in range(len(entry)-6) ]
             i = orbs.get_orbit_index(n_n,n_l,n_j, 1)
             j = orbs.get_orbit_index(p_n,p_l,p_j,-1)
@@ -643,6 +645,8 @@ class Operator:
             self._write_operator_snt( filename )
         if(filename.find(".op.me2j") != -1):
             self._write_general_operator( filename )
+        if(filename.find(".lotta") != -1):
+            self._write_operator_lotta( filename )
 
     def write_nme_file(self):
         """
@@ -667,16 +671,11 @@ class Operator:
     def _write_general_operator(self, filename):
         f = open(filename, "w")
         f.write(" Written by python script \n")
-        E = 0
-        orbits = self.ms.orbits
-        norbs = orbits.get_num_orbits() + 1
-        for i in range(1,norbs):
-            o = orbits.get_orbit(i)
-            E = max(E, 2*o.n+o.l)
-        f.write(" {:3d} {:3d} {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ, E, 2*E ))
+        f.write(" {:3d} {:3d} {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ, self.ms.emax, self.ms.e2max ))
         f.write("{:14.8f}\n".format( self.zero ) )
 
-        iorbits = OrbitsIsospin( emax=E )
+        orbits = self.ms.orbits
+        iorbits = OrbitsIsospin( emax=self.ms.emax )
         norbs = iorbits.get_num_orbits() + 1
         for i in range(1,norbs):
             oi = iorbits.get_orbit(i)
@@ -705,6 +704,7 @@ class Operator:
                 oj = iorbits.get_orbit(j)
                 pj = orbits.get_orbit_index(oj.n, oj.l, oj.j, -1)
                 nj = orbits.get_orbit_index(oj.n, oj.l, oj.j,  1)
+                if( oi.e + oj.e > self.ms.e2max ): continue
 
                 for k in range(1,norbs):
                     ok = iorbits.get_orbit(k)
@@ -714,6 +714,7 @@ class Operator:
                         ol = iorbits.get_orbit(k)
                         pl = orbits.get_orbit_index(ol.n, ol.l, ol.j, -1)
                         nl= orbits.get_orbit_index(ol.n, ol.l, ol.j,  1)
+                        if( ok.e + ol.e > self.ms.e2max ): continue
                         if( (-1)**( oi.l+oj.l+ok.l+ol.l ) * self.rankP != 1): continue
                         for Jij in range( int(abs( oi.j-oj.j ))//2, ( oi.j+oj.j )//2+1 ):
                             for Jkl in range( int(abs( ok.j-ol.j ))//2, (ok.j+ol.j)//2+1 ):
@@ -748,7 +749,7 @@ class Operator:
             o = orbits.get_orbit(i)
             prt += "{0:5d} {1:3d} {2:3d} {3:3d} {4:3d} \n".format( i, o.n, o.l, o.j, o.z )
 
-        norbs = orbits.get_num_orbits()
+        norbs = orbits.get_num_orbits()+1
         prt += "! one-body part\n"
         prt += "{0:5d} {1:3d}\n".format( self.count_nonzero_1bme(), 0 )
         for i in range(1,norbs):
@@ -756,7 +757,13 @@ class Operator:
                 me = self.get_1bme(i,j)
                 if( abs(me) < 1.e-10): continue
                 prt += "{0:3d} {1:3d} {2:15.8f}\n".format( i, j, me )
-
+        if( self.ms.rank==1 ):
+            prt += "! two-body part\n"
+            prt += "{0:10d} {1:3d}\n".format( 0, 0 )
+            f = open(filename, "w")
+            f.write(prt)
+            f.close()
+            return
         prt += "! two-body part\n"
         prt += "{0:10d} {1:3d}\n".format( self.count_nonzero_2bme(), 0 )
         scalar = False
@@ -781,6 +788,25 @@ class Operator:
         f = open(filename, "w")
         f.write(prt)
         f.close()
+
+    def _write_operator_lotta(self, filename):
+        orbits = self.ms.orbits
+        norbs = orbits.get_num_orbits()
+        prt = "{:>4s} {:>4s} {:>4s} {:>4s} {:>4s} {:>4s} {:>18s}\n".format( "NN","LN","JN","NP","LP","JP","ME" )
+        for i in range(1,norbs+1):
+            for j in range(1,norbs+1):
+                oi = orbits.get_orbit(i)
+                oj = orbits.get_orbit(j)
+                if(oi.z != 1): continue
+                if(oj.z !=-1): continue
+                me = self.get_1bme(i,j)
+                if( oi.j==29 and oj.j==29): print(me)
+                if( abs(me) < 1.e-10): continue
+                prt += "{:4d} {:4d} {:4d} {:4d} {:4d} {:4d} {:18.8e}\n".format( oi.n, oi.l, oi.j, oj.n, oj.l, oj.j, me )
+        f = open(filename, "w")
+        f.write(prt)
+        f.close()
+        return
 
     def print_operator(self):
         orbits = self.ms.orbits
