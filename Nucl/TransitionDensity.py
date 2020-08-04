@@ -346,7 +346,7 @@ class TransitionDensity:
 
 
     def calc_density(kshl_dir, fn_snt, fn_ptn_bra, fn_ptn_ket, fn_wf_bra, fn_wf_ket, i_wfs=None, fn_density=None, \
-            header="", batch_cmd=None, run_cmd=None, fn_input="transit.input"):
+            header="", batch_cmd=None, run_cmd=None, fn_input="transit.input", calc_SF=False):
         if(fn_density==None):
             basename = os.path.basename(fn_snt)
             fn_out = "density_" + os.path.splitext(basename)[0] + ".dat"
@@ -372,7 +372,7 @@ class TransitionDensity:
         prt += '  eff_charge = 1.5, 0.5\n'
         prt += '  gl = 1.0, 0.0\n'
         prt += '  gs = 3.91, -2.678\n'
-        prt += '  is_tbtd = .true.\n'
+        if(not calc_SF): prt += '  is_tbtd = .true.\n'
         prt += '&end\n'
         prt += 'EOF\n'
         if(run_cmd == None):
