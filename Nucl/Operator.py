@@ -328,7 +328,7 @@ class Operator:
         else:
             ichbra = ichket_tmp
             ichket = ichbra_tmp
-            phase *=  (-1)**(Jket-Jbra)
+            phase *=  (-1)**((Jket+Tket-Jbra-Tbra)//2)
             i, j, k, l, m, n = d, e, f, a, b, c
             Jij, Tij, Jlm, Tlm = Jde, Tde, Jab, Tab
         chbra = three.get_channel(ichbra)

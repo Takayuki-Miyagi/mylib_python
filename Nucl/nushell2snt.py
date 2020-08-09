@@ -168,6 +168,7 @@ def scalar(spfile, intfile, sntfile):
     nline = 0
     out_tbme = ""
     for tz in (-2,0,2):
+        if(not tz in tbij_tz): continue
         for ij,(i,j) in enumerate(tbij_tz[tz]):
             n1,l1,j1,t1 = i2nljtz[i]
             n2,l2,j2,t2 = i2nljtz[j]
