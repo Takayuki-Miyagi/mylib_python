@@ -98,7 +98,7 @@ def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", 
         print(fn_snt, "not found")
         return
     unnatural=False
-    if( states.find("-") != -1 and states.find("+") ): unnatral=True
+    if( states.find("-") != -1 and states.find("+")!=-1 ): unnatural=True
     f = open('ui.in','w')
     f.write('\n')
     f.write(fn_snt+'\n')
@@ -144,8 +144,8 @@ def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", 
     else:
         fn_script += ".sh"
         os.chmod(fn_script, 0o755)
-        subprocess.call(fn_script, shell=True)
         if(batch_cmd == None): cmd = "./" + fn_script
         if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
+        subprocess.call(cmd, shell=True)
 
     time.sleep(1)
