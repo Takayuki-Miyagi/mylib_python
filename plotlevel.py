@@ -42,8 +42,8 @@ def get_energies_dct(summary, absolute = True, snt=None, comment_snt="!"):
     zero_body = 0.0
     edict = {}
     if(snt != None):
-        h=Nucl.Op(snt)
-        h.read_operator_file(comment_snt)
+        h=Nucl.Operator()
+        h.read_operator_file(snt,comment=comment_snt)
         zero_body = h.zero
     f = open(summary,'r')
     lines = f.readlines()

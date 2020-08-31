@@ -7,14 +7,14 @@ import matplotlib.font_manager
 import matplotlib.cm as cm
 
 def set_canvas_grid(spans, height=8, width=8, shx=True, shy=True,
-        wspace=0.05, hspace=0.05):
+        wspace=0.05, hspace=0.05, unit_in_cm=True):
     """
     spans is list of tuple [(),(),(),...]. Here, tuple determines the size of figure
     (xlength,ylength)
     """
     fig = plt.figure(figsize=(height, width))
-    fig.set_figheight(height)
-    fig.set_figwidth(width)
+    fig.set_figheight(height/2.54)
+    fig.set_figwidth(width/2.54)
     grid = plt.GridSpec(height,width)
     grid.update(hspace=hspace, wspace=wspace)
     axs = []
@@ -34,19 +34,20 @@ def set_canvas_grid(spans, height=8, width=8, shx=True, shy=True,
             y += space[1]
     return fig, axs
 
-def set_canvas(c=1, r=1, height=8, width=8, shx=True, shy=True):
+def set_canvas(c=1, r=1, height=6, width=8, shx=True, shy=True, unit_in_cm=True):
     fig, axs = plt.subplots(ncols=c, nrows=r, sharex=shx, sharey=shy )
-    fig.set_figheight(height)
-    fig.set_figwidth(width)
+    fig.set_figheight(height/2.54)
+    fig.set_figwidth(width/2.54)
     return fig, axs
 
-def set_style(roman=False):
+def set_style(roman=False,fontsize=0.4,unit_in_cm=True):
+    fs = fontsize * 72
     #plt.style.use('classic')
-    plt.rcParams['font.size'] = 20
-    plt.rcParams['legend.fontsize'] = 20
-    plt.rcParams['xtick.labelsize'] = 20
-    plt.rcParams['ytick.labelsize'] = 20
-    plt.rcParams['axes.labelsize'] = 20
+    plt.rcParams['font.size'] = fs
+    plt.rcParams['legend.fontsize'] = fs
+    plt.rcParams['xtick.labelsize'] = fs
+    plt.rcParams['ytick.labelsize'] = fs
+    plt.rcParams['axes.labelsize'] = fs
     plt.rcParams['legend.numpoints'] = 1
     plt.rcParams['xtick.bottom'] = True
     plt.rcParams['xtick.direction'] = 'in'
@@ -57,6 +58,23 @@ def set_style(roman=False):
     plt.rcParams['ytick.direction'] = 'in'
     plt.rcParams['ytick.major.size'] = 5
     plt.rcParams['ytick.major.width'] = 1
+    if( unit_in_cm ):
+        fs = fontsize * 72 / 2.54
+        plt.rcParams['font.size'] = fs
+        plt.rcParams['legend.fontsize'] = fs
+        plt.rcParams['xtick.labelsize'] = fs
+        plt.rcParams['ytick.labelsize'] = fs
+        plt.rcParams['axes.labelsize'] = fs
+        plt.rcParams['legend.numpoints'] = 1
+        plt.rcParams['xtick.bottom'] = True
+        plt.rcParams['xtick.direction'] = 'in'
+        plt.rcParams['xtick.major.size'] = 3
+        plt.rcParams['xtick.major.width'] = 1
+        plt.rcParams['ytick.left'] = True
+        plt.rcParams['ytick.right'] = True
+        plt.rcParams['ytick.direction'] = 'in'
+        plt.rcParams['ytick.major.size'] = 3
+        plt.rcParams['ytick.major.width'] = 1
     if(roman):
         plt.rcParams['font.family'] = 'Times New Roman'
         plt.rcParams['font.serif'] = 'Times New Roman'
