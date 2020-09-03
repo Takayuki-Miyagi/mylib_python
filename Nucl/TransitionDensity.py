@@ -445,6 +445,7 @@ class TransitionDensity:
                 oj = orbits_op.get_orbit(j)
                 j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
                 if( oi.z-oj.z != 2*op.rankZ): continue # only <n|O|p> if rankZ != 0
+                if( oi.l%2 == 1 and oj.l%2 == 0): continue # avoid double counting < + | O | - > and < - | O | + >
                 if( op.rankJ==0 and op.rankP==1 and op.rankZ==0 ):
                     one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) * np.sqrt(oj.j+1) / np.sqrt(2*self.Jbra+1)
                 else:
@@ -467,6 +468,7 @@ class TransitionDensity:
                         l_d = orbits_de.get_orbit_index(ol.n, ol.l, ol.j, ol.z)
                         if((-1)**(oi.l+oj.l+ok.l+ol.l) * op.rankP != 1): continue
                         if( oi.z+oj.z-ok.z-ol.z != 2*op.rankZ): continue # only <nn|O|pp>, <nn|O|np>, <np|O|pp> if rankZ !=0
+                        if( (oi.l+oj.l)%2 == 1 and (ok.l+ol.l)%2 == 0): continue # avoid double counting < + | O | - > and < - | O | + >
                         for Jij in range( int(abs(oi.j-oj.j)/2), int((oi.j+oj.j)/2)+1):
                             if(i == j and Jij%2 == 1): continue
                             for Jkl in range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2+1)):
