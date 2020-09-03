@@ -244,7 +244,7 @@ class Operator:
         oc = orbits.get_orbit(c)
         od = orbits.get_orbit(d)
         Pab = (-1)**(oa.l+ob.l)
-        Pcd = (-1)**(oa.l+ob.l)
+        Pcd = (-1)**(oc.l+od.l)
         Zab = (oa.z + ob.z)//2
         Zcd = (oc.z + od.z)//2
         if( self._triag( Jab, Jcd, self.rankJ )):
@@ -338,9 +338,9 @@ class Operator:
         ket = chket.index_from_indices[(l,m,n,Jlm,Tlm)]
         return self.set_3bme_from_mat_indices(ichbra,ichket,bra,ket) * phase
 
-    def read_operator_file(self, filename, spfile=None, opfile2=None, comment="!", istore=None):
+    def read_operator_file(self, filename, spfile=None, opfile2=None, comment="!", istore=None, mass_snt=None):
         if(filename.find(".snt") != -1):
-            self._read_operator_snt(filename, comment)
+            self._read_operator_snt(filename, comment, mass_snt)
             if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
@@ -388,7 +388,7 @@ class Operator:
         if(abs(J1-J2) <= J3 <= J1+J2): b = False
         return b
 
-    def _read_operator_snt(self, filename, comment="!"):
+    def _read_operator_snt(self, filename, comment="!", mass_snt=None):
         f = open(filename, 'r')
         line = f.readline()
         b = True
@@ -433,6 +433,9 @@ class Operator:
             b = line.startswith(comment)
         data = line.split()
         n = int(data[0])
+        method = int(data[1])
+        hw = float(data[2])
+
 
         b = True
         while b == True:
@@ -445,7 +448,10 @@ class Operator:
             line = f.readline()
             data = line.split()
             a, b, me = int(data[0]), int(data[1]), float(data[2])
-            self.set_1bme(a,b,me)
+            if(mass_snt!=None and method==10):
+                self.set_1bme(a,b,me*hw*(1-1/float(mass_snt)))
+            else:
+                self.set_1bme(a,b,me)
 
         b = True
         while b == True:
@@ -453,6 +459,8 @@ class Operator:
             b = line.startswith(comment)
         data = line.split()
         n = int(data[0])
+        method = int(data[1])
+        hw = float(data[2])
 
         b = True
         while b == True:
@@ -471,7 +479,11 @@ class Operator:
             else:
                 a, b, c, d = int(data[0]), int(data[1]), int(data[2]), int(data[3])
                 Jab, Jcd, me = int(data[4]), int(data[5]), float(data[6])
-            self.set_2bme_from_indices(a,b,c,d,Jab,Jcd,me)
+            if(mass_snt!=None and method==10):
+                Tcm = float(data[6])
+                self.set_2bme_from_indices(a,b,c,d,Jab,Jcd,me + Tcm*hw/mass_snt)
+            else:
+                self.set_2bme_from_indices(a,b,c,d,Jab,Jcd,me)
         f.close()
 
     def _read_lotta_format(self, filename, ime ):

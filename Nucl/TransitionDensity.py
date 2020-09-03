@@ -69,7 +69,7 @@ class TransitionDensity:
         oc = orbits.get_orbit(c)
         od = orbits.get_orbit(d)
         Pab = (-1)**(oa.l+ob.l)
-        Pcd = (-1)**(oa.l+ob.l)
+        Pcd = (-1)**(oc.l+od.l)
         Zab = (oa.z + ob.z)//2
         Zcd = (oc.z + od.z)//2
         if( self._triag( Jab, Jcd, jrank )):
@@ -123,7 +123,7 @@ class TransitionDensity:
         oc = orbits.get_orbit(c)
         od = orbits.get_orbit(d)
         Pab = (-1)**(oa.l+ob.l)
-        Pcd = (-1)**(oa.l+ob.l)
+        Pcd = (-1)**(oc.l+od.l)
         Zab = (oa.z + ob.z)//2
         Zcd = (oc.z + od.z)//2
         if( self._triag( Jab, Jcd, jrank )):
@@ -479,6 +479,8 @@ class TransitionDensity:
                                     #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl)))
                                 else:
                                     two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)
+                                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ,self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
+                                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl)))
         return zero,one,two
 
 def main():

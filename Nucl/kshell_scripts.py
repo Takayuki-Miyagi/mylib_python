@@ -46,6 +46,24 @@ def get_occupation(logs):
         f.close()
     return e_data
 
+def get_wf_index( fn_summary ):
+    jpn_to_idx = {}
+    f = open( fn_summary, "r" )
+    lines = f.readlines()
+    f.close()
+    logs = set()
+    idxs = {}
+    for line in lines[5:]:
+        dat = line.split()
+        if( len(dat) == 0 ): continue
+        if( dat[-1] in logs ):
+            idxs[ dat[-1] ] += 1
+        else:
+            idxs[ dat[-1] ] = 1
+            logs.add( dat[-1] )
+        jpn_to_idx[(dat[1],dat[2],int(dat[3]))] = (dat[-1], idxs[ dat[-1] ])
+    return jpn_to_idx
+
 def calc_density(kshl_dir, fn_snt, fn_ptn_bra, fn_ptn_ket, fn_wf_bra, fn_wf_ket, i_wfs=None, fn_density=None, \
         header="", batch_cmd=None, run_cmd=None, fn_input="transit.input", calc_SF=False):
     import os, sys, time, subprocess
@@ -109,6 +127,7 @@ def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", 
     if(unnatural): f.write('\n')
     f.write('beta_cm=0\n')
     f.write('mode_lv_hdd=0\n')
+    f.write('op_type_init="E2"\n')
     f.write('\n')
     f.write('\n')
     f.write('\n')
