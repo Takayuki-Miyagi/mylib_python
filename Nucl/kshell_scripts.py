@@ -127,7 +127,6 @@ def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", 
     if(unnatural): f.write('\n')
     f.write('beta_cm=0\n')
     f.write('mode_lv_hdd=0\n')
-    f.write('op_type_init="E2"\n')
     f.write('\n')
     f.write('\n')
     f.write('\n')
@@ -153,12 +152,12 @@ def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", 
 
     subprocess.call("rm ui.in", shell=True)
     if( dim_cnt ):
-        if( os.path.exists( f_sh+'_p.ptn' ) ):
-            cmd = 'python ' + kshl_dir+'/count_dim.py ' + snt + ' ' + f_sh + '_p.ptn'
+        if( os.path.exists( fn_script+'_p.ptn' ) ):
+            cmd = 'python ' + kshl_dir+'/count_dim.py ' + fn_snt + ' ' + fn_script + '_p.ptn'
             print(cmd)
             subprocess.call(cmd, shell=True)
-        if( os.path.exists( f_sh+'_n.ptn' ) ):
-            cmd = 'python ' + kshl_dir+'/count_dim.py ' + snt + ' ' + f_sh + '_n.ptn'
+        if( os.path.exists( fn_script+'_n.ptn' ) ):
+            cmd = 'python ' + kshl_dir+'/count_dim.py ' + fn_snt + ' ' + fn_script + '_n.ptn'
             subprocess.call(cmd, shell=True)
     else:
         fn_script += ".sh"

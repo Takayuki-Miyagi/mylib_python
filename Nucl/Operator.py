@@ -3,6 +3,8 @@ import sys
 import numpy as np
 import copy
 import gzip
+from sympy import N
+from sympy.physics.wigner import wigner_6j
 if(__package__==None or __package__==""):
     import ModelSpace
 else:
@@ -434,7 +436,9 @@ class Operator:
         data = line.split()
         n = int(data[0])
         method = int(data[1])
-        hw = float(data[2])
+        if(mass_snt!=None): hw = float(data[2])
+        fact1 = 1.0
+        if(mass_snt!=None and method==10): fact1 = (1-1/float(mass_snt))*hw
 
 
         b = True
@@ -448,10 +452,7 @@ class Operator:
             line = f.readline()
             data = line.split()
             a, b, me = int(data[0]), int(data[1]), float(data[2])
-            if(mass_snt!=None and method==10):
-                self.set_1bme(a,b,me*hw*(1-1/float(mass_snt)))
-            else:
-                self.set_1bme(a,b,me)
+            self.set_1bme(a,b,me*fact1)
 
         b = True
         while b == True:
@@ -460,7 +461,9 @@ class Operator:
         data = line.split()
         n = int(data[0])
         method = int(data[1])
-        hw = float(data[2])
+        if(mass_snt!=None): hw = float(data[2])
+        fact2 = 1.0
+        if(mass_snt!=None and method==10): fact2 = hw/float(mass_snt)
 
         b = True
         while b == True:
@@ -481,7 +484,7 @@ class Operator:
                 Jab, Jcd, me = int(data[4]), int(data[5]), float(data[6])
             if(mass_snt!=None and method==10):
                 Tcm = float(data[6])
-                self.set_2bme_from_indices(a,b,c,d,Jab,Jcd,me + Tcm*hw/mass_snt)
+                self.set_2bme_from_indices(a,b,c,d,Jab,Jcd,me + Tcm*fact2)
             else:
                 self.set_2bme_from_indices(a,b,c,d,Jab,Jcd,me)
         f.close()
@@ -887,6 +890,62 @@ class Operator:
                     line += "{:3d} {:3d} {:3d} {:3d}".format(chbra.J, chbra.T, chket.J, chket.T)
                     line += "{:12.6f}".format(ME)
                     print(line)
+    def embed_one_to_two(self,mass_number=2):
+        two = self.ms.two
+        orbits = self.ms.orbits
+        scalar = False
+        if(self.rankJ == 0 and self.rankZ == 0 and self.rankP==1): scalar = True
+        for ichbra in range(two.get_number_channels()):
+            chbra = two.get_channel(ichbra)
+            for ichket in range(ichbra+1):
+                chket = two.get_channel(ichket)
+                if( self._triag( chbra.J, chket.J, self.rankJ )): continue
+                if( chbra.P * chket.P * self.rankP != 1): continue
+                if( abs(chbra.Z-chket.Z) != self.rankZ): continue
+                for bra in range(chbra.get_number_states()):
+                    a = chbra.orbit1_index[bra]
+                    b = chbra.orbit2_index[bra]
+                    ketmax = chket.get_number_states()
+                    if( ichbra==ichket ): ketmax=bra+1
+                    for ket in range(ketmax):
+                        c = chket.orbit1_index[ket]
+                        d = chket.orbit2_index[ket]
+
+                        me = self._get_embed_1bme_2(a,b,c,d,ichbra,ichket,scalar) / float(mass_number-1)
+                        me_original = self.get_2bme_from_indices(a,b,c,d,chbra.J,chket.J)
+                        me += me_original
+                        if(abs(me) > 1.e-8): self.set_2bme_from_indices(a,b,c,d,chbra.J,chket.J,me)
+        self.one = np.zeros( (orbits.get_num_orbits(), orbits.get_num_orbits() ))
+
+    def _get_embed_1bme_2(self,a,b,c,d,ichbra,ichket,scalar):
+        two = self.ms.two
+        chbra = two.get_channel(ichbra)
+        chket = two.get_channel(ichket)
+        Jab = chbra.J
+        Jcd = chket.J
+        lam = self.rankJ
+        orbits = self.ms.orbits
+        oa = orbits.get_orbit(a)
+        ob = orbits.get_orbit(b)
+        oc = orbits.get_orbit(c)
+        od = orbits.get_orbit(d)
+        me = 0.0
+        if( scalar ):
+            if(b==d): me += self.get_1bme(a,c)
+            if(a==c): me += self.get_1bme(b,d)
+            if(a==d): me -= self.get_1bme(b,c) * (-1.0)**( (oa.j+ob.j)//2 - Jab )
+            if(b==c): me -= self.get_1bme(a,d) * (-1.0)**( (oa.j+ob.j)//2 - Jab )
+            if(a==b): me /= np.sqrt(2.0)
+            if(c==d): me /= np.sqrt(2.0)
+            return me
+        if(b==d): me += self.get_1bme(a,c) * (-1.0)**( (oa.j+ob.j)//2 + Jcd     ) * N( wigner_6j(Jab,Jcd,lam,oc.j*0.5,oa.j*0.5,ob.j*0.5) )
+        if(a==c): me += self.get_1bme(b,d) * (-1.0)**( (oc.j+od.j)//2 - Jab     ) * N( wigner_6j(Jab,Jcd,lam,od.j*0.5,ob.j*0.5,oa.j*0.5) )
+        if(b==c): me += self.get_1bme(a,d) * (-1.0)**( (oa.j+ob.j+oc.j+od.j)//2 ) * N( wigner_6j(Jab,Jcd,lam,od.j*0.5,oa.j*0.5,ob.j*0.5) )
+        if(a==d): me += self.get_1bme(b,c) * (-1.0)**( Jcd - Jab                ) * N( wigner_6j(Jab,Jcd,lam,oc.j*0.5,ob.j*0.5,oa.j*0.5) )
+        me *= np.sqrt( (2*Jab+1)*(2*Jcd+1) ) * (-1.0)**lam
+        if(a==b): me /= np.sqrt(2.0)
+        if(c==d): me /= np.sqrt(2.0)
+        return me
 
 def main():
     ms = ModelSpace.ModelSpace()

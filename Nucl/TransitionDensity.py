@@ -27,7 +27,7 @@ class TransitionDensity:
         two = ms.two
         for ichbra in range(two.get_number_channels()):
             chbra = two.get_channel(ichbra)
-            for ichket in range(ichbra+1):
+            for ichket in range(two.get_number_channels()):
                 chket = two.get_channel(ichket)
                 self.two[(ichbra,ichket)] = {}
         if(self.ms.rank==2): return
@@ -55,11 +55,7 @@ class TransitionDensity:
         ob = orbits.get_orbit(b)
         me_rank = {jrank: me}
         self.one[(a,b,jrank)] = me
-        self.one[(b,a,jrank)] = me * (-1)**( (ob.j-oa.j)//2 )
     def set_2btd_from_mat_indices( self, chbra, chket, bra, ket, jrank, me ):
-        if( chbra < chket ):
-            if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
-            return
         self.two[(chbra,chket)][(bra,ket,jrank)] = me
     def set_2btd_from_indices( self, a, b, c, d, Jab, Jcd, jrank, me ):
         two = self.ms.two
@@ -75,23 +71,13 @@ class TransitionDensity:
         if( self._triag( Jab, Jcd, jrank )):
             if(self.verbose): print("Warning: J, " + sys._getframe().f_code.co_name )
             return
-        ichbra_tmp = two.get_index(Jab,Pab,Zab)
-        ichket_tmp = two.get_index(Jcd,Pcd,Zcd)
-        phase = 1
-        if( ichbra_tmp >= ichket_tmp ):
-            ichbra = ichbra_tmp
-            ichket = ichket_tmp
-            aa, bb, cc, dd, = a, b, c, d
-        else:
-            ichbra = ichket_tmp
-            ichket = ichbra_tmp
-            phase *=  (-1)**(Jcd-Jab)
-            aa, bb, cc, dd, = c, d, a, b
+        ichbra = two.get_index(Jab,Pab,Zab)
+        ichket = two.get_index(Jcd,Pcd,Zcd)
         chbra = two.get_channel(ichbra)
         chket = two.get_channel(ichket)
-        bra = chbra.index_from_indices[(aa,bb)]
-        ket = chket.index_from_indices[(cc,dd)]
-        phase *= chbra.phase_from_indices[(aa,bb)] * chket.phase_from_indices[(cc,dd)]
+        bra = chbra.index_from_indices[(a,b)]
+        ket = chket.index_from_indices[(c,d)]
+        phase = chbra.phase_from_indices[(a,b)] * chket.phase_from_indices[(c,d)]
         self.set_2btd_from_mat_indices(ichbra,ichket,bra,ket,jrank,me*phase)
     def set_2btd_from_orbits( self, oa, ob, oc, od, Jab, Jcd, jrank, me ):
         orbits = self.ms.orbits
@@ -106,9 +92,6 @@ class TransitionDensity:
         except:
             return 0
     def get_2btd_from_mat_indices(self, chbra, chket, bra, ket, jrank):
-        if( chbra < chket ):
-            if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
-            return 0
         try:
             return self.two[(chbra,chket)][(bra,ket,jrank)]
         except:
@@ -130,30 +113,20 @@ class TransitionDensity:
             if(self.verbose): print("Warning: J, " + sys._getframe().f_code.co_name )
             return 0
         try:
-            ichbra_tmp = two.get_index(Jab,Pab,Zab)
-            ichket_tmp = two.get_index(Jcd,Pcd,Zcd)
+            ichbra = two.get_index(Jab,Pab,Zab)
+            ichket = two.get_index(Jcd,Pcd,Zcd)
         except:
             if(self.verbose): print("Warning: channel bra & ket index, " + sys._getframe().f_code.co_name )
             return 0
-        phase = 1
-        if( ichbra_tmp >= ichket_tmp ):
-            ichbra = ichbra_tmp
-            ichket = ichket_tmp
-            aa, bb, cc, dd, = a, b, c, d
-        else:
-            ichbra = ichket_tmp
-            ichket = ichbra_tmp
-            phase *=  (-1)**(Jcd-Jab)
-            aa, bb, cc, dd, = c, d, a, b
         chbra = two.get_channel(ichbra)
         chket = two.get_channel(ichket)
         try:
-            bra = chbra.index_from_indices[(aa,bb)]
-            ket = chket.index_from_indices[(cc,dd)]
+            bra = chbra.index_from_indices[(a,b)]
+            ket = chket.index_from_indices[(c,d)]
         except:
             if(self.verbose): print("Warning: bra & ket index, " + sys._getframe().f_code.co_name )
             return 0
-        phase *= chbra.phase_from_indices[(aa,bb)] * chket.phase_from_indices[(cc,dd)]
+        phase = chbra.phase_from_indices[(a,b)] * chket.phase_from_indices[(c,d)]
         return self.get_2btd_from_mat_indices(ichbra,ichket,bra,ket,jrank)*phase
     def get_2btd_from_orbits( self, oa, ob, oc, od, Jab, Jcd, jrank ):
         if(self.ms.rank <= 1): return 0
@@ -431,6 +404,10 @@ class TransitionDensity:
         subprocess.call(cmd, shell=True)
         time.sleep(1)
 
+    def eval_expectation_value( self, op ):
+        return self.calc_expectation_value( op )
+    def eval( self, op ):
+        return self.calc_expectation_value( op )
     def calc_expectation_value( self, op ):
         orbits_de = self.ms.orbits
         orbits_op = op.ms.orbits
@@ -444,14 +421,16 @@ class TransitionDensity:
             for j in range(1, norbs+1):
                 oj = orbits_op.get_orbit(j)
                 j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
-                if( oi.z-oj.z != 2*op.rankZ): continue # only <n|O|p> if rankZ != 0
-                if( oi.l%2 == 1 and oj.l%2 == 0): continue # avoid double counting < + | O | - > and < - | O | + >
+                if( oi.z-oj.z != 2*op.rankZ): continue     # avoid double counting < p | O | n > and < n | O | p >
+                #if( oi.l%2 == 1 and oj.l%2 == 0): continue # avoid double counting < + | O | - > and < - | O | + >
+                if((-1)**(oi.l+oj.l) * op.rankP != 1): continue
+                if( self._triag( oi.j, oj.j, 2*op.rankJ )): continue
                 if( op.rankJ==0 and op.rankP==1 and op.rankZ==0 ):
                     one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) * np.sqrt(oj.j+1) / np.sqrt(2*self.Jbra+1)
                 else:
-                    #print(op.get_1bme(i,j), self.get_1btd(i_d,j_d,op.rankJ), op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) / np.sqrt(2*op.rankJ+1))
+                    print( "{:3d}{:3d}{:10.6f}{:10.6f}{:10.6f}".format(i_d,j_d,\
+                            op.get_1bme(i,j), self.get_1btd(i_d,j_d,op.rankJ), op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) ))
                     one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ)
-
         two = 0
         for i in range(1, norbs+1):
             oi = orbits_op.get_orbit(i)
@@ -467,8 +446,8 @@ class TransitionDensity:
                         k_d = orbits_de.get_orbit_index(ok.n, ok.l, ok.j, ok.z)
                         l_d = orbits_de.get_orbit_index(ol.n, ol.l, ol.j, ol.z)
                         if((-1)**(oi.l+oj.l+ok.l+ol.l) * op.rankP != 1): continue
-                        if( oi.z+oj.z-ok.z-ol.z != 2*op.rankZ): continue # only <nn|O|pp>, <nn|O|np>, <np|O|pp> if rankZ !=0
-                        if( (oi.l+oj.l)%2 == 1 and (ok.l+ol.l)%2 == 0): continue # avoid double counting < + | O | - > and < - | O | + >
+                        if( oi.z+oj.z-ok.z-ol.z != 2*op.rankZ): continue         # avoid double counting < pp | O | nn > and < nn | O | pp >, etc.
+                        #if( (oi.l+oj.l)%2 == 1 and (ok.l+ol.l)%2 == 0): continue # avoid double counting < + | O | - > and < - | O | + >
                         for Jij in range( int(abs(oi.j-oj.j)/2), int((oi.j+oj.j)/2)+1):
                             if(i == j and Jij%2 == 1): continue
                             for Jkl in range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2+1)):
