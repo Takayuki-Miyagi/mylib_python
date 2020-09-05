@@ -428,8 +428,8 @@ class TransitionDensity:
                 if( op.rankJ==0 and op.rankP==1 and op.rankZ==0 ):
                     one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) * np.sqrt(oj.j+1) / np.sqrt(2*self.Jbra+1)
                 else:
-                    print( "{:3d}{:3d}{:10.6f}{:10.6f}{:10.6f}".format(i_d,j_d,\
-                            op.get_1bme(i,j), self.get_1btd(i_d,j_d,op.rankJ), op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) ))
+                    #print( "{:3d}{:3d}{:10.6f}{:10.6f}{:10.6f}".format(i_d,j_d,\
+                    #        op.get_1bme(i,j), self.get_1btd(i_d,j_d,op.rankJ), op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) ))
                     one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ)
         two = 0
         for i in range(1, norbs+1):
