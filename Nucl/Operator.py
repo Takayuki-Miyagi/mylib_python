@@ -340,9 +340,9 @@ class Operator:
         ket = chket.index_from_indices[(l,m,n,Jlm,Tlm)]
         return self.set_3bme_from_mat_indices(ichbra,ichket,bra,ket) * phase
 
-    def read_operator_file(self, filename, spfile=None, opfile2=None, comment="!", istore=None, mass_snt=None):
+    def read_operator_file(self, filename, spfile=None, opfile2=None, comment="!", istore=None, A=None):
         if(filename.find(".snt") != -1):
-            self._read_operator_snt(filename, comment, mass_snt)
+            self._read_operator_snt(filename, comment, A)
             if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
@@ -390,7 +390,7 @@ class Operator:
         if(abs(J1-J2) <= J3 <= J1+J2): b = False
         return b
 
-    def _read_operator_snt(self, filename, comment="!", mass_snt=None):
+    def _read_operator_snt(self, filename, comment="!", A=None):
         f = open(filename, 'r')
         line = f.readline()
         b = True
@@ -436,9 +436,12 @@ class Operator:
         data = line.split()
         n = int(data[0])
         method = int(data[1])
-        if(mass_snt!=None): hw = float(data[2])
+        if(A!=None): hw = float(data[2])
         fact1 = 1.0
-        if(mass_snt!=None and method==10): fact1 = (1-1/float(mass_snt))*hw
+        if(method==10 and A==None):
+            print(" Need to set mass number! ")
+            sys.exit()
+        if(A!=None and method==10): fact1 = (1-1/float(A))*hw
 
 
         b = True
@@ -461,9 +464,12 @@ class Operator:
         data = line.split()
         n = int(data[0])
         method = int(data[1])
-        if(mass_snt!=None): hw = float(data[2])
+        if(A!=None): hw = float(data[2])
         fact2 = 1.0
-        if(mass_snt!=None and method==10): fact2 = hw/float(mass_snt)
+        if(method==10 and A==None):
+            print(" Need to set mass number! ")
+            sys.exit()
+        if(A!=None and method==10): fact2 = hw/float(A)
 
         b = True
         while b == True:
@@ -482,7 +488,7 @@ class Operator:
             else:
                 a, b, c, d = int(data[0]), int(data[1]), int(data[2]), int(data[3])
                 Jab, Jcd, me = int(data[4]), int(data[5]), float(data[6])
-            if(mass_snt!=None and method==10):
+            if(A!=None and method==10):
                 Tcm = float(data[6])
                 self.set_2bme_from_indices(a,b,c,d,Jab,Jcd,me + Tcm*fact2)
             else:
@@ -890,7 +896,7 @@ class Operator:
                     line += "{:3d} {:3d} {:3d} {:3d}".format(chbra.J, chbra.T, chket.J, chket.T)
                     line += "{:12.6f}".format(ME)
                     print(line)
-    def embed_one_to_two(self,mass_number=2):
+    def embed_one_to_two(self,A=2):
         two = self.ms.two
         orbits = self.ms.orbits
         scalar = False
@@ -911,7 +917,7 @@ class Operator:
                         c = chket.orbit1_index[ket]
                         d = chket.orbit2_index[ket]
 
-                        me = self._get_embed_1bme_2(a,b,c,d,ichbra,ichket,scalar) / float(mass_number-1)
+                        me = self._get_embed_1bme_2(a,b,c,d,ichbra,ichket,scalar) / float(A-1)
                         me_original = self.get_2bme_from_indices(a,b,c,d,chbra.J,chket.J)
                         me += me_original
                         if(abs(me) > 1.e-8): self.set_2bme_from_indices(a,b,c,d,chbra.J,chket.J,me)
@@ -940,8 +946,8 @@ class Operator:
             return me
         if(b==d): me += self.get_1bme(a,c) * (-1.0)**( (oa.j+ob.j)//2 + Jcd     ) * N( wigner_6j(Jab,Jcd,lam,oc.j*0.5,oa.j*0.5,ob.j*0.5) )
         if(a==c): me += self.get_1bme(b,d) * (-1.0)**( (oc.j+od.j)//2 - Jab     ) * N( wigner_6j(Jab,Jcd,lam,od.j*0.5,ob.j*0.5,oa.j*0.5) )
-        if(b==c): me += self.get_1bme(a,d) * (-1.0)**( (oa.j+ob.j+oc.j+od.j)//2 ) * N( wigner_6j(Jab,Jcd,lam,od.j*0.5,oa.j*0.5,ob.j*0.5) )
-        if(a==d): me += self.get_1bme(b,c) * (-1.0)**( Jcd - Jab                ) * N( wigner_6j(Jab,Jcd,lam,oc.j*0.5,ob.j*0.5,oa.j*0.5) )
+        if(b==c): me -= self.get_1bme(a,d) * (-1.0)**( (oa.j+ob.j+oc.j+od.j)//2 ) * N( wigner_6j(Jab,Jcd,lam,od.j*0.5,oa.j*0.5,ob.j*0.5) )
+        if(a==d): me -= self.get_1bme(b,c) * (-1.0)**( Jcd - Jab                ) * N( wigner_6j(Jab,Jcd,lam,oc.j*0.5,ob.j*0.5,oa.j*0.5) )
         me *= np.sqrt( (2*Jab+1)*(2*Jcd+1) ) * (-1.0)**lam
         if(a==b): me /= np.sqrt(2.0)
         if(c==d): me /= np.sqrt(2.0)
