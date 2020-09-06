@@ -113,7 +113,6 @@ def draw_single_particle_energies(axs, spe, xcenter, width=0.3, lw=1, jmax=None,
         jmax = 0
         for key in spe.keys():
             jmax = max( key[2], jmax )
-
     for key in spe.keys():
         n = key[0]
         l = key[1]

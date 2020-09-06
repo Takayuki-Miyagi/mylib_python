@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 def get_single_particle_energies(log):
     f = open(log,"r")
-    e_data = {}
+    e_HF = {}
+    e_imsrg = {}
+    nlist = []
+    llist = []
+    jlist = []
+    zlist = []
     while True:
         line = f.readline()
         if( not line): break
@@ -18,8 +23,21 @@ def get_single_particle_energies(log):
                 spe = float(dat[5])
                 occ = float(dat[6])
                 wf = [ float(x) for x in dat[9:] ]
-                e_data[(n,l,j,z)] = (spe, occ, wf)
+                e_HF[(n,l,j,z)] = (spe, occ, wf)
+                nlist.append(n)
+                llist.append(l)
+                jlist.append(j)
+                zlist.append(z)
+        if( line[0:29] == "Before doing so, the spes are"):
+            while True:
+                line = f.readline()
+                if(line[0:12]=="SetReference"): break
+                dat = line.split()
+                idx = int(dat[0])
+                spe = float(dat[2])
+                occ = e_HF[(nlist[idx],llist[idx],jlist[idx],zlist[idx])][1]
+                e_imsrg[(nlist[idx],llist[idx],jlist[idx],zlist[idx])] = (spe,occ)
             break
     f.close()
-    return e_data
+    return e_HF, e_imsrg
 
