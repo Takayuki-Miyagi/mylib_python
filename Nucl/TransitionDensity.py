@@ -45,7 +45,7 @@ class TransitionDensity:
         nch = two.get_number_channels()
         for i in range(nch):
             chbra = two.get_channel(i)
-            for j in range(i+1):
+            for j in range(nch):
                 chket = two.get_channel(j)
                 counter += len( self.two[(i,j)] )
         return counter
@@ -421,8 +421,7 @@ class TransitionDensity:
             for j in range(1, norbs+1):
                 oj = orbits_op.get_orbit(j)
                 j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
-                if( oi.z-oj.z != 2*op.rankZ): continue     # avoid double counting < p | O | n > and < n | O | p >
-                #if( oi.l%2 == 1 and oj.l%2 == 0): continue # avoid double counting < + | O | - > and < - | O | + >
+                if( abs(oi.z-oj.z) != 2*op.rankZ): continue
                 if((-1)**(oi.l+oj.l) * op.rankP != 1): continue
                 if( self._triag( oi.j, oj.j, 2*op.rankJ )): continue
                 if( op.rankJ==0 and op.rankP==1 and op.rankZ==0 ):
@@ -446,8 +445,7 @@ class TransitionDensity:
                         k_d = orbits_de.get_orbit_index(ok.n, ok.l, ok.j, ok.z)
                         l_d = orbits_de.get_orbit_index(ol.n, ol.l, ol.j, ol.z)
                         if((-1)**(oi.l+oj.l+ok.l+ol.l) * op.rankP != 1): continue
-                        if( oi.z+oj.z-ok.z-ol.z != 2*op.rankZ): continue         # avoid double counting < pp | O | nn > and < nn | O | pp >, etc.
-                        #if( (oi.l+oj.l)%2 == 1 and (ok.l+ol.l)%2 == 0): continue # avoid double counting < + | O | - > and < - | O | + >
+                        if( abs(oi.z+oj.z-ok.z-ol.z) != 2*op.rankZ): continue
                         for Jij in range( int(abs(oi.j-oj.j)/2), int((oi.j+oj.j)/2)+1):
                             if(i == j and Jij%2 == 1): continue
                             for Jkl in range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2+1)):
