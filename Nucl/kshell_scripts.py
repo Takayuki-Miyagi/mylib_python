@@ -167,3 +167,60 @@ def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", 
         subprocess.call(cmd, shell=True)
 
     time.sleep(1)
+
+def run_kshell_lsf(kshl_dir, fn_snt, fn_ptn_init, fn_ptn, fn_wf, fn_wf_out, J2, \
+        op=None, fn_input=None, n_vec=100, header="", batch_cmd=None, run_cmd=None, \
+        fn_operator=None, operator_irank=0, operator_nbody=1, operator_iprty=1):
+    import os, sys, time, subprocess
+    fn_script = os.path.basename(os.path.splitext(fn_wf_out)[0]) + ".sh"
+    fn_out = "log_" + os.path.basename(os.path.splitext(fn_wf_out)[0]) + ".txt"
+    if(fn_input==None): fn_input = os.path.basename(os.path.splitext(fn_wf_out)[0]) + ".input"
+    if(op==None and fn_operator==None):
+        print("Put either op or fn_operator")
+        return
+    if(op!=None and fn_operator!=None):
+        print("You cannot put both op and fn_operator")
+        return
+    if(not os.path.isfile(fn_snt)):
+        print(fn_snt, "not found")
+        return
+    cmd = "cp " + kshl_dir + "/kshell.exe ./"
+    subprocess.call(cmd,shell=True)
+    prt = header + '\n'
+    prt += 'echo "start runnning ' + fn_out + ' ..."\n'
+    prt += 'cat >' + fn_input + ' <<EOF\n'
+    prt += '&input\n'
+    prt += '  fn_int   = "' + fn_snt + '"\n'
+    prt += '  fn_ptn = "' + fn_ptn + '"\n'
+    prt += '  fn_ptn_init = "' + fn_ptn_init + '"\n'
+    prt += '  fn_load_wave = "' + fn_wf + '"\n'
+    prt += '  fn_save_wave = "' + fn_wf_out + '"\n'
+    prt += '  max_lanc_vec = '+str(n_vec)+'\n'
+    prt += '  n_eigen = '+str(n_vec)+'\n'
+    prt += '  n_restart_vec = '+str(min(n_vec,200))+'\n'
+    prt += '  mtot = '+str(J2)+'\n'
+    prt += '  maxiter = 1\n'
+    prt += '  is_double_j = .true.\n'
+    if(op!=None): prt += '  op_type_init = "'+str(op)+'"\n'
+    if(fn_operator!=None):
+        prt += '  fn_operator = "'+str(fn_operator)+'"\n'
+        prt += '  operator_irank = '+str(operator_irank)+'\n'
+        prt += '  operator_nbody = '+str(operator_nbody)+'\n'
+        prt += '  operator_iprty = '+str(operator_iprty)+'\n'
+    prt += '  eff_charge = 1.0, 0.0\n'
+    prt += '  e1_charge = 1.0, 0.0\n'
+    prt += '&end\n'
+    prt += 'EOF\n'
+    if(run_cmd == None):
+        prt += './kshell.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
+    if(run_cmd != None):
+        prt += run_cmd + ' ./kshell.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
+    prt += 'rm ' + fn_input + '\n'
+    f = open(fn_script,'w')
+    f.write(prt)
+    f.close()
+    os.chmod(fn_script, 0o755)
+    if(batch_cmd == None): cmd = "./" + fn_script
+    if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
+    subprocess.call(cmd, shell=True)
+    time.sleep(1)
