@@ -141,7 +141,7 @@ def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", 
     f.write('\n')
     f.write('\n')
     f.close()
-    cmd = 'python '+kshl_dir+'/kshell_ui.py < ui.in'
+    cmd = 'python2 '+kshl_dir+'/kshell_ui.py < ui.in'
     subprocess.call(cmd, shell=True)
     f = open(fn_script+".sh", "r")
     lines = f.readlines()
@@ -163,11 +163,11 @@ def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", 
     subprocess.call("rm ui.in", shell=True)
     if( dim_cnt ):
         if( os.path.exists( fn_script+'_p.ptn' ) ):
-            cmd = 'python ' + kshl_dir+'/count_dim.py ' + fn_snt + ' ' + fn_script + '_p.ptn'
+            cmd = 'python2 ' + kshl_dir+'/count_dim.py ' + fn_snt + ' ' + fn_script + '_p.ptn'
             print(cmd)
             subprocess.call(cmd, shell=True)
         if( os.path.exists( fn_script+'_n.ptn' ) ):
-            cmd = 'python ' + kshl_dir+'/count_dim.py ' + fn_snt + ' ' + fn_script + '_n.ptn'
+            cmd = 'python2 ' + kshl_dir+'/count_dim.py ' + fn_snt + ' ' + fn_script + '_n.ptn'
             subprocess.call(cmd, shell=True)
     else:
         fn_script += ".sh"
