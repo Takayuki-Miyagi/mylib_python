@@ -113,6 +113,8 @@ def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", 
         hw_max_p=None, hw_max_n=None):
     import os, sys, time, subprocess
     fn_script = Nucl+ "_" + os.path.basename(os.path.splitext(fn_snt)[0])
+    if(  hw_max_p != None ): fn_script + "_hwp" + str(hw_max_p)
+    if(  hw_max_n != None ): fn_script + "_hwn" + str(hw_max_n)
     if(not os.path.isfile(fn_snt)):
         print(fn_snt, "not found")
         return
