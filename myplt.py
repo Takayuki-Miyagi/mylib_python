@@ -49,6 +49,7 @@ def set_style(roman=False,fontsize=0.4,unit_in_cm=True):
     plt.rcParams['ytick.labelsize'] = fs
     plt.rcParams['axes.labelsize'] = fs
     plt.rcParams['legend.numpoints'] = 1
+    plt.rcParams['xtick.top'] = True
     plt.rcParams['xtick.bottom'] = True
     plt.rcParams['xtick.direction'] = 'in'
     plt.rcParams['xtick.major.size'] = 5
@@ -66,6 +67,7 @@ def set_style(roman=False,fontsize=0.4,unit_in_cm=True):
         plt.rcParams['ytick.labelsize'] = fs
         plt.rcParams['axes.labelsize'] = fs
         plt.rcParams['legend.numpoints'] = 1
+        plt.rcParams['xtick.top'] = True
         plt.rcParams['xtick.bottom'] = True
         plt.rcParams['xtick.direction'] = 'in'
         plt.rcParams['xtick.major.size'] = 3

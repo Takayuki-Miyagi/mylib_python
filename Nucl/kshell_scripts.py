@@ -109,12 +109,11 @@ def calc_density(kshl_dir, fn_snt, fn_ptn_bra, fn_ptn_ket, fn_wf_bra, fn_wf_ket,
     subprocess.call(cmd, shell=True)
     time.sleep(1)
 
-def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", batch_cmd=None, run_cmd=None, dim_cnt=False,
-        hw_max_p=None, hw_max_n=None):
+def run_kshell(kshl_dir, Nucl, fn_snt, states="", header="", batch_cmd=None, run_cmd=None, dim_cnt=False, hw_max_p=None, hw_max_n=None):
     import os, sys, time, subprocess
     fn_script = Nucl+ "_" + os.path.basename(os.path.splitext(fn_snt)[0])
-    if(  hw_max_p != None ): fn_script + "_hwp" + str(hw_max_p)
-    if(  hw_max_n != None ): fn_script + "_hwn" + str(hw_max_n)
+    if(  hw_max_p != None ): fn_script += "_hwp" + str(hw_max_p)
+    if(  hw_max_n != None ): fn_script += "_hwn" + str(hw_max_n)
     if(not os.path.isfile(fn_snt)):
         print(fn_snt, "not found")
         return
@@ -123,7 +122,7 @@ def run_kshell(kshl_dir, Nucl, fn_snt, valence_Z, valence_N, states, header="", 
     f = open('ui.in','w')
     f.write('\n')
     f.write(fn_snt+'\n')
-    f.write(str(valence_Z)+","+str(valence_N)+'\n')
+    f.write(Nucl+'\n')
     f.write(fn_script+'\n')
     f.write(states+'\n')
     if(hw_max_p==None): f.write('\n')
