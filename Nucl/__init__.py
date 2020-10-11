@@ -7,3 +7,4 @@ from .ModelSpace import ModelSpace
 from .Operator import Operator
 from .TransitionDensity import TransitionDensity
 from .PeriodicTable import periodic_table
+from .kshell_scripts import kshell_scripts, transit_scripts
