@@ -404,11 +404,11 @@ class TransitionDensity:
         subprocess.call(cmd, shell=True)
         time.sleep(1)
 
-    def eval_expectation_value( self, op ):
-        return self.calc_expectation_value( op )
-    def eval( self, op ):
-        return self.calc_expectation_value( op )
-    def calc_expectation_value( self, op ):
+    def eval_expectation_value( self, op, J1=None, J2=None ):
+        return self.calc_expectation_value( op, J1, J2 )
+    def eval( self, op, J1=None, J2=None ):
+        return self.calc_expectation_value( op, J1, J2 )
+    def calc_expectation_value( self, op, J1=None, J2=None ):
         orbits_de = self.ms.orbits
         orbits_op = op.ms.orbits
         norbs = orbits_op.get_num_orbits()
@@ -421,6 +421,7 @@ class TransitionDensity:
             for j in range(1, norbs+1):
                 oj = orbits_op.get_orbit(j)
                 j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
+                if( J1!=None and oi.j!=J1 and oj.j!=J1 ): continue
                 if( abs(oi.z-oj.z) != 2*op.rankZ): continue
                 if((-1)**(oi.l+oj.l) * op.rankP != 1): continue
                 if( self._triag( oi.j, oj.j, 2*op.rankJ )): continue
@@ -451,6 +452,7 @@ class TransitionDensity:
                             for Jkl in range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2+1)):
                                 if(k == l and Jkl%2 == 1): continue
                                 if( self._triag( Jij, Jkl, op.rankJ )): continue
+                                if( J2!=None and Jij!=J2 and Jkl!=J2 ): continue
                                 if(op.rankJ==0 and op.rankP==1 and op.rankZ==0):
                                     two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ) * \
                                             np.sqrt(2*Jij+1)/np.sqrt(2*self.Jbra+1)
@@ -460,6 +462,8 @@ class TransitionDensity:
                                     two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)
                                     #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ,self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
                                     #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl)))
+                                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:16.10f},{:16.10f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl),\
+                                    #        op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
         return zero,one,two
 
 def main():

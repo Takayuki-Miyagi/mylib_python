@@ -123,8 +123,9 @@ class kshell_scripts:
             f.close()
         return e_data
 
-    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False):
+    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, beta_cm=0):
         fn_script = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+        if( beta_cm != 0): fn_script += "_betacm{:d}".format(beta_cm)
         if(  self.hw_truncation != None ): fn_script += "_hw" + str(self.hw_truncation)
         if(not os.path.isfile(self.fn_snt)):
             print(fn_snt, "not found")
@@ -146,7 +147,7 @@ class kshell_scripts:
             else:
                 f.write('2\n')
                 f.write(str(self.hw_truncation)+'\n')
-        f.write('beta_cm=0\n')
+        f.write('beta_cm='+str(beta_cm)+'\n')
         f.write('mode_lv_hdd=0\n')
         f.write('\n')
         f.write('\n')
@@ -472,7 +473,7 @@ class transit_scripts:
                         espe[label] = energy
                         print("{:s}{:4d}{:4d}{:4d}{:4d}{:12.6f}".format(fn,*label,sum_sf))
                         energy = 0.0
-                        sum_sf = 0.0
+                        #sum_sf = 0.0
                         continue
                     en_bra = float(data[2]) + Hm_bra.get_0bme()
                     en_ket = float(data[5]) + Hm_ket.get_0bme()

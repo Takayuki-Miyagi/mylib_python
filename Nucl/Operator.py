@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-import sys
+import sys, subprocess
 import numpy as np
 import copy
 import gzip
 from sympy import N
-from sympy.physics.wigner import wigner_6j
+from sympy.physics.wigner import wigner_6j, wigner_9j
 if(__package__==None or __package__==""):
     import ModelSpace
+    import nushell2snt
 else:
     from . import Orbits, OrbitsIsospin
     from . import ModelSpace
+    from . import nushell2snt
+
+def _ls_coupling(la, ja, lb, jb, Lab, Sab, J):
+    return np.sqrt( (2*ja+1)*(2*jb+1)*(2*Lab+1)*(2*Sab+1) ) * \
+            N( wigner_9j( la, 0.5, ja, lb, 0.5, jb, Lab, Sab, J) )
+
 
 class Operator:
     def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=False, filename=None, verbose=False):
@@ -364,8 +371,7 @@ class Operator:
         if(filename.find(".int") != -1):
             if(spfile == None):
                 print("No sp file!"); return
-            import nushell2snt
-            if( rankJ==0 and rankP==1 and rankZ==0 ):
+            if( self.rankJ==0 and self.rankP==1 and self.rankZ==0 ):
                 nushell2snt.scalar( spfile, filename, "tmp.snt" )
             else:
                 if(opfile2 == None):
@@ -952,6 +958,82 @@ class Operator:
         if(a==b): me /= np.sqrt(2.0)
         if(c==d): me /= np.sqrt(2.0)
         return me
+    def spin_tensor_decomposition(self):
+        if(self.rankJ != 0):
+            print("Spin-tensor decomposition is not defined for a non-scalar operator")
+            return None
+        ops = []
+        ops.append( Operator( rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, ms=self.ms ) )
+        ops.append( Operator( rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, ms=self.ms ) )
+        ops.append( Operator( rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, ms=self.ms ) )
+        ms = self.ms.two
+        orbits = ms.orbits
+        for ch_key in self.two.keys():
+            ichbra = ch_key[0]
+            ichket = ch_key[1]
+            chbra = ms.get_channel(ichbra)
+            chket = ms.get_channel(ichket)
+            J = chket.J
+            for key in self.two[ch_key].keys():
+                a = chbra.orbit1_index[key[0]]
+                b = chbra.orbit2_index[key[0]]
+                c = chket.orbit1_index[key[1]]
+                d = chket.orbit2_index[key[1]]
+                oa = orbits.get_orbit(a)
+                ob = orbits.get_orbit(b)
+                oc = orbits.get_orbit(c)
+                od = orbits.get_orbit(d)
+
+                for rank in [0,1,2]:
+                    sum3 = 0.0
+                    for Lab in range( abs(oa.l-ob.l), oa.l+ob.l+1 ):
+                        for Sab in [0,1]:
+                            if(self._triag( Lab, Sab, J )): continue
+                            Cab = _ls_coupling(oa.l, oa.j*0.5, ob.l, ob.j*0.5, Lab, Sab, J)
+                            if(abs(Cab) < 1.e-10): continue
+                            for Lcd in range( abs(oc.l-od.l), oc.l+od.l+1 ):
+                                for Scd in [0,1]:
+                                    if(self._triag( Lcd, Scd, J )): continue
+                                    Ccd = _ls_coupling(oc.l, oc.j*0.5, od.l, od.j*0.5, Lcd, Scd, J)
+                                    if(abs(Ccd) < 1.e-10): continue
+                                    SixJ = N(wigner_6j(Lab,Sab,J,Scd,Lcd,rank))
+                                    if(abs(SixJ) < 1.e-10): continue
+
+                                    sum2 = 0.0
+                                    for JJ in range( max(abs(Lab-Sab),abs(Lcd-Scd)), min(Lab+Sab, Lcd+Scd)+1):
+                                        SixJJ = N(wigner_6j(Lab,Sab,JJ,Scd,Lcd,rank))
+                                        if(abs(SixJJ) < 1.e-10): continue
+                                        sum1 = 0.0
+                                        for jaa in [abs(2*oa.l-1), 2*oa.l+1]:
+                                            try:
+                                                aa = orbits.get_orbit_index(oa.n, oa.l, jaa, oa.z)
+                                            except:
+                                                continue
+                                            for jbb in [abs(2*ob.l-1), 2*ob.l+1]:
+                                                try:
+                                                    bb = orbits.get_orbit_index(ob.n, ob.l, jbb, ob.z)
+                                                except:
+                                                    continue
+                                                CCab = _ls_coupling(oa.l, jaa*0.5, ob.l, jbb*0.5, Lab, Sab, JJ)
+                                                for jcc in [abs(2*oc.l-1), 2*oc.l+1]:
+                                                    try:
+                                                        cc = orbits.get_orbit_index(oc.n, oc.l, jcc, oc.z)
+                                                    except:
+                                                        continue
+                                                    for jdd in [abs(2*od.l-1), 2*od.l+1]:
+                                                        try:
+                                                            dd = orbits.get_orbit_index(od.n, od.l, jdd, od.z)
+                                                        except:
+                                                            continue
+                                                        CCcd = _ls_coupling(oc.l, jcc*0.5, od.l, jdd*0.5, Lcd, Scd, JJ)
+                                                        sum1 += self.get_2bme_from_indices(aa,bb,cc,dd,JJ,JJ) * CCab * CCcd
+                                        sum2 += sum1 * SixJJ * (2*JJ+1)*(-1)**JJ
+                                    sum3 += sum2 * SixJ * Cab * Ccd
+                    ops[rank].set_2bme_from_indices(a,b,c,d,J,J, (-1)**J*(2*rank+1)*sum3)
+                sys.exit()
+        return ops
+
+
 
 def main():
     ms = ModelSpace.ModelSpace()
