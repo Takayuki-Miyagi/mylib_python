@@ -123,10 +123,11 @@ class kshell_scripts:
             f.close()
         return e_data
 
-    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, beta_cm=0):
+    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, args=None):
         fn_script = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
-        if( beta_cm != 0): fn_script += "_betacm{:d}".format(beta_cm)
-        if(  self.hw_truncation != None ): fn_script += "_hw" + str(self.hw_truncation)
+        if(args != None):
+            if( 'beta_cm' in args): fn_script += "_betacm{:d}".format(args['beta_cm'])
+        if(self.hw_truncation != None): fn_script += "_hw" + str(self.hw_truncation)
         if(not os.path.isfile(self.fn_snt)):
             print(fn_snt, "not found")
             return
@@ -147,8 +148,9 @@ class kshell_scripts:
             else:
                 f.write('2\n')
                 f.write(str(self.hw_truncation)+'\n')
-        f.write('beta_cm='+str(beta_cm)+'\n')
-        f.write('mode_lv_hdd=0\n')
+        if(args!=None):
+            for key in args.keys():
+                f.write('{:s}={:s}'.format(key, str(args[key])))
         f.write('\n')
         f.write('\n')
         f.write('\n')
@@ -386,7 +388,7 @@ class transit_scripts:
             subprocess.call(cmd, shell=True)
             time.sleep(1)
 
-    def calc_espe(self, kshl, snts=None, states_dest="+20,-20", header="", batch_cmd=None, run_cmd=None, step="full", mode="hole"):
+    def calc_espe(self, kshl, snts=None, states_dest="+20,-20", header="", batch_cmd=None, run_cmd=None, step="full", mode="hole", N_states=None, kshell_args=None):
         """
         snts = [ snt_file_for_Z-1_N, snt_file_for_Z_N-1, snt_file_for_Z+1_N, snt_file_for_Z_N+1 ]
         """
@@ -402,7 +404,7 @@ class transit_scripts:
         if(snts==None):
             snts = [kshl.fn_snt] * 4
         if(step=="diagonalize" or step=="full"):
-            kshl.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+            kshl.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, args=kshell_args)
             for idx in range(min_idx,max_idx):
                 fn_snt = snts[idx]
                 if(idx==0): Z, N = kshl.Z-1, kshl.N
@@ -411,7 +413,7 @@ class transit_scripts:
                 if(idx==3): Z, N = kshl.Z, kshl.N+1
                 Nucl = "{:s}{:d}".format(PeriodicTable.periodic_table[Z],Z+N)
                 kshl_tr = kshell_scripts(kshl_dir=kshl.kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=states_dest)
-                kshl_tr.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+                kshl_tr.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, args=kshell_args)
         if(step=="density" or step=="full"):
             for idx in range(min_idx,max_idx):
                 fn_snt = snts[idx]
@@ -425,7 +427,7 @@ class transit_scripts:
                 trs.calc_density(kshl,kshl_tr,calc_SF=True)
         # final step
         espe = {}
-        sum_sf = 0.0
+        sum_sf = {}
         for idx in range(min_idx,max_idx):
             fn_snt = snts[idx]
             if(idx==0): Z, N = kshl.Z-1, kshl.N
@@ -444,17 +446,21 @@ class transit_scripts:
                 Hm_ket = Operator(filename = kshl_tr.fn_snt)
             for key in trs.filenames.keys():
                 fn = trs.filenames[key]
-                espe_each, sum_sf_each = trs.read_sf_file(fn, Hm_bra, Hm_ket)
-                sum_sf += sum_sf_each
+                espe_each, sum_sf_each = trs.read_sf_file(fn, Hm_bra, Hm_ket, N_states=N_states)
                 for key in espe_each:
-                    if( key in espe ): espe[key] += espe_each[key]
-                    else: espe[key] = espe_each[key]
+                    if( key in espe ):
+                        espe[key] += espe_each[key]
+                        sum_sf[key] += sum_sf_each[key]
+                    else:
+                        espe[key] = espe_each[key]
+                        sum_sf[key] = sum_sf_each[key]
         return espe, sum_sf
-    def read_sf_file(self,fn, Hm_bra, Hm_ket):
+    def read_sf_file(self,fn, Hm_bra, Hm_ket, N_states=None):
         f = open(fn,'r')
         lines = f.readlines()
         f.close()
         espe = {}
+        sum_sfs = {}
         read=False
         energy = 0.0
         sum_sf=0.0
@@ -471,15 +477,21 @@ class transit_scripts:
                     if(len(data)==0):
                         read=False
                         espe[label] = energy
+                        sum_sfs[label] = sum_sf
                         print("{:s}{:4d}{:4d}{:4d}{:4d}{:12.6f}".format(fn,*label,sum_sf))
                         energy = 0.0
-                        #sum_sf = 0.0
+                        sum_sf = 0.0
                         continue
+                    i_bra = int(data[1][:-1])
+                    i_ket = int(data[4][:-1])
                     en_bra = float(data[2]) + Hm_bra.get_0bme()
                     en_ket = float(data[5]) + Hm_ket.get_0bme()
+                    if(N_states != None):
+                        if(i_bra > N_states): continue
+                        if(i_ket > N_states): continue
                     CS = float(data[7]) / (label[2]+1)
                     sum_sf += CS * (label[2]+1)
                     energy += CS * (en_bra - en_ket)
                 else:
                     continue
-        return espe, sum_sf
+        return espe, sum_sfs
