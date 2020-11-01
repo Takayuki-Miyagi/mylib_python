@@ -150,7 +150,7 @@ class kshell_scripts:
                 f.write(str(self.hw_truncation)+'\n')
         if(args!=None):
             for key in args.keys():
-                f.write('{:s}={:s}'.format(key, str(args[key])))
+                f.write('{:s}={:s}\n'.format(key, str(args[key])))
         f.write('\n')
         f.write('\n')
         f.write('\n')
