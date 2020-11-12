@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os, sys, time, subprocess, re, itertools
+import numpy as np
 if(__package__==None or __package__==""):
     import PeriodicTable
     import Operator
@@ -7,12 +8,15 @@ else:
     from . import PeriodicTable
     from . import Operator
 class kshell_scripts:
-    def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states="+10,-10", hw_truncation=None):
+    def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states="+10,-10", hw_truncation=None, run_args=None):
         self.kshl_dir = kshl_dir
         self.fn_snt = fn_snt
         self.Nucl = Nucl
         self.states = states
         self.hw_truncation=hw_truncation
+        self.plot_position=0
+        self.run_args=run_args
+        self.edict_previous={}
         isdigit = re.search(r'\d+', self.Nucl)
         self.A = int( isdigit.group() )
         asc = self.Nucl[:isdigit.start()] + self.Nucl[isdigit.end():]
@@ -26,8 +30,11 @@ class kshell_scripts:
             state_str = self._state_string(state)
             self.fn_ptns[state] = "{:s}_{:s}_{:s}.ptn".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str[-1] )
             self.fn_wfs[state] = "{:s}_{:s}_{:s}.wav".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str )
-
-    def _get_wf_index( self, fn_summary ):
+    def set_snt_file(self, fn_snt):
+        self.fn_snt = fn_snt
+    def set_run_args(self, run_args):
+        self.run_args = run_args
+    def get_wf_index( self, fn_summary ):
         jpn_to_idx = {}
         f = open( fn_summary, "r" )
         lines = f.readlines()
@@ -123,10 +130,10 @@ class kshell_scripts:
             f.close()
         return e_data
 
-    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, args=None):
+    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False):
         fn_script = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
-        if(args != None):
-            if( 'beta_cm' in args): fn_script += "_betacm{:d}".format(args['beta_cm'])
+        if(self.run_args != None):
+            if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0): fn_script += "_betacm{:d}".format(self.run_args['beta_cm'])
         if(self.hw_truncation != None): fn_script += "_hw" + str(self.hw_truncation)
         if(not os.path.isfile(self.fn_snt)):
             print(fn_snt, "not found")
@@ -148,9 +155,9 @@ class kshell_scripts:
             else:
                 f.write('2\n')
                 f.write(str(self.hw_truncation)+'\n')
-        if(args!=None):
-            for key in args.keys():
-                f.write('{:s}={:s}\n'.format(key, str(args[key])))
+        if(self.run_args!=None):
+            for key in self.run_args.keys():
+                f.write('{:s}={:s}\n'.format(key, str(self.run_args[key])))
         f.write('\n')
         f.write('\n')
         f.write('\n')
@@ -248,49 +255,104 @@ class kshell_scripts:
         subprocess.call(cmd, shell=True)
         time.sleep(1)
 
-#    def calc_density(self, fn_ptn_bra, fn_ptn_ket, fn_wf_bra, fn_wf_ket, i_wfs=None, fn_density=None, \
-#            header="", batch_cmd=None, run_cmd=None, fn_input="transit.input", calc_SF=False):
-#        if(fn_density==None):
-#            basename = os.path.basename(self.fn_snt)
-#            fn_out = "density_{:s}.dat".format(os.path.splitext(basename)[0])
-#        if(fn_density!=None): fn_out = fn_density
-#        fn_script = os.path.splitext(fn_out)[0] + ".sh"
-#        cmd = "cp " + self.kshl_dir + "/transit.exe ./"
-#        subprocess.call(cmd,shell=True)
-#        prt = header + '\n'
-#        prt += 'echo "start runnning ' + fn_out + ' ..."\n'
-#        prt += 'cat >' + fn_input + ' <<EOF\n'
-#        prt += '&input\n'
-#        prt += '  fn_int   = "' + self.fn_snt + '"\n'
-#        prt += '  fn_ptn_l = "' + fn_ptn_bra + '"\n'
-#        prt += '  fn_ptn_r = "' + fn_ptn_ket + '"\n'
-#        prt += '  fn_load_wave_l = "' + fn_wf_bra + '"\n'
-#        prt += '  fn_load_wave_r = "' + fn_wf_ket + '"\n'
-#        if(i_wfs!=None):
-#            prt += '  n_eig_lr_pair = '
-#            for lr in i_wfs:
-#                prt += str(lr[0]) + ', ' + str(lr[1]) + ', '
-#            prt += '\n'
-#        prt += '  hw_type = 2\n'
-#        prt += '  eff_charge = 1.5, 0.5\n'
-#        prt += '  gl = 1.0, 0.0\n'
-#        prt += '  gs = 3.91, -2.678\n'
-#        if(not calc_SF): prt += '  is_tbtd = .true.\n'
-#        prt += '&end\n'
-#        prt += 'EOF\n'
-#        if(run_cmd == None):
-#            prt += './transit.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
-#        if(run_cmd != None):
-#            prt += run_cmd + ' ./transit.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
-#        prt += 'rm ' + fn_input + '\n'
-#        f = open(fn_script,'w')
-#        f.write(prt)
-#        f.close()
-#        os.chmod(fn_script, 0o755)
-#        if(batch_cmd == None): cmd = "./" + fn_script
-#        if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
-#        subprocess.call(cmd, shell=True)
-#        time.sleep(1)
+    def summary_to_dictionary(self, comment_snt="!"):
+        fn_summary = "summary_{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+        if(self.run_args != None):
+            if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0): fn_summary += "_betacm{:d}".format(self.run_args['beta_cm'])
+        if(self.hw_truncation != None): fn_summary += "_hw" + str(self.hw_truncation)
+        fn_summary += ".txt"
+        H = Operator()
+        H.read_operator_file(self.fn_snt,comment=comment_snt)
+        f = open(fn_summary,'r')
+        lines = f.readlines()
+        f.close()
+        edict={}
+        for line in lines:
+            data = line.split()
+            try:
+                N = int(data[0])
+                J = data[1]
+                P = data[2]
+                i = int(data[3])
+                e = float(data[5])
+                eex = float(data[6])
+                edict[(J,P,i)] = e + H.get_0bme()
+            except:
+                continue
+        return edict
+    def plot_levels(self, ax, \
+            absolute=False, show_Jpi=False, connect=True, bar_width=0.3, lw=1, window_size=4, color_mode="parity"):
+        edict = self.summary_to_dictionary()
+        self._plot_levels(ax, edict, \
+                absolute=absolute, show_Jpi=show_Jpi, connect=connect, \
+                bar_width=bar_width, lw=lw, window_size=window_size, color_mode=color_mode)
+    def plot_levels_dictionary(self, ax, edict, \
+            absolute=False, show_Jpi=False, connect=True, bar_width=0.3, lw=1, window_size=4, color_mode="parity"):
+        self._plot_levels(ax, edict,\
+                absolute=absolute, show_Jpi=sho_Jpi, connect=connect, \
+                bar_width=bar_width, lw=lw, window_size=window_size, color_mode=color_mode)
+    def _plot_levels(self, ax, edict, \
+            absolute=False, show_Jpi=False, connect=True, bar_width=0.3, lw=1, window_size=4, color_mode="parity"):
+        if(not absolute):
+            tmp = edict
+            Emin = np.inf
+            for E in tmp.values():
+                Emin = min(Emin, E)
+            for key in tmp.keys():
+                edict[key] = tmp[key]-Emin
+
+        x = self.plot_position
+        for key in edict.keys():
+            y = edict[key]
+            ax.plot([x-bar_width,x+bar_width],[y,y],lw=lw,c=self._get_color(key,color_mode))
+        if(connect and len(self.edict_previous)!=0):
+            for key in self.edict_previous.keys():
+                if(key in edict):
+                    yl = self.edict_previous[key]
+                    yr = edict[key]
+                    ax.plot([x-1+bar_width,x-bar_width],[yl,yr],lw=0.8*lw,ls=":",c=self._get_color(key,color_mode))
+        if(show_Jpi):
+            fs = 2 # fontsize is assumed to be 2 mm
+            bbox = ax.get_window_extent()
+            width, height = bbox.width, bbox.height # in pixel
+            width *= 2.54/100 # in cm
+            height *= 2.54/100 # in cm
+            h = 10 * height / window_size # mm / MeV
+            levels = sorted(edict.items(), key=lambda x:x[1])
+            first = levels[0]
+            key = first[0]
+            y = first[1]
+            label = "$"+key[0]+"^{"+key[1]+"}_{"+str(key[2])+"}$"
+            ax.plot([x+bar_width,x+bar_width+0.2],[y,y],lw=0.8*lw,c=self._get_color(key,color_mode),ls="--")
+            ax.annotate(label, xy=(x+bar_width+0.2,y), color=self._get_color(key,color_mode))
+            y_back = 0
+            for i in range(1,len(levels)):
+                level = levels[i]
+                key = level[0]
+                e = level[1]
+                label = "$"+key[0]+"^{"+key[1]+"}_{"+str(key[2])+"}$"
+                y = e
+                if( ( e-y_back ) * h < fs ): y = y_back+(fs+0.5)/h
+                ax.plot([x+bar_width,x+bar_width+0.2],[e,y],lw=0.8*lw,c=self._get_color(key,color_mode),ls="--")
+                ax.annotate(label, xy=(x+bar_width+0.2,y),color=self._get_color(key,color_mode))
+                y_back=y
+        self.plot_position+=1
+        self.edict_previous=edict
+    def _get_color(self, key, color_mode):
+        color_list_p = ['red','salmon','orange','darkgoldenrod','gold','olive', 'lime','forestgreen','turquoise','teal','skyblue']
+        color_list_n = ['navy','blue','mediumpurple','blueviolet','mediumorchid','purple','magenta','pink','crimson']
+        if(self.A%2==0): Jdouble = int(key[0])*2
+        if(self.A%2==1): Jdouble = int(key[0][:-2])
+        P = key[1]
+        if(color_mode=="parity"):
+            if(P=="+"): return "red"
+            if(P=="-"): return "blue"
+        elif(color_mode=="spin_parity"):
+            idx = int(Jdouble/2)
+            if(P=="+"): return color_list_p[idx%len(color_list_p)]
+            if(P=="-"): return color_list_n[idx%len(color_list_n)]
+
+
 
 class transit_scripts:
     def __init__(self, kshl_dir=None, i_wfs=None):
@@ -388,7 +450,7 @@ class transit_scripts:
             subprocess.call(cmd, shell=True)
             time.sleep(1)
 
-    def calc_espe(self, kshl, snts=None, states_dest="+20,-20", header="", batch_cmd=None, run_cmd=None, step="full", mode="hole", N_states=None, kshell_args=None):
+    def calc_espe(self, kshl, snts=None, states_dest="+20,-20", header="", batch_cmd=None, run_cmd=None, step="full", mode="hole", N_states=None):
         """
         snts = [ snt_file_for_Z-1_N, snt_file_for_Z_N-1, snt_file_for_Z+1_N, snt_file_for_Z_N+1 ]
         """
@@ -404,7 +466,7 @@ class transit_scripts:
         if(snts==None):
             snts = [kshl.fn_snt] * 4
         if(step=="diagonalize" or step=="full"):
-            kshl.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, args=kshell_args)
+            kshl.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
             for idx in range(min_idx,max_idx):
                 fn_snt = snts[idx]
                 if(idx==0): Z, N = kshl.Z-1, kshl.N
@@ -413,7 +475,7 @@ class transit_scripts:
                 if(idx==3): Z, N = kshl.Z, kshl.N+1
                 Nucl = "{:s}{:d}".format(PeriodicTable.periodic_table[Z],Z+N)
                 kshl_tr = kshell_scripts(kshl_dir=kshl.kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=states_dest)
-                kshl_tr.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, args=kshell_args)
+                kshl_tr.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
         if(step=="density" or step=="full"):
             for idx in range(min_idx,max_idx):
                 fn_snt = snts[idx]
