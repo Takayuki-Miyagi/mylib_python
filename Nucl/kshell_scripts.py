@@ -8,15 +8,42 @@ else:
     from . import PeriodicTable
     from . import Operator
 class kshell_scripts:
-    def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states="+10,-10", hw_truncation=None, run_args=None):
+    def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states=None, hw_truncation=None, run_args=None):
         self.kshl_dir = kshl_dir
-        self.fn_snt = fn_snt
         self.Nucl = Nucl
+        if(Nucl != None):
+            isdigit = re.search(r'\d+', self.Nucl)
+            self.A = int( isdigit.group() )
+            asc = self.Nucl[:isdigit.start()] + self.Nucl[isdigit.end():]
+            asc = asc.lower()
+            asc = asc[0].upper() + asc[1:]
+            self.Z = PeriodicTable.periodic_table.index(asc)
+            self.N = self.A-self.Z
         self.states = states
         self.hw_truncation=hw_truncation
         self.plot_position=0
         self.run_args=run_args
         self.edict_previous={}
+        self.fn_snt = fn_snt
+        if(fn_snt != None and states != None):
+            self.fn_ptns = {}
+            self.fn_wfs = {}
+            for state in self.states.split(","):
+                state_str = self._state_string(state)
+                self.fn_ptns[state] = "{:s}_{:s}_{:s}.ptn".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str[-1] )
+                self.fn_wfs[state] = "{:s}_{:s}_{:s}.wav".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str )
+    def get_x_position(self): return self.plot_position
+    def set_snt_file(self, fn_snt, set_other_files=False):
+        self.fn_snt = fn_snt
+        if(set_other_files):
+            self.fn_ptns = {}
+            self.fn_wfs = {}
+            for state in self.states.split(","):
+                state_str = self._state_string(state)
+                self.fn_ptns[state] = "{:s}_{:s}_{:s}.ptn".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str[-1] )
+                self.fn_wfs[state] = "{:s}_{:s}_{:s}.wav".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str )
+    def set_nucl(self, nucl):
+        self.Nucl = nucl
         isdigit = re.search(r'\d+', self.Nucl)
         self.A = int( isdigit.group() )
         asc = self.Nucl[:isdigit.start()] + self.Nucl[isdigit.end():]
@@ -24,14 +51,6 @@ class kshell_scripts:
         asc = asc[0].upper() + asc[1:]
         self.Z = PeriodicTable.periodic_table.index(asc)
         self.N = self.A-self.Z
-        self.fn_ptns = {}
-        self.fn_wfs = {}
-        for state in self.states.split(","):
-            state_str = self._state_string(state)
-            self.fn_ptns[state] = "{:s}_{:s}_{:s}.ptn".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str[-1] )
-            self.fn_wfs[state] = "{:s}_{:s}_{:s}.wav".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str )
-    def set_snt_file(self, fn_snt):
-        self.fn_snt = fn_snt
     def set_run_args(self, run_args):
         self.run_args = run_args
     def get_wf_index( self, fn_summary ):
@@ -280,17 +299,47 @@ class kshell_scripts:
             except:
                 continue
         return edict
-    def plot_levels(self, ax, \
+    def plot_levels(self, ax, edict=None, \
             absolute=False, show_Jpi=False, connect=True, bar_width=0.3, lw=1, window_size=4, color_mode="parity"):
-        edict = self.summary_to_dictionary()
+        if(edict==None): edict = self.summary_to_dictionary()
         self._plot_levels(ax, edict, \
                 absolute=absolute, show_Jpi=show_Jpi, connect=connect, \
                 bar_width=bar_width, lw=lw, window_size=window_size, color_mode=color_mode)
-    def plot_levels_dictionary(self, ax, edict, \
-            absolute=False, show_Jpi=False, connect=True, bar_width=0.3, lw=1, window_size=4, color_mode="parity"):
-        self._plot_levels(ax, edict,\
-                absolute=absolute, show_Jpi=sho_Jpi, connect=connect, \
-                bar_width=bar_width, lw=lw, window_size=window_size, color_mode=color_mode)
+    def set_Jpi_labels(self, ax, edict=None, absolute=False, lw=1, bar_width=0.3, window_size=4, color_mode="parity"):
+        if(edict==None): edict = self.summary_to_dictionary()
+        if(not absolute):
+            tmp = edict
+            Emin = np.inf
+            for E in tmp.values():
+                Emin = min(Emin, E)
+            for key in tmp.keys():
+                edict[key] = tmp[key]-Emin
+        x = self.plot_position-1
+        fs = 2 # fontsize is assumed to be 2 mm
+        bbox = ax.get_window_extent()
+        width, height = bbox.width, bbox.height # in pixel
+        width *= 2.54/100 # in cm
+        height *= 2.54/100 # in cm
+        h = 10 * height / window_size # mm / MeV
+        levels = sorted(edict.items(), key=lambda x:x[1])
+        first = levels[0]
+        key = first[0]
+        y = first[1]
+        label = "$"+key[0]+"^{"+key[1]+"}_{"+str(key[2])+"}$"
+        ax.plot([x+bar_width,x+bar_width+0.2],[y,y],lw=0.8*lw,c=self._get_color(key,color_mode),ls=":")
+        ax.annotate(label, xy=(x+bar_width+0.2,y), color=self._get_color(key,color_mode))
+        y_back = 0
+        for i in range(1,len(levels)):
+            level = levels[i]
+            key = level[0]
+            e = level[1]
+            label = "$"+key[0]+"^{"+key[1]+"}_{"+str(key[2])+"}$"
+            y = e
+            if( abs( e-y_back ) * h < fs ): y = y_back+(fs+0.5)/h
+            ax.plot([x+bar_width,x+bar_width+0.2],[e,y],lw=0.8*lw,c=self._get_color(key,color_mode),ls=":")
+            ax.annotate(label, xy=(x+bar_width+0.2,y),color=self._get_color(key,color_mode))
+            y_back=y
+
     def _plot_levels(self, ax, edict, \
             absolute=False, show_Jpi=False, connect=True, bar_width=0.3, lw=1, window_size=4, color_mode="parity"):
         if(not absolute):
@@ -300,7 +349,6 @@ class kshell_scripts:
                 Emin = min(Emin, E)
             for key in tmp.keys():
                 edict[key] = tmp[key]-Emin
-
         x = self.plot_position
         for key in edict.keys():
             y = edict[key]
@@ -311,32 +359,8 @@ class kshell_scripts:
                     yl = self.edict_previous[key]
                     yr = edict[key]
                     ax.plot([x-1+bar_width,x-bar_width],[yl,yr],lw=0.8*lw,ls=":",c=self._get_color(key,color_mode))
-        if(show_Jpi):
-            fs = 2 # fontsize is assumed to be 2 mm
-            bbox = ax.get_window_extent()
-            width, height = bbox.width, bbox.height # in pixel
-            width *= 2.54/100 # in cm
-            height *= 2.54/100 # in cm
-            h = 10 * height / window_size # mm / MeV
-            levels = sorted(edict.items(), key=lambda x:x[1])
-            first = levels[0]
-            key = first[0]
-            y = first[1]
-            label = "$"+key[0]+"^{"+key[1]+"}_{"+str(key[2])+"}$"
-            ax.plot([x+bar_width,x+bar_width+0.2],[y,y],lw=0.8*lw,c=self._get_color(key,color_mode),ls="--")
-            ax.annotate(label, xy=(x+bar_width+0.2,y), color=self._get_color(key,color_mode))
-            y_back = 0
-            for i in range(1,len(levels)):
-                level = levels[i]
-                key = level[0]
-                e = level[1]
-                label = "$"+key[0]+"^{"+key[1]+"}_{"+str(key[2])+"}$"
-                y = e
-                if( ( e-y_back ) * h < fs ): y = y_back+(fs+0.5)/h
-                ax.plot([x+bar_width,x+bar_width+0.2],[e,y],lw=0.8*lw,c=self._get_color(key,color_mode),ls="--")
-                ax.annotate(label, xy=(x+bar_width+0.2,y),color=self._get_color(key,color_mode))
-                y_back=y
         self.plot_position+=1
+        if(show_Jpi): self.set_Jpi_labels(ax, edict, absolute=absolute, lw=lw, bar_width=bar_width, window_size=window_size, color_mode=color_mode)
         self.edict_previous=edict
     def _get_color(self, key, color_mode):
         color_list_p = ['red','salmon','orange','darkgoldenrod','gold','olive', 'lime','forestgreen','turquoise','teal','skyblue']
