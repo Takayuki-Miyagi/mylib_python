@@ -204,7 +204,6 @@ class kshell_scripts:
         if( dim_cnt ):
             if( os.path.exists( fn_script+'_p.ptn' ) ):
                 cmd = 'python2 ' + self.kshl_dir+'/count_dim.py ' + fn_snt + ' ' + fn_script + '_p.ptn'
-                print(cmd)
                 subprocess.call(cmd, shell=True)
             if( os.path.exists( fn_script+'_n.ptn' ) ):
                 cmd = 'python2 ' + self.kshl_dir+'/count_dim.py ' + fn_snt + ' ' + fn_script + '_n.ptn'
@@ -216,7 +215,7 @@ class kshell_scripts:
             if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
             subprocess.call(cmd, shell=True)
 
-        time.sleep(1)
+        if(batch_cmd != None): time.sleep(1)
 
     def run_kshell_lsf(self, fn_ptn_init, fn_ptn, fn_wf, fn_wf_out, J2, \
             op=None, fn_input=None, n_vec=100, header="", batch_cmd=None, run_cmd=None, \
@@ -236,7 +235,7 @@ class kshell_scripts:
         cmd = "cp " + self.kshl_dir + "/kshell.exe ./"
         subprocess.call(cmd,shell=True)
         prt = header + '\n'
-        prt += 'echo "start runnning ' + fn_out + ' ..."\n'
+        #prt += 'echo "start runnning ' + fn_out + ' ..."\n'
         prt += 'cat >' + fn_input + ' <<EOF\n'
         prt += '&input\n'
         prt += '  fn_int   = "' + self.fn_snt + '"\n'
@@ -258,6 +257,9 @@ class kshell_scripts:
             prt += '  operator_iprty = '+str(operator_iprty)+'\n'
         prt += '  eff_charge = 1.0, 0.0\n'
         prt += '  e1_charge = 1.0, 0.0\n'
+        if(self.run_args!=None):
+            for key in self.run_args.keys():
+                prt += '{:s}={:s}\n'.format(key, str(self.run_args[key]))
         prt += '&end\n'
         prt += 'EOF\n'
         if(run_cmd == None):
@@ -272,7 +274,7 @@ class kshell_scripts:
         if(batch_cmd == None): cmd = "./" + fn_script
         if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
         subprocess.call(cmd, shell=True)
-        time.sleep(1)
+        if(batch_cmd != None): time.sleep(1)
 
     def summary_to_dictionary(self, comment_snt="!"):
         fn_summary = "summary_{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
@@ -328,14 +330,16 @@ class kshell_scripts:
         label = "$"+key[0]+"^{"+key[1]+"}_{"+str(key[2])+"}$"
         ax.plot([x+bar_width,x+bar_width+0.2],[y,y],lw=0.8*lw,c=self._get_color(key,color_mode),ls=":")
         ax.annotate(label, xy=(x+bar_width+0.2,y), color=self._get_color(key,color_mode))
-        y_back = 0
+        if(absolute): y_back = y
+        else: y_back = 0
         for i in range(1,len(levels)):
             level = levels[i]
             key = level[0]
             e = level[1]
             label = "$"+key[0]+"^{"+key[1]+"}_{"+str(key[2])+"}$"
-            y = e
-            if( abs( e-y_back ) * h < fs ): y = y_back+(fs+0.5)/h
+            if((e-y)*h < fs): y+= (fs+0.2)/h
+            else: y=e
+            #print(key,f'{e:12.6f} {y_back:12.6f} {y:12.6f}')
             ax.plot([x+bar_width,x+bar_width+0.2],[e,y],lw=0.8*lw,c=self._get_color(key,color_mode),ls=":")
             ax.annotate(label, xy=(x+bar_width+0.2,y),color=self._get_color(key,color_mode))
             y_back=y
@@ -379,9 +383,8 @@ class kshell_scripts:
 
 
 class transit_scripts:
-    def __init__(self, kshl_dir=None, i_wfs=None):
+    def __init__(self, kshl_dir=None):
         self.kshl_dir = kshl_dir
-        self.i_wfs = i_wfs
         self.filenames = {}
 
     def set_filenames(self, ksh_l, ksh_r, states_list=None, calc_SF=False):
@@ -409,7 +412,7 @@ class transit_scripts:
             self.filenames[(state_l,state_r)] = fn_density
         return flip
 
-    def calc_density(self, ksh_l, ksh_r, states_list=None, header="", batch_cmd=None, run_cmd=None, calc_SF=False):
+    def calc_density(self, ksh_l, ksh_r, states_list=None, header="", batch_cmd=None, run_cmd=None, i_wfs=None, calc_SF=False):
         if(states_list==None):
             states_list = [(x,y) for x,y in itertools.product( ksh_l.states.split(","), ksh_r.states.split(",") )]
         bra_side = ksh_l
@@ -421,6 +424,7 @@ class transit_scripts:
             ket_side = ksh_l
             flip=True
 
+        density_files = []
         for states in states_list:
             state_l = states[0]
             state_r = states[1]
@@ -432,12 +436,13 @@ class transit_scripts:
             fn_density = "density_{:s}_{:s}{:s}_{:s}{:s}.txt".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0], bra_side.Nucl,str_l, ket_side.Nucl,str_r )
             if(calc_SF): fn_density = "SF_{:s}_{:s}{:s}_{:s}{:s}.txt".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0], bra_side.Nucl,str_l, ket_side.Nucl,str_r )
 
+            density_files.append(fn_density)
             fn_script = os.path.splitext(fn_density)[0] + ".sh"
             fn_input = os.path.splitext(fn_density)[0] + ".input"
             cmd = "cp " + self.kshl_dir + "/transit.exe ./"
             subprocess.call(cmd,shell=True)
             prt = header + '\n'
-            prt += 'echo "start runnning ' + fn_density + ' ..."\n'
+            #prt += 'echo "start runnning ' + fn_density + ' ..."\n'
             prt += 'cat >' + fn_input + ' <<EOF\n'
             prt += '&input\n'
             prt += '  fn_int   = "' + ket_side.fn_snt + '"\n'
@@ -445,7 +450,7 @@ class transit_scripts:
             prt += '  fn_ptn_r = "' + ket_side.fn_ptns[state_r]+ '"\n'
             prt += '  fn_load_wave_l = "' + bra_side.fn_wfs[state_l] + '"\n'
             prt += '  fn_load_wave_r = "' + ket_side.fn_wfs[state_r] + '"\n'
-            if(self.i_wfs!=None):
+            if(i_wfs!=None):
                 prt += '  n_eig_lr_pair = '
                 for lr in i_wfs:
                     if(flip):
@@ -472,7 +477,8 @@ class transit_scripts:
             if(batch_cmd == None): cmd = "./" + fn_script
             if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
             subprocess.call(cmd, shell=True)
-            time.sleep(1)
+            if(batch_cmd != None): time.sleep(1)
+        return density_files
 
     def calc_espe(self, kshl, snts=None, states_dest="+20,-20", header="", batch_cmd=None, run_cmd=None, step="full", mode="hole", N_states=None):
         """
