@@ -165,6 +165,9 @@ class TransitionDensity:
                 f.seek(x)
                 return
     def _read_td_kshell_format(self, filename):
+        if(not os.path.exists(filename)):
+            print("file is not found {}".format(filename))
+            return
         f = open(filename, 'r')
         orbs = Orbits()
         while True:

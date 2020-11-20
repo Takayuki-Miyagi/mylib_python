@@ -4,13 +4,16 @@ import numpy as np
 if(__package__==None or __package__==""):
     import PeriodicTable
     import Operator
+    import TransitionDensity
 else:
     from . import PeriodicTable
     from . import Operator
+    from . import TransitionDensity
 class kshell_scripts:
-    def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states=None, hw_truncation=None, run_args=None):
+    def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states=None, hw_truncation=None, run_args={"beta_cm":0, "mode_lv_hdd":0}, verbose=False):
         self.kshl_dir = kshl_dir
         self.Nucl = Nucl
+        self.verbose=verbose
         if(Nucl != None):
             isdigit = re.search(r'\d+', self.Nucl)
             self.A = int( isdigit.group() )
@@ -155,7 +158,7 @@ class kshell_scripts:
             if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0): fn_script += "_betacm{:d}".format(self.run_args['beta_cm'])
         if(self.hw_truncation != None): fn_script += "_hw" + str(self.hw_truncation)
         if(not os.path.isfile(self.fn_snt)):
-            print(fn_snt, "not found")
+            print(self.fn_snt, "not found")
             return
         unnatural=False
         if( self.states.find("-") != -1 and self.states.find("+")!=-1 ): unnatural=True
@@ -181,7 +184,8 @@ class kshell_scripts:
         f.write('\n')
         f.write('\n')
         f.close()
-        cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in'
+        if(self.verbose): cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in'
+        if(not self.verbose): cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in silent'
         subprocess.call(cmd, shell=True)
         f = open(fn_script+".sh", "r")
         lines = f.readlines()
@@ -478,7 +482,7 @@ class transit_scripts:
             if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
             subprocess.call(cmd, shell=True)
             if(batch_cmd != None): time.sleep(1)
-        return density_files
+        return density_files, flip
 
     def calc_espe(self, kshl, snts=None, states_dest="+20,-20", header="", batch_cmd=None, run_cmd=None, step="full", mode="hole", N_states=None):
         """
@@ -587,3 +591,52 @@ class transit_scripts:
                 else:
                     continue
         return espe, sum_sfs
+
+class kshell_toolkit:
+    def calc_exp_vals(kshl_dir, fn_snt, fn_op, Nucl, states_list, hw_truncation=None,
+            run_args={"beta_cm":0, "mode_lv_hdd":0}, Nucl_daughter=None, fn_snt_daughter=None,
+            op_rankJ=0, op_rankP=1, op_rankZ=0, verbose=False, step="kshell"):
+        """
+        This would have redundant steps, but easy to run. Do not use for a big run.
+        inputs:
+            kshel_dir: path to kshell exe files
+            fn_snt: file name of snt
+            Nucl: target nuclide
+            states_list: combinations of < bra | and | ket >
+                ex.) even-mass case states_list should be like [(0+1, 0+1), (0+1, 2+2)]: < first 0+ | Op | first 0+ > and <first 0+ | Op | second 2+ >
+                     odd-mass case state_list should be like [(0.5+1, 0.5+1), ]: < first 1/2+ | Op | first 1/2+ >
+        """
+        if(Nucl_daughter==None): Nucl_daughter=Nucl
+        if(fn_snt_daughter==None): fn_snt_daughter=fn_snt
+        op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ)
+        if(step=="kshell"):
+            exp_vals = []
+            for lr in states_list:
+                bra = lr[0]
+                ket = lr[1]
+                if( bra.find("+") != -1 ): Jbra = float( bra.split("+")[0] )
+                if( bra.find("-") != -1 ): Jbra = float( bra.split("-")[0] )
+                if( ket.find("+") != -1 ): Jket = float( ket.split("+")[0] )
+                if( ket.find("-") != -1 ): Jket = float( ket.split("-")[0] )
+                if( bra.find("+") != -1 ): i_bra = int( bra.split("+")[1] )
+                if( bra.find("-") != -1 ): i_bra = int( bra.split("-")[1] )
+                if( ket.find("+") != -1 ): i_ket = int( ket.split("+")[1] )
+                if( ket.find("-") != -1 ): i_ket = int( ket.split("-")[1] )
+                if(bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter):
+                    kshl = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=bra, hw_truncation=hw_truncation, run_args=run_args)
+                    kshl.run_kshell()
+                    if(verbose): print("calculating density: <" + str(i) + "| Density |" + str(i) + ">")
+                    trs = transit_scripts(kshl_dir=kshl_dir)
+                    fn_den, flip = trs.calc_density(kshl, kshl, states_list=[lr,], i_wfs=[(i_ket, i_ket),])
+                else:
+                    kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt_daughter, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
+                    kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
+                    kshl_l.run_kshell()
+                    kshl_r.run_kshell()
+                    if(verbose): print("calculating density: <" + str(i_bra) + "| Density |" + str(i_ket) + ">")
+                    trs = transit_scripts(kshl_dir=kshl_dir)
+                    fn_den, flip = trs.calc_density(kshl_l, kshl_r, states_list=[lr,], i_wfs=[(i_bra,i_ket),])
+                if(flip): Density = TransitionDensity(filename=fn_den[0], Jbra=Jket, wflabel_bra=i_ket, Jket=Jbra, wflabel_ket=i_bra)
+                if(not flip): Density = TransitionDensity(filename=fn_den[0], Jbra=Jbra, wflabel_bra=i_bra, Jket=Jket, wflabel_ket=i_ket)
+                exp_vals.append(sum(Density.eval(op)))
+            return exp_vals
