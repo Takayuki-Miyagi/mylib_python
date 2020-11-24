@@ -707,7 +707,7 @@ class kshell_toolkit:
             return exp_vals
     def calc_2v_decay(kshl_dir, fn_snt, fn_op, Nucl, initial_state, final_state, Nstates_inter=300, hw_truncation=None,
             run_args={"beta_cm":0, "mode_lv_hdd":0}, op_type=-10, op_rankJ=1, op_rankP=1, op_rankZ=1, verbose=False, step="kshell",
-            direction="nn->pp", mode="direct", batch_cmd=None, run_cmd=None, Q=1.3487):
+            direction="nn->pp", mode="direct", batch_cmd=None, run_cmd=None, Q=0.0, header=""):
 
         """
         This would have redundant steps, but easy to run. Do not use for a big run.
@@ -761,12 +761,12 @@ class kshell_toolkit:
             kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states="+1", hw_truncation=hw_truncation, run_args=run_args)
             kshl_inter.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd)
             kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
-            kshl_l.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd)
-            kshl_r.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd)
-            if(mode=="direct"): kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd)
+            kshl_l.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+            kshl_r.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+            if(mode=="direct"): kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd, header=header)
             if(mode=="lsf"):
                 return
-                kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd,gen_partition=True)
+                kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd,gen_partition=True,header=header)
                 for state in states_list.split(","):
                     if( state.find("+") != -1 ):
                         Jinter = float( state.split("+")[0] )
@@ -779,11 +779,11 @@ class kshell_toolkit:
                     kshl_inter.run_kshell_lsf( kshl_r.fn_ptns[ket], kshl_inter.fn_ptns[state], \
                             kshl_r.fn_wfs[ket], kshl_inter.fn_wfs[state], int(2*Jinter), fn_operator=fn_op, \
                             n_vec=Nstates_inter, operator_irank=op_rankJ, operator_iprty=op_rankP, operator_nbody=op_type, \
-                            batch_cmd=batch_cmd, run_cmd=run_cmd)
+                            batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
                     #kshl_inter.run_kshell_lsf( kshl_r.fn_ptns[ket], kshl_inter.fn_ptns[state], \
                     #        kshl_r.fn_wfs[ket], kshl_inter.fn_wfs[state], int(2*Jinter), op="GT", \
                     #        n_vec=Nstates_inter, operator_irank=op_rankJ, operator_iprty=op_rankP,\
-                    #        batch_cmd=batch_cmd, run_cmd=run_cmd)
+                    #        batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
 
         elif(step=="density"):
             kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
@@ -791,8 +791,8 @@ class kshell_toolkit:
             kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
             trs = transit_scripts(kshl_dir=kshl_dir)
             for state in states_list.split(","):
-                fn_den_l, flip_l = trs.calc_density(kshl_l, kshl_inter, batch_cmd=batch_cmd, run_cmd=run_cmd)
-                fn_den_r, flip_r = trs.calc_density(kshl_inter, kshl_r, batch_cmd=batch_cmd, run_cmd=run_cmd)
+                fn_den_l, flip_l = trs.calc_density(kshl_l, kshl_inter, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+                fn_den_r, flip_r = trs.calc_density(kshl_inter, kshl_r, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
 
         elif(step=="eval"):
             kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
