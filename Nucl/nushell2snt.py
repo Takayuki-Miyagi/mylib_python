@@ -115,7 +115,6 @@ def scalar(spfile, intfile, sntfile):
         massdep  = int(spe[nspe+1]), -spe[nspe+2]
         spe  = spe[:nspe]
     if not t_pn: spe *= 2
-    print(spe)
 
 
     # print  one-body part
