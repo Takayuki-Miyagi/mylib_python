@@ -675,7 +675,7 @@ class transit_scripts:
             self.filenames[(state_l,state_r)] = fn_density
         return flip
 
-    def density_file_from_state(self, ksh_l, ksh_r, state_l, state_r):
+    def density_file_from_state(self, ksh_l, ksh_r, state_l, state_r, calc_SF=False):
         """
         return the density file file name using the left and right states
         state: ex: ('0','+',1), ('1/2','+',1), so J is string not doubled
@@ -703,7 +703,7 @@ class transit_scripts:
         if(calc_SF): fn_density = "SF"
         fn_density += "_{:s}".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0])
         if(ket_side.hw_truncation!=None): fn_density += "_hw{:d}".format(ket_side.hw_truncation)
-        if(ket_side.ph_truncation!=None): fn_density += "_ph{:d}".format(ket_side.ph_truncation)
+        if(ket_side.ph_truncation!=None): fn_density += "_ph{:s}".format(ket_side.ph_truncation)
         fn_density += "_{:s}{:s}_{:s}{:s}.txt".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
         return fn_density, flip
 
