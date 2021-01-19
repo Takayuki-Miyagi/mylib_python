@@ -83,7 +83,8 @@ def _str_to_state_Jfloat(string):
 
 
 class kshell_scripts:
-    def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states=None, hw_truncation=None, run_args={"beta_cm":0, "mode_lv_hdd":0}, verbose=False):
+    def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states=None, hw_truncation=None, ph_truncation=None, \
+            run_args={"beta_cm":0, "mode_lv_hdd":0}, verbose=False):
         """
         kshl_dir: path to KSHELL exe file directory
         fn_snt: file name of the interaction file, snt file
@@ -92,6 +93,7 @@ class kshell_scripts:
             ex) "+10,-10" means 10 positive parity states and 10 negative parity states
                 "0.5+2,1.5-2,2.5+6" means two 1/2+ states, two 3/2- states, and 6 5/2+ states
         hw_truncation: int
+        ph_truncation: "(oribit index)_(min occ)_(max occ)-(orbit index)_(min)_(max)-..."
         run_args: additional arguments for kshell run
         """
         self.kshl_dir = kshl_dir
@@ -100,6 +102,7 @@ class kshell_scripts:
         if(Nucl != None): self.Z, self.N, self.A = _ZNA_from_str(self.Nucl)
         self.states = states
         self.hw_truncation=hw_truncation
+        self.ph_truncation=ph_truncation
         self.plot_position=0
         self.run_args=run_args
         self.edict_previous={}
@@ -109,8 +112,16 @@ class kshell_scripts:
             self.fn_wfs = {}
             for state in self.states.split(","):
                 state_str = self._state_string(state)
-                self.fn_ptns[state] = "{:s}_{:s}_{:s}.ptn".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str[-1] )
-                self.fn_wfs[state] = "{:s}_{:s}_{:s}.wav".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str )
+                self.fn_ptns[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+                self.fn_wfs[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+                if(hw_truncation!=None):
+                    self.fn_ptns[state] += "_hw{:d}".format(hw_truncation)
+                    self.fn_wfs[state] += "_hw{:d}".format(hw_truncation)
+                if(ph_truncation!=None):
+                    self.fn_ptns[state] += "_ph{:s}".format(ph_truncation)
+                    self.fn_wfs[state] += "_ph{:s}".format(ph_truncation)
+                self.fn_ptns[state] += "_{:s}.ptn".format(state_str[-1])
+                self.fn_wfs[state] += "_{:s}.wav".format(state_str)
     def get_x_position(self): return self.plot_position
     def set_snt_file(self, fn_snt, set_other_files=False):
         self.fn_snt = fn_snt
@@ -119,8 +130,16 @@ class kshell_scripts:
             self.fn_wfs = {}
             for state in self.states.split(","):
                 state_str = self._state_string(state)
-                self.fn_ptns[state] = "{:s}_{:s}_{:s}.ptn".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str[-1] )
-                self.fn_wfs[state] = "{:s}_{:s}_{:s}.wav".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0], state_str )
+                self.fn_ptns[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+                self.fn_wfs[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+                if(hw_truncation!=None):
+                    self.fn_ptns[state] += "_hw{:d}".format(hw_truncation)
+                    self.fn_wfs[state] += "_hw{:d}".format(hw_truncation)
+                if(ph_truncation!=None):
+                    self.fn_ptns[state] += "_ph{:s}".format(ph_truncation)
+                    self.fn_wfs[state] += "_ph{:s}".format(ph_truncation)
+                self.fn_ptns[state] += "_{:s}.ptn".format(state_str[-1])
+                self.fn_wfs[state] += "_{:s}.wav".format(state_str)
     def set_nucl(self, nucl):
         self.Nucl = nucl
         self.Z, self.N, self.A = _ZNA_from_str(self.Nucl)
@@ -248,6 +267,7 @@ class kshell_scripts:
             if(self.run_args != None):
                 if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0): fn_script += "_betacm{:d}".format(self.run_args['beta_cm'])
             if(self.hw_truncation != None): fn_script += "_hw" + str(self.hw_truncation)
+            if(self.ph_truncation != None): fn_script += "_ph" + str(self.ph_truncation)
         if(not os.path.isfile(self.fn_snt)):
             print(self.fn_snt, "not found")
             return
@@ -259,15 +279,43 @@ class kshell_scripts:
         f.write(self.Nucl+'\n')
         f.write(fn_script+'\n')
         f.write(self.states+'\n')
-        if(self.hw_truncation==None): f.write('\n')
-        else:
+        if(self.hw_truncation==None and self.ph_truncation==None): f.write('\n')
+        if(self.hw_truncation==None and self.ph_truncation!=None):
+            f.write('1\n')
+            for tr in self.ph_truncation.split("-"):
+                strs = tr.split("_")
+                f.write(strs[0]+'\n')
+                f.write(strs[1]+" "+strs[2]+'\n')
+            f.write('\n')
+        if(self.hw_truncation!=None and self.ph_truncation==None):
             f.write('2\n')
             f.write(str(self.hw_truncation)+'\n')
+        if(self.hw_truncation!=None and self.ph_truncation!=None):
+            f.write('3\n')
+            f.write(str(self.hw_truncation)+'\n')
+            for tr in self.ph_truncation.split("-"):
+                strs = tr.split("_")
+                f.write(strs[0]+'\n')
+                f.write(strs[1]+" "+strs[2]+'\n')
+            f.write('\n')
         if(unnatural):
-            if(self.hw_truncation==None): f.write('\n')
-            else:
+            if(self.hw_truncation==None and self.ph_truncation==None): f.write('\n')
+            if(self.hw_truncation==None and self.ph_truncation!=None):
+                f.write('1\n')
+                for tr in self.ph_truncation.split("-"):
+                    strs = tr.split("_")
+                    f.write(strs[0]+'\n')
+                    f.write(strs[1]+" "+strs[2]+'\n')
+            if(self.hw_truncation!=None and self.ph_truncation==None):
                 f.write('2\n')
                 f.write(str(self.hw_truncation)+'\n')
+            if(self.hw_truncation!=None and self.ph_truncation!=None):
+                f.write('3\n')
+                f.write(str(self.hw_truncation)+'\n')
+                for tr in self.ph_truncation.split("-"):
+                    strs = tr.split("_")
+                    f.write(strs[0]+'\n')
+                    f.write(strs[1]+" "+strs[2]+'\n')
         if(self.run_args!=None):
             for key in self.run_args.keys():
                 f.write('{:s}={:s}\n'.format(key, str(self.run_args[key])))
@@ -295,7 +343,8 @@ class kshell_scripts:
         f.write(prt)
         f.close()
 
-        subprocess.call("rm ui.in", shell=True)
+        #subprocess.call("rm ui.in", shell=True)
+        #subprocess.call("rm save_input_ui.txt", shell=True)
         if(gen_partition): return
         if( dim_cnt ):
             if( os.path.exists( fn_script+'_p.ptn' ) ):
@@ -422,6 +471,7 @@ class kshell_scripts:
         if(self.run_args != None):
             if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0): fn_summary += "_betacm{:d}".format(self.run_args['beta_cm'])
         if(self.hw_truncation != None): fn_summary += "_hw" + str(self.hw_truncation)
+        if(self.ph_truncation != None): fn_summary += "_ph" + str(self.ph_truncation)
         fn_summary += ".txt"
         return fn_summary
 
@@ -604,16 +654,24 @@ class transit_scripts:
             ket_side = ksh_l
             flip=True
 
+        not_calculate = {}
         for states in states_list:
             state_l = states[0]
             state_r = states[1]
             if(flip):
                 state_l = states[1]
                 state_r = states[0]
+            if(bra_side.Nucl == ket_side.Nucl and (state_r,state_l) in states_list):
+                if((state_r,state_l) in not_calculate): continue
+                not_calculate[(state_l,state_r)] = 0
             str_l = bra_side._state_string(state_l)
             str_r = ket_side._state_string(state_r)
-            fn_density = "density_{:s}_{:s}{:s}_{:s}{:s}.txt".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0], bra_side.Nucl,str_l, ket_side.Nucl,str_r )
-            if(calc_SF): fn_density = "SF_{:s}_{:s}{:s}_{:s}{:s}.txt".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0], bra_side.Nucl,str_l, ket_side.Nucl,str_r )
+            fn_density = "density"
+            if(calc_SF): fn_density = "SF"
+            fn_density += "_{:s}".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0])
+            if(ket_side.hw_truncation!=None): fn_density += "_hw{:d}".format(ket_side.hw_truncation)
+            if(ket_side.ph_truncation!=None): fn_density += "_ph{:s}".format(ket_side.ph_truncation)
+            fn_density += "_{:s}{:s}_{:s}{:s}.txt".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
             self.filenames[(state_l,state_r)] = fn_density
         return flip
 
@@ -641,9 +699,13 @@ class transit_scripts:
             wf_ket = ket_side.wfname_from_state(state_r)
         str_l = wf_bra.split("_")[-1].split(".wav")[0]
         str_r = wf_ket.split("_")[-1].split(".wav")[0]
-        fn_density = "density_{:s}_{:s}{:s}_{:s}{:s}.txt".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0], bra_side.Nucl,str_l, ket_side.Nucl,str_r )
+        fn_density = "density"
+        if(calc_SF): fn_density = "SF"
+        fn_density += "_{:s}".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0])
+        if(ket_side.hw_truncation!=None): fn_density += "_hw{:d}".format(ket_side.hw_truncation)
+        if(ket_side.ph_truncation!=None): fn_density += "_ph{:d}".format(ket_side.ph_truncation)
+        fn_density += "_{:s}{:s}_{:s}{:s}.txt".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
         return fn_density, flip
-
 
     def calc_density(self, ksh_l, ksh_r, states_list=None, header="", batch_cmd=None, run_cmd=None, \
             i_wfs=None, calc_SF=False, parity_mix=True):
@@ -663,12 +725,16 @@ class transit_scripts:
             flip=True
 
         density_files = []
+        not_calculate = {}
         for states in states_list:
             state_l = states[0]
             state_r = states[1]
             if(flip):
                 state_l = states[1]
                 state_r = states[0]
+            if(bra_side.Nucl == ket_side.Nucl and (state_r,state_l) in states_list):
+                if((state_r,state_l) in not_calculate): continue
+                not_calculate[(state_l,state_r)] = 0
             str_l = bra_side._state_string(state_l)
             str_r = ket_side._state_string(state_r)
             if(not parity_mix and str_l[-1] != str_r[-1]): continue
@@ -676,8 +742,12 @@ class transit_scripts:
                     _file_exists(bra_side.fn_wfs[state_l]) or  _file_exists(ket_side.fn_wfs[state_r])):
                 density_files.append(None)
                 continue
-            fn_density = "density_{:s}_{:s}{:s}_{:s}{:s}.txt".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0], bra_side.Nucl,str_l, ket_side.Nucl,str_r )
-            if(calc_SF): fn_density = "SF_{:s}_{:s}{:s}_{:s}{:s}.txt".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0], bra_side.Nucl,str_l, ket_side.Nucl,str_r )
+            fn_density = "density"
+            if(calc_SF): fn_density = "SF"
+            fn_density += "_{:s}".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0])
+            if(ket_side.hw_truncation!=None): fn_density += "_hw{:d}".format(ket_side.hw_truncation)
+            if(ket_side.ph_truncation!=None): fn_density += "_ph{:s}".format(ket_side.ph_truncation)
+            fn_density += "_{:s}{:s}_{:s}{:s}.txt".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
 
             density_files.append(fn_density)
             fn_script = os.path.splitext(fn_density)[0] + ".sh"
