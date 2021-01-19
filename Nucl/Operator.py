@@ -501,7 +501,7 @@ class Operator:
                 self.set_2bme_from_indices(a,b,c,d,Jab,Jcd,me)
         f.close()
 
-    def _read_lotta_format(self, filename, ime ):
+    def _read_lotta_format_old(self, filename, ime ):
         orbs = Orbits(verbose=False)
         f = open(filename, "r")
         lines = f.readlines()
@@ -537,6 +537,44 @@ class Operator:
             #if(2*p_n + p_l != 2): continue
             #if(2*n_n + n_l != 2): continue
             mes = [ float(entry[i+6]) for i in range(len(entry)-6) ]
+            i = orbs.get_orbit_index(n_n,n_l,n_j, 1)
+            j = orbs.get_orbit_index(p_n,p_l,p_j,-1)
+            me = mes[ime]
+            if( abs(me) < 1.e-8): continue
+            self.set_1bme( i, j, me )
+
+    def _read_lotta_format(self, filename, ime ):
+        orbs = Orbits(verbose=False)
+        f = open(filename, "r")
+        lines = f.readlines()
+        f.close()
+        idx = 0
+        for line in lines[1:]:
+            entry = line.split()
+            p_n = int(entry[4])
+            p_l = int(entry[5])
+            p_j = int(entry[6])
+            orbs.add_orbit(p_n, p_l, p_j, -1)
+        for line in lines[1:]:
+            entry = line.split()
+            n_n = int(entry[1])
+            n_l = int(entry[2])
+            n_j = int(entry[3])
+            orbs.add_orbit(n_n, n_l, n_j, 1)
+        ms = ModelSpace(rank=1)
+        ms.set_modelspace_from_orbits( orbs )
+        self.allocate_operator( ms )
+        self.set_0bme( 0.0 )
+
+        for line in lines[1:]:
+            entry = line.split()
+            n_n = int(entry[1])
+            n_l = int(entry[2])
+            n_j = int(entry[3])
+            p_n = int(entry[4])
+            p_l = int(entry[5])
+            p_j = int(entry[6])
+            mes = [ float(entry[i+7]) for i in range(len(entry)-7) ]
             i = orbs.get_orbit_index(n_n,n_l,n_j, 1)
             j = orbs.get_orbit_index(p_n,p_l,p_j,-1)
             me = mes[ime]
@@ -673,6 +711,11 @@ class Operator:
             self._write_operator_snt( filename )
         if(filename.find(".op.me2j") != -1):
             self._write_general_operator( filename )
+        if(filename.find(".me2j") != -1):
+            if(self.rankJ==0 and self.rankP==1 and self.rankZ==0):
+                print("Not implemented yet")
+            else:
+                self._write_general_operator( filename )
         if(filename.find(".lotta") != -1):
             self._write_operator_lotta( filename )
 

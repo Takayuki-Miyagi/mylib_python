@@ -22,6 +22,16 @@ def Rp2_to_Rch2( Rp2, Z, N, CODATA=True ):
 
     DF = 0.033
     return Rp2 + rcp2 + N/Z * rcn2 + DF
+def Rch2_to_Rp2( Rch2, Z, N, CODATA=True ):
+    if(CODATA):
+        rcp2 = 0.8783**2 # CODATA
+        rcn2 = -0.115    # CODATA
+    else:
+        rcp2 = 0.709     # Nature 466, 213 (2010).
+        rcn2 = -0.106    # Phys. Rev. Lett. 124, 082501
+
+    DF = 0.033
+    return Rch2 - rcp2 - N/Z * rcn2 - DF
 
 def ME_to_moment( ME, J, lam ):
     """
@@ -58,3 +68,6 @@ def ME_to_inverse_half_life( ME, Jinit, lam, Ediff, EM ):
     hc = physical_constants["Planck constant over 2 pi times c in MeV fm"][0]
     if(EM=="E"): return 5.498e22 * (ediff / hc)**(2*rank+1) * (rank+1) / (rank * factorial2(2*lam+1)**2) * BEM(ME, Jinit)
     if(EM=="M"): return 6.080e20 * (ediff / hc)**(2*rank+1) * (rank+1) / (rank * factorial2(2*lam+1)**2) * BEM(ME, Jinit)
+
+if(__name__=="__main__"):
+    pass

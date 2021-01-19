@@ -10,12 +10,31 @@ else:
     from . import Operator
     from . import TransitionDensity
 
+def _i2prty(i):
+    if(i == 1): return '+'
+    else: return '-'
+
 def _none_check(var, var_name):
+    """
+    Just check if the variable is None or not.
+    """
     if(var==None):
         print("{:s} can't be None.".format(var_name))
         return True
+    else:
+        return False
+
+def _file_exists(fn):
+    if(os.path.exists(fn)):
+        return False
+    else:
+        print("File not found, {:s}".format(fn))
+        return True
 
 def _ZNA_from_str(Nucl):
+    """
+    ex.) Nucl="O16" -> Z=8, N=8, A=16
+    """
     isdigit = re.search(r'\d+', Nucl)
     A = int( isdigit.group() )
     asc = Nucl[:isdigit.start()] + Nucl[isdigit.end():]
@@ -44,9 +63,37 @@ def _str_to_state(string):
     if( J2%2==0 ): return (str(J2//2), prty, nth)
     if( J2%2==1 ): return (str(J2)+"/2", prty, nth)
 
+def _str_to_state_Jfloat(string):
+    """
+    0+1 -> (0, '+', 1)
+    1+1 -> (1, '+', 1)
+    0.5+1 -> (0.5, '+', 1)
+    0.5-1 -> (0.5, '-', 1)
+    ...
+    """
+    if( string.find("+") != -1 ):
+        J = float( string.split("+")[0] )
+        nth = int( string.split("+")[1] )
+        prty = "+"
+    if( string.find("-") != -1 ):
+        J = float( string.split("-")[0] )
+        nth = int( string.split("-")[1] )
+        prty = "-"
+    return (J, prty, nth)
+
 
 class kshell_scripts:
     def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states=None, hw_truncation=None, run_args={"beta_cm":0, "mode_lv_hdd":0}, verbose=False):
+        """
+        kshl_dir: path to KSHELL exe file directory
+        fn_snt: file name of the interaction file, snt file
+        Nucl: target nucleid you want to calculate. ex) "O18"
+        states: string specifying the states you want to calculate.
+            ex) "+10,-10" means 10 positive parity states and 10 negative parity states
+                "0.5+2,1.5-2,2.5+6" means two 1/2+ states, two 3/2- states, and 6 5/2+ states
+        hw_truncation: int
+        run_args: additional arguments for kshell run
+        """
         self.kshl_dir = kshl_dir
         self.Nucl = Nucl
         self.verbose=verbose
@@ -96,6 +143,16 @@ class kshell_scripts:
                 logs.add( dat[-1] )
             jpn_to_idx[(dat[1],dat[2],int(dat[3]))] = (dat[-1], idxs[ dat[-1] ])
         return jpn_to_idx
+    def wfname_from_state(self, state):
+        """
+        return the wave function name of the specified state.
+        state: ex: ('0','+',1), ('1/2','+',1), so J is string not doubled
+        """
+        wf_labels = self.get_wf_index(self.summary_filename())
+        fn_log = wf_labels[state][0]
+        fn_wav = fn_log.split("log_")[1].split(".txt")[0]+".wav"
+        return fn_wav
+
     def _state_string(self, state):
         """
         example:
@@ -121,11 +178,10 @@ class kshell_scripts:
                 if( state.find("+")!=-1): state_str = "m1p"
                 if( state.find("-")!=-1): state_str = "m1n"
         return state_str
-
-    def _i2prty(self, i):
-        if(i == 1): return '+'
-        else: return '-'
     def get_occupation(self, logs=None):
+        fn_summary = self.summary_filename()
+        H = Operator()
+        H.read_operator_file(self.fn_snt)
         if(logs==None):
             logs = []
             states = self.states.split(",")
@@ -139,17 +195,20 @@ class kshell_scripts:
             while True:
                 line = f.readline()
                 if(not line): break
-                if(line[6:10] == "<H>:"):
+                dat = line.split()
+                if(len(dat) < 2): continue
+                if(dat[1] == "<H>:"):
                     dat = line.split()
                     n_eig= int(dat[0])
-                    ene  = float(dat[2])
+                    ene  = float(dat[2]) + H.get_0bme()
                     mtot = int(dat[6][:-2])
                     prty = int(dat[8])
-                    prty = self._i2prty(self,prty)
+                    prty = _i2prty(prty)
                     while ene in e_data: ene += 0.000001
                     line = f.readline()
-                    if line[42:45] != ' T:': continue
-                    tt = int(line[45:48])
+                    dat = line.split()
+                    if(dat[0]=="<Hcm>:"): tt = int(dat[5][:-2])
+                    if(dat[0]=="<TT>:"): tt = int(dat[3][:-2])
                     line = f.readline()
                     data = line.split()
                     if(line[0:7] ==" <p Nj>"):
@@ -176,6 +235,14 @@ class kshell_scripts:
         return e_data
 
     def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, gen_partition=False, fn_script=None):
+        """
+        header: string, specifying the resource allocation.
+        batch_cmd: string, command submitting jobs (this can be None) ex.) "qsub"
+        run_cmd: string, command to run a job (this can be None) ex.) "srun"
+        dim_cnt: switch for dimension count mode
+        gen_partition: switch for only generating the partition file
+        fn_script: string, file name of the script (this is optional)
+        """
         if(fn_script==None):
             fn_script = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
             if(self.run_args != None):
@@ -249,6 +316,46 @@ class kshell_scripts:
     def run_kshell_lsf(self, fn_ptn_init, fn_ptn, fn_wf, fn_wf_out, J2, \
             op=None, fn_input=None, n_vec=100, header="", batch_cmd=None, run_cmd=None, \
             fn_operator=None, operator_irank=0, operator_nbody=1, operator_iprty=1):
+        """
+        This is for Lanczos strength function method. |v1> = Op |v0> and do Lanczos starting from |v1>
+
+        fn_ptn_init: string, partition file for the initial state |v0>
+        fn_ptn: string, partition file for the state |v1>
+        fn_wf: string, input wave function |v0> file name
+        fn_wf_out: string, output wave function file name
+        J2: int, twice of the angular momentum of the |v1> state.
+        op: string, operator name defined in KSHELL
+        fn_input: string, file name for the fortran namelist
+        n_vec: int, the number of states you want to calculate.
+        header: string, specifying the resource allocation.
+        batch_cmd: string, command submitting jobs (this can be None) ex.) "qsub"
+        run_cmd: string, command to run a job (this can be None) ex.) "srun"
+        fn_operator: string, operator file name, instead of op, you can use your own operator to generate |v1>
+            CAUTION, at the moment KSHELL will use only the one-body part of the operator
+        operator_irank: int, angular momentum rank of Op
+        operator_iprty: int, parity of Op
+        operator_nbody: int, a KSHELL intrinsic number.
+            from KSHELL operator_jscheme.f90
+            !  nbody =  0   copy
+            !           1   one-body int. cp+ cp,   cn+ cn
+            !           2   two-body int. c+c+cc
+            !           5   two-body transition density (init_tbtd_op, container)
+            !          10   one-body transition density (init_obtd_beta, container)
+            !          11   two-body transition density for cp+ cn type
+            !          12   two-body transition density for cn+ cp type
+            !          13   two-body transition density for cp+ cp+ cn cn (init_tbtd_ppnn)
+            !          -1   cp+     for s-factor
+            !          -2   cn+     for s-factor
+            !          -3   cp+ cp+ for 2p s-factor
+            !          -4   cn+ cn+ for 2n s-factor
+            !          -5   cp+ cn+ reserved, NOT yet available
+            !          -6   cp      not available
+            !          -7   cn      not available
+            !          -10  cp+ cn  for beta decay
+            !          -11  cn+ cp  for beta decay (only in set_ob_channel)
+            !          -12  cp+ cp+ cn cn  for 0v-bb decay
+            !          -13  cn+ cn+ cp cp  for 0v-bb decay (not yet used)
+        """
         fn_script = os.path.basename(os.path.splitext(fn_wf_out)[0]) + ".sh"
         fn_out = "log_" + os.path.basename(os.path.splitext(fn_wf_out)[0]) + ".txt"
         if(fn_input==None): fn_input = os.path.basename(os.path.splitext(fn_wf_out)[0]) + ".input"
@@ -318,6 +425,32 @@ class kshell_scripts:
         fn_summary += ".txt"
         return fn_summary
 
+    def lowest_from_summary(self):
+        """
+        output: J, prty, Energy
+            J: string, angular momentum, should be like '0', '1/2', 3/2'
+            prty: string, parity, should be '+' or '-'
+            Energy: lowest energy in the summary file (no need to be the ground-state energy)
+        """
+        edict = self.summary_to_dictionary()
+        if(edict == {}): return None, None, None
+        levels = sorted(edict.items(), key=lambda x:x[1])
+        return levels[0][0][0], levels[0][0][1], levels[0][1]
+
+    def energy_from_summary(self, state):
+        """
+        state: tuple of (J, prty, nth)
+            J: string, angular momentum, should be like '0', '1/2', 3/2'
+            prty: string, parity, should be '+' or '-'
+            nth: int
+        """
+        edict = self.summary_to_dictionary()
+        if(edict == {}): return None
+        try:
+            return edict[state]
+        except:
+            return None
+
     def summary_to_dictionary(self, comment_snt="!"):
         fn_summary = self.summary_filename()
         H = Operator()
@@ -341,12 +474,19 @@ class kshell_scripts:
                 continue
         return edict
     def plot_levels(self, ax, edict=None, \
-            absolute=False, show_Jpi=False, connect=True, bar_width=0.3, lw=1, window_size=4, color_mode="parity"):
+            absolute=False, show_Jpi=False, connect=True, \
+            bar_width=0.3, lw=1, window_size=4, color_mode="parity", \
+            states=None):
+        """
+        Draw energy levels
+        ax: matplotlib.axes, the axis you want to draw
+        """
         if(edict==None): edict = self.summary_to_dictionary()
         self._plot_levels(ax, edict, \
                 absolute=absolute, show_Jpi=show_Jpi, connect=connect, \
-                bar_width=bar_width, lw=lw, window_size=window_size, color_mode=color_mode)
-    def set_Jpi_labels(self, ax, edict=None, absolute=False, lw=1, bar_width=0.3, window_size=4, color_mode="parity"):
+                bar_width=bar_width, lw=lw, window_size=window_size, \
+                color_mode=color_mode, states=states)
+    def set_Jpi_labels(self, ax, edict=None, absolute=False, lw=1, bar_width=0.3, window_size=4, color_mode="parity", states=None):
         if(edict==None): edict = self.summary_to_dictionary()
         if(edict=={}): return
         if(not absolute):
@@ -356,6 +496,12 @@ class kshell_scripts:
                 Emin = min(Emin, E)
             for key in tmp.keys():
                 edict[key] = tmp[key]-Emin
+        if(states != None):
+            states_list = []
+            for _ in states.split(","):
+                J, prty, n = _str_to_state(_)
+                for i in range(1,n+1):
+                    states_list.append((J,prty,i))
         x = self.plot_position-1
         fs = 2 # fontsize is assumed to be 2 mm
         bbox = ax.get_window_extent()
@@ -375,6 +521,7 @@ class kshell_scripts:
         for i in range(1,len(levels)):
             level = levels[i]
             key = level[0]
+            if(states!=None and (not key in states_list)): continue
             e = level[1]
             label = "$"+key[0]+"^{"+key[1]+"}_{"+str(key[2])+"}$"
             if((e-y)*h < fs): y+= (fs+0.2)/h
@@ -385,7 +532,14 @@ class kshell_scripts:
             y_back=y
 
     def _plot_levels(self, ax, edict, \
-            absolute=False, show_Jpi=False, connect=True, bar_width=0.3, lw=1, window_size=4, color_mode="parity"):
+            absolute=False, show_Jpi=False, connect=True, \
+            bar_width=0.3, lw=1, window_size=4, color_mode="parity", states=None):
+        if(states != None):
+            states_list = []
+            for _ in states.split(","):
+                J, prty, n = _str_to_state(_)
+                for i in range(1,n+1):
+                    states_list.append((J,prty,i))
         if(not absolute):
             tmp = edict
             Emin = np.inf
@@ -395,26 +549,33 @@ class kshell_scripts:
                 edict[key] = tmp[key]-Emin
         x = self.plot_position
         for key in edict.keys():
+            if(states!=None and (not key in states_list)): continue
             y = edict[key]
             ax.plot([x-bar_width,x+bar_width],[y,y],lw=lw,c=self._get_color(key,color_mode))
         if(connect and len(self.edict_previous)!=0):
             for key in self.edict_previous.keys():
+                if(states!=None and (not key in states_list)): continue
                 if(key in edict):
                     yl = self.edict_previous[key]
                     yr = edict[key]
                     ax.plot([x-1+bar_width,x-bar_width],[yl,yr],lw=0.8*lw,ls=":",c=self._get_color(key,color_mode))
         self.plot_position+=1
-        if(show_Jpi): self.set_Jpi_labels(ax, edict, absolute=absolute, lw=lw, bar_width=bar_width, window_size=window_size, color_mode=color_mode)
+        if(show_Jpi): self.set_Jpi_labels(ax, edict, absolute=absolute, lw=lw, \
+                bar_width=bar_width, window_size=window_size, color_mode=color_mode, \
+                states=states)
         self.edict_previous=edict
     def _get_color(self, key, color_mode):
         color_list_p = ['red','salmon','orange','darkgoldenrod','gold','olive', 'lime','forestgreen','turquoise','teal','skyblue']
         color_list_n = ['navy','blue','mediumpurple','blueviolet','mediumorchid','purple','magenta','pink','crimson']
+        if(key[0]=="-1"): return "k"
         if(self.A%2==0): Jdouble = int(key[0])*2
         if(self.A%2==1): Jdouble = int(key[0][:-2])
         P = key[1]
         if(color_mode=="parity"):
             if(P=="+"): return "red"
             if(P=="-"): return "blue"
+        if(color_mode=="grey"):
+            return "grey"
         elif(color_mode=="spin_parity"):
             idx = int(Jdouble/2)
             if(P=="+"): return color_list_p[idx%len(color_list_p)]
@@ -456,7 +617,36 @@ class transit_scripts:
             self.filenames[(state_l,state_r)] = fn_density
         return flip
 
-    def calc_density(self, ksh_l, ksh_r, states_list=None, header="", batch_cmd=None, run_cmd=None, i_wfs=None, calc_SF=False):
+    def density_file_from_state(self, ksh_l, ksh_r, state_l, state_r):
+        """
+        return the density file file name using the left and right states
+        state: ex: ('0','+',1), ('1/2','+',1), so J is string not doubled
+        """
+        bra_side = ksh_l
+        ket_side = ksh_r
+        flip=False
+        if( ksh_l.Z < ksh_r.Z ):
+            bra_side = ksh_r
+            ket_side = ksh_l
+            flip=True
+        if( ksh_l.A < ksh_r.A ):
+            bra_side = ksh_r
+            ket_side = ksh_l
+            flip=True
+        if(flip):
+            wf_bra = bra_side.wfname_from_state(state_r)
+            wf_ket = ket_side.wfname_from_state(state_l)
+        else:
+            wf_bra = bra_side.wfname_from_state(state_l)
+            wf_ket = ket_side.wfname_from_state(state_r)
+        str_l = wf_bra.split("_")[-1].split(".wav")[0]
+        str_r = wf_ket.split("_")[-1].split(".wav")[0]
+        fn_density = "density_{:s}_{:s}{:s}_{:s}{:s}.txt".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0], bra_side.Nucl,str_l, ket_side.Nucl,str_r )
+        return fn_density, flip
+
+
+    def calc_density(self, ksh_l, ksh_r, states_list=None, header="", batch_cmd=None, run_cmd=None, \
+            i_wfs=None, calc_SF=False, parity_mix=True):
         if(states_list==None):
             states_list = [(x,y) for x,y in itertools.product( ksh_l.states.split(","), ksh_r.states.split(",") )]
         bra_side = ksh_l
@@ -481,6 +671,11 @@ class transit_scripts:
                 state_r = states[0]
             str_l = bra_side._state_string(state_l)
             str_r = ket_side._state_string(state_r)
+            if(not parity_mix and str_l[-1] != str_r[-1]): continue
+            if( _file_exists(bra_side.fn_ptns[state_l]) or  _file_exists(ket_side.fn_ptns[state_r]) or \
+                    _file_exists(bra_side.fn_wfs[state_l]) or  _file_exists(ket_side.fn_wfs[state_r])):
+                density_files.append(None)
+                continue
             fn_density = "density_{:s}_{:s}{:s}_{:s}{:s}.txt".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0], bra_side.Nucl,str_l, ket_side.Nucl,str_r )
             if(calc_SF): fn_density = "SF_{:s}_{:s}{:s}_{:s}{:s}.txt".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0], bra_side.Nucl,str_l, ket_side.Nucl,str_r )
 
@@ -756,15 +951,8 @@ class kshell_toolkit:
         Nucl_inter = "{:s}{:d}".format(PeriodicTable.periodic_table[Z_int], A)
         bra = final_state
         ket = initial_state
-
-        if( bra.find("+") != -1 ): Jbra = float( bra.split("+")[0] )
-        if( bra.find("-") != -1 ): Jbra = float( bra.split("-")[0] )
-        if( ket.find("+") != -1 ): Jket = float( ket.split("+")[0] )
-        if( ket.find("-") != -1 ): Jket = float( ket.split("-")[0] )
-        if( bra.find("+") != -1 ): i_bra = int( bra.split("+")[1] )
-        if( bra.find("-") != -1 ): i_bra = int( bra.split("-")[1] )
-        if( ket.find("+") != -1 ): i_ket = int( ket.split("+")[1] )
-        if( ket.find("-") != -1 ): i_ket = int( ket.split("-")[1] )
+        Jbra, pbra, i_bra = _str_to_state_Jfloat(bra)
+        Jket, pket, i_ket = _str_to_state_Jfloat(ket)
         if( abs(Jbra-Jket) > 2*op_rankJ ):
             print("Error: J={:d} and J={:d} cannot be connected by J=2*{:d} operator".format(Jbra,Jket,op_Jrank))
             return None
@@ -777,28 +965,21 @@ class kshell_toolkit:
             states_list += "{:d}{:s}{:d},".format(J,op_prty,Nstates_inter)
         states_list = states_list[:-1]
         if(step=="kshell"):
-            kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
-            kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
-            fn_tmp = "GS_{:s}_{:s}".format(Nucl_inter, os.path.splitext(os.path.basename(fn_snt))[0])
-            kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=gs_candidate_inter, hw_truncation=hw_truncation, run_args=run_args)
+            kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
+            kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
+            kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=gs_candidate_inter, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
             if(not calc_only_inter):
                 kshl_l.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
                 kshl_r.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+                fn_tmp = "GS_{:s}_{:s}".format(Nucl_inter, os.path.splitext(os.path.basename(fn_snt))[0])
                 kshl_inter.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, fn_script=fn_tmp)
 
-            kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
+            kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
             if(mode=="direct"): kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd, header=header)
             if(mode=="lsf"):
                 kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd,gen_partition=True,header=header)
                 for state in states_list.split(","):
-                    if( state.find("+") != -1 ):
-                        Jinter = float( state.split("+")[0] )
-                        n_inter = int( state.split("+")[1] )
-                        prty = "+"
-                    if( state.find("-") != -1 ):
-                        Jinter = float( state.split("-")[0] )
-                        n_inter = int( state.split("-")[1] )
-                        prty = "-"
+                    Jinter, prty, n_inter = _str_to_state_Jfloat(state)
                     kshl_inter.run_kshell_lsf( kshl_r.fn_ptns[ket], kshl_inter.fn_ptns[state], \
                             kshl_r.fn_wfs[ket], kshl_inter.fn_wfs[state], int(2*Jinter), fn_operator=fn_op, \
                             n_vec=Nstates_inter, operator_irank=op_rankJ, operator_iprty=op_rankP, operator_nbody=op_type, \
@@ -834,14 +1015,7 @@ class kshell_toolkit:
                 r = (state,ket)
                 flip_r = trs.set_filenames(kshl_inter, kshl_r, states_list=[r,])
                 fn_den_r = trs.filenames[r]
-                if( state.find("+") != -1 ):
-                    Jinter = float( state.split("+")[0] )
-                    n_inter = int( state.split("+")[1] )
-                    prty = "+"
-                if( state.find("-") != -1 ):
-                    Jinter = float( state.split("-")[0] )
-                    n_inter = int( state.split("-")[1] )
-                    prty = "-"
+                Jinter, prty, n_inter = _str_to_state_Jfloat(state)
                 if(A%2==0): Jinter_str = str(int(Jinter))
                 if(A%2==1): Jinter_str = "{:d}/2".format(int(2*Jinter))
                 reduced_me_J = 0.0
@@ -856,5 +1030,8 @@ class kshell_toolkit:
                     en_inter = edict_inter[(Jinter_str,prty,i_inter)]
                     reduced_me_J += me / ( en_inter-egs_inter + Q)
                     prt += "{:6.1f} {:s} {:6d} {:14.8f} {:14.8f} {:14.8f} {:14.8f}\n".format(Jinter, prty, i_inter, me_l, me_r, en_inter-egs_inter+Q, reduced_me_J)
+                """
+                TODO: following summation is not correct
+                """
                 reduced_me += reduced_me_J
             return prt
