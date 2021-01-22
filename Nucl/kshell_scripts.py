@@ -63,6 +63,26 @@ def _str_to_state(string):
     if( J2%2==0 ): return (str(J2//2), prty, nth)
     if( J2%2==1 ): return (str(J2)+"/2", prty, nth)
 
+def _str_J_to_Jfloat(string):
+    """
+    '0' -> 0
+    '1' -> 1
+    '1/2' -> 0.5
+    '3/2' -> 1.5
+    """
+    if(string.find("/")!=-1): return float(string[:-2])*0.5
+    return float(string)
+
+def _Jfloat_to_str(J):
+    """
+    0 -> '0'
+    1 -> '1'
+    0.5 -> '1/2'
+    1.5 -> '3/2'
+    """
+    if( int(2*J+0.01)%2 == 0): return str(J)
+    if( int(2*J+0.01)%2 == 1): return str(2*J)+"/2"
+
 def _str_to_state_Jfloat(string):
     """
     0+1 -> (0, '+', 1)
@@ -84,7 +104,7 @@ def _str_to_state_Jfloat(string):
 
 class kshell_scripts:
     def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states=None, hw_truncation=None, ph_truncation=None, \
-            run_args={"beta_cm":0, "mode_lv_hdd":0}, verbose=False):
+            run_args=None, verbose=False):
         """
         kshl_dir: path to KSHELL exe file directory
         fn_snt: file name of the interaction file, snt file
@@ -104,7 +124,8 @@ class kshell_scripts:
         self.hw_truncation=hw_truncation
         self.ph_truncation=ph_truncation
         self.plot_position=0
-        self.run_args=run_args
+        self.run_args = {"beta_cm":0, "mode_lv_hdd":0}
+        if(run_args!=None): self.run_args=run_args
         self.edict_previous={}
         self.fn_snt = fn_snt
         if(fn_snt != None and states != None):
@@ -162,6 +183,20 @@ class kshell_scripts:
                 logs.add( dat[-1] )
             jpn_to_idx[(dat[1],dat[2],int(dat[3]))] = (dat[-1], idxs[ dat[-1] ])
         return jpn_to_idx
+    def get_wf_idx_to_jpn(self):
+        if(len(self.fn_wfs)>1):
+            print("Warning, in get_wf_idx_to_jpn in kshell_scripts.py")
+        state = list(self.fn_wfs.keys())[0]
+        fn_wav = self.fn_wfs[state]
+        fn_log = "log_"+fn_wav.split(".wav")[0]+".txt"
+        jpn_to_idx = self.get_wf_index(self.summary_filename())
+        n=0
+        wf_idx_to_jpn = []
+        for key in jpn_to_idx.keys():
+            if(jpn_to_idx[key][0]==fn_log):
+                n += 1
+                wf_idx_to_jpn.append(key)
+        return wf_idx_to_jpn
     def wfname_from_state(self, state):
         """
         return the wave function name of the specified state.
@@ -171,6 +206,20 @@ class kshell_scripts:
         fn_log = wf_labels[state][0]
         fn_wav = fn_log.split("log_")[1].split(".txt")[0]+".wav"
         return fn_wav
+
+    def _number_of_states(self, state):
+        """
+        example:
+        0+1 -> 1
+        0+2 -> 2
+        2+2 -> 2
+        0.5-4 -> 4
+        1.5-10 -> 10
+        +10 -> 10
+        -5 -> 5
+        """
+        if( state.find("+")!=-1): return int(state.split("+")[-1])
+        if( state.find("-")!=-1): return int(state.split("-")[-1])
 
     def _state_string(self, state):
         """
@@ -902,85 +951,118 @@ class transit_scripts:
         return espe, sum_sfs
 
 class kshell_toolkit:
-    def calc_exp_vals(kshl_dir, fn_snt, fn_op, Nucl, states_list, hw_truncation=None,
-            run_args={"beta_cm":0, "mode_lv_hdd":0}, Nucl_daughter=None, fn_snt_daughter=None,
-            op_rankJ=0, op_rankP=1, op_rankZ=0, op_nbody=0, verbose=False, step="kshell"):
+    def calc_exp_vals(kshl_dir, fn_snt, fn_op, Nucl, states_list, hw_truncation=None, ph_truncation=None,
+            run_args=None, Nucl_daughter=None, fn_snt_daughter=None,
+            op_rankJ=0, op_rankP=1, op_rankZ=0, verbose=False, mode="all",
+            header="", batch_cmd=None, run_cmd=None):
         """
-        This would have redundant steps, but easy to run. Do not use for a big run.
         inputs:
-            kshel_dir: path to kshell exe files
-            fn_snt: file name of snt
-            Nucl: target nuclide
-            states_list: combinations of < bra | and | ket >
-                ex.) even-mass case states_list should be like [(0+1, 0+1), (0+1, 2+2)]: < first 0+ | Op | first 0+ > and <first 0+ | Op | second 2+ >
-                     odd-mass case state_list should be like [(0.5+1, 0.5+1), ]: < first 1/2+ | Op | first 1/2+ >
+            kshel_dir (str)    : path to kshell exe files
+            fn_snt (str)       : file name of snt
+            Nucl (str)         : target nuclide
+            states_list (list) : combinations of < bra | and | ket >
+                ex.) even-mass case states_list should be like [(0+2, 0+2), (0+1, 2+2)]: returns <0+1|Op|0+1>, <0+1|Op|0+2>, <0+2|Op|0+2>, <0+1|Op|2+1>, <0+1|Op|2+2>
+                     odd-mass case state_list should be like [(0.5+1, 0.5+1), ]: <1/2+1| Op |1/2+1>
+                     [(+2,+2),(-2,-2)]:
+                     <J+1|Op|J+1>, <J+1|Op|J+2>, <J+2|Op|J+2>, <J-1|Op|J-1>, <J-1|Op|J-2>, <J-2|Op|J-2>
+            hw_truncation (int): you can introduce hw truncation
+            ph_truncation (str): you can introduce particle-hole truncation by "(oribit index)_(min occ)_(max occ)-(orbit index)_(min)_(max)-..."
+            run_args (dict)    : Additional arguments for kshell_ui.py
+            Nucl_daughter (str): Use this for b or bb decay
+            fn_snt_daughter (str): put snt file name if you want to use one different from parent nucleus
+            mode               : If you can run the calculations interactively, you can use mode='all'.
+                Otherwise, submit jobs step-by-step, mode='diag'->mode='density'->mode='eval'
+            header (str)       : for reasorce allocation
+            batch_cmd (str)    : job submit command e.g., 'qsub', 'sbatch'
+            run_cmd (str)      : execute command e.g., 'srun', default is './'
+            verbose (bool)     : for debug
+            return value is the normal matrix element for scalar operator (op_rankJ=0, op_rankP=1, op_rankZ=0), otherwise, it is reduced matrix element.
         """
+        if(mode=="all" and batch_cmd!=None):
+            print("mode='all' is only for a run on local machine. Please select mode from the following:")
+            print("mode='diag':    Diagonalization with KSHELL")
+            print("mode='density': Calculation of transition density")
+            print("mode='eval':    Calculation of expectation value with given operator and states")
+            return None
+        parity_mixing=False
+        if(op_rankP==-1): parity_mixing=True
         if(Nucl_daughter==None): Nucl_daughter=Nucl
         if(fn_snt_daughter==None): fn_snt_daughter=fn_snt
-        op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ)
-        if(step=="kshell"):
-            exp_vals = []
-            for lr in states_list:
-                bra = lr[0]
-                ket = lr[1]
-                if( bra.find("+") != -1 ): Jbra = float( bra.split("+")[0] )
-                if( bra.find("-") != -1 ): Jbra = float( bra.split("-")[0] )
-                if( ket.find("+") != -1 ): Jket = float( ket.split("+")[0] )
-                if( ket.find("-") != -1 ): Jket = float( ket.split("-")[0] )
-                if( bra.find("+") != -1 ): i_bra = int( bra.split("+")[1] )
-                if( bra.find("-") != -1 ): i_bra = int( bra.split("-")[1] )
-                if( ket.find("+") != -1 ): i_ket = int( ket.split("+")[1] )
-                if( ket.find("-") != -1 ): i_ket = int( ket.split("-")[1] )
-                if(bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter):
-                    kshl = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=bra, hw_truncation=hw_truncation, run_args=run_args, verbose=True)
-                    kshl.run_kshell()
-                    if(verbose): print("calculating density: <" + str(i) + "| Density |" + str(i) + ">")
-                    trs = transit_scripts(kshl_dir=kshl_dir)
-                    fn_den, flip = trs.calc_density(kshl, kshl, states_list=[lr,], i_wfs=[(i_ket, i_ket),])
-                else:
-                    kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt_daughter, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
-                    kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
-                    kshl_l.run_kshell()
-                    kshl_r.run_kshell()
-                    if(verbose): print("calculating density: <" + str(i_bra) + "| Density |" + str(i_ket) + ">")
-                    trs = transit_scripts(kshl_dir=kshl_dir)
-                    fn_den, flip = trs.calc_density(kshl_l, kshl_r, states_list=[lr,], i_wfs=[(i_bra,i_ket),])
-                if(flip): Density = TransitionDensity(filename=fn_den[0], Jbra=Jket, wflabel_bra=i_ket, Jket=Jbra, wflabel_ket=i_bra)
-                if(not flip): Density = TransitionDensity(filename=fn_den[0], Jbra=Jbra, wflabel_bra=i_bra, Jket=Jket, wflabel_ket=i_ket)
-                exp_vals.append(sum(Density.eval(op)))
-            return exp_vals
 
-        if(step=="final"):
-            exp_vals = []
-            for lr in states_list:
-                bra = lr[0]
-                ket = lr[1]
-                if( bra.find("+") != -1 ): Jbra = float( bra.split("+")[0] )
-                if( bra.find("-") != -1 ): Jbra = float( bra.split("-")[0] )
-                if( ket.find("+") != -1 ): Jket = float( ket.split("+")[0] )
-                if( ket.find("-") != -1 ): Jket = float( ket.split("-")[0] )
-                if( bra.find("+") != -1 ): i_bra = int( bra.split("+")[1] )
-                if( bra.find("-") != -1 ): i_bra = int( bra.split("-")[1] )
-                if( ket.find("+") != -1 ): i_ket = int( ket.split("+")[1] )
-                if( ket.find("-") != -1 ): i_ket = int( ket.split("-")[1] )
-                if(bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter):
-                    kshl = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=bra, hw_truncation=hw_truncation, run_args=run_args)
-                    trs = transit_scripts(kshl_dir=kshl_dir)
+        op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ)
+        exp_vals=[]
+        for lr in states_list:
+            bra = lr[0]
+            ket = lr[1]
+            if(bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter):
+                kshl = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=bra,
+                        hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args,
+                        verbose=verbose)
+                if(mode=="diag" or mode=="all"):
+                    kshl.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+                    if(mode=="diag"): continue
+                trs = transit_scripts(kshl_dir=kshl_dir)
+                if(mode=="density" or mode=="all"):
+                    fn_den, flip = trs.calc_density(kshl, kshl, states_list=[lr,],
+                            header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, parity_mix=parity_mixing)
+                    if(mode=="density"): continue
+                if(mode=="eval" or mode=="all"):
                     flip = trs.set_filenames(kshl, kshl, states_list=[lr,])
-                    fn_den = trs.filenames[lr]
-                else:
-                    kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt_daughter, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
-                    kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
-                    trs = transit_scripts(kshl_dir=kshl_dir)
+                    fn_density = trs.filenames[lr]
+                    n = kshl._number_of_states(ket)
+                    wf_idx_to_jpn = kshl.get_wf_idx_to_jpn()
+                    for i_bra in range(1,n+1):
+                        for i_ket in range(1,n+1):
+                            Jbra, Pbra, nn_bra = wf_idx_to_jpn[i_bra-1]
+                            Jket, Pket, nn_ket = wf_idx_to_jpn[i_ket-1]
+                            Jfbra = _str_J_to_Jfloat(Jbra)
+                            Jfket = _str_J_to_Jfloat(Jket)
+                            if( not int(abs(Jfbra-Jfket)) <= op_rankJ <= int(Jfbra+Jfket) ): continue
+                            en_bra = kshl.energy_from_summary((Jbra,Pbra,nn_bra))
+                            en_ket = kshl.energy_from_summary((Jket,Pket,nn_ket))
+                            if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=i_ket, Jket=Jfbra, wflabel_ket=i_bra)
+                            if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=i_bra, Jket=Jfket, wflabel_ket=i_ket)
+                            exp_vals.append( (Jbra,Pbra,nn_bra,en_bra, Jket,Pket,nn_ket,en_ket, *Density.eval(op)))
+
+            else:
+                kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt_daughter, Nucl=Nucl_daughter, states=bra,
+                        hw_truncation=hw_truncation, run_args=run_args, ph_truncation=ph_truncation, verbose=verbose)
+                kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket,
+                        hw_truncation=hw_truncation, run_args=run_args, ph_truncation=ph_truncation, verbose=verbose)
+                if(mode=="diag" or mode=="all"):
+                    kshl_l.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+                    kshl_r.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+                    if(mode=="diag"): continue
+                trs = transit_scripts(kshl_dir=kshl_dir)
+                if(mode=="density" or mode=="all"):
+                    fn_den, flip = trs.calc_density(kshl_l, kshl_r, states_list=[lr,],
+                            header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, parity_mix=parity_mixing)
+                    if(mode=="density"): continue
+                if(mode=="eval" or mode=="all"):
                     flip = trs.set_filenames(kshl_l, kshl_r, states_list=[lr,])
-                    fn_den = trs.filenames[lr]
-                if(flip): Density = TransitionDensity(filename=fn_den, Jbra=Jket, wflabel_bra=i_ket, Jket=Jbra, wflabel_ket=i_bra)
-                if(not flip): Density = TransitionDensity(filename=fn_den, Jbra=Jbra, wflabel_bra=i_bra, Jket=Jket, wflabel_ket=i_ket)
-                exp_vals.append(sum(Density.eval(op)))
-            return exp_vals
+                    fn_density = trs.filenames[lr]
+                    n_bra = kshl_l._number_of_states(bra)
+                    n_ket = kshl_r._number_of_states(ket)
+                    wf_idx_to_jpn_ket = kshl_r.get_wf_idx_to_jpn()
+                    wf_idx_to_jpn_bra = kshl_l.get_wf_idx_to_jpn()
+                    for i_bra in range(1,n_bra+1):
+                        for i_ket in range(1,n_ket+1):
+                            Jbra, Pbra, nn_bra = wf_idx_to_jpn_bra[i_bra-1]
+                            Jket, Pket, nn_ket = wf_idx_to_jpn_ket[i_ket-1]
+                            Jfbra = _str_J_to_Jfloat(Jbra)
+                            Jfket = _str_J_to_Jfloat(Jket)
+                            if( not int(abs(Jfbra-Jfket)) <= op_rankJ <= int(Jfbra+Jfket) ): continue
+                            en_bra = kshl_l.energy_from_summary((Jbra,Pbra,nn_bra))
+                            en_ket = kshl_r.energy_from_summary((Jket,Pket,nn_ket))
+                            if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=i_ket, Jket=Jfbra, wflabel_ket=i_bra)
+                            if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=i_bra, Jket=Jfket, wflabel_ket=i_ket)
+                            exp_vals.append( (Jbra,Pbra,nn_bra,en_bra, Jket,Pket,nn_ket,en_ket, *Density.eval(op)))
+        if(mode=="diag" or mode=="density"): return None
+        return exp_vals
+
     def calc_2v_decay(kshl_dir=None,
             fn_snt=None, fn_op=None, Nucl=None, initial_state=None, final_state=None, Nstates_inter=300, hw_truncation=None,
-            run_args={"beta_cm":0, "mode_lv_hdd":0}, op_type=-10, op_rankJ=1, op_rankP=1, op_rankZ=1, verbose=False, step="kshell",
+            run_args=None, op_type=-10, op_rankJ=1, op_rankP=1, op_rankZ=1, verbose=False, step="kshell",
             direction="nn->pp", mode="direct", batch_cmd=None, run_cmd=None, Q=0.0, header="", list_prty_gs_inter=[-1,1],
             calc_only_inter=False):
 
