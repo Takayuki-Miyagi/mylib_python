@@ -272,6 +272,7 @@ class kshell_scripts:
                     mtot = int(dat[6][:-2])
                     prty = int(dat[8])
                     prty = _i2prty(prty)
+                    hws = None
                     while ene in e_data: ene += 0.000001
                     line = f.readline()
                     dat = line.split()
@@ -298,7 +299,8 @@ class kshell_scripts:
                                 hw, prob = data[i+1].split(":")
                                 hws[int(hw)] = float(prob)
                             break
-                    e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist, hws)
+                    if(hws!=None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist, hws)
+                    if(hws==None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist)
             f.close()
         return e_data
 
@@ -375,6 +377,8 @@ class kshell_scripts:
         if(self.verbose): cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in'
         if(not self.verbose): cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in silent'
         subprocess.call(cmd, shell=True)
+        subprocess.call("rm ui.in",shell=True)
+        if(not self.verbose): subprocess.call("rm save_input_ui.txt",shell=True)
         f = open(fn_script+".sh", "r")
         lines = f.readlines()
         f.close()
