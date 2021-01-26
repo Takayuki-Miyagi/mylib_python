@@ -246,7 +246,7 @@ class kshell_scripts:
                 if( state.find("+")!=-1): state_str = "m1p"
                 if( state.find("-")!=-1): state_str = "m1n"
         return state_str
-    def get_occupation(self, logs=None):
+    def get_occupation(self, logs=None, hw_ex=False):
         fn_summary = self.summary_filename()
         H = Operator()
         H.read_operator_file(self.fn_snt)
@@ -290,15 +290,16 @@ class kshell_scripts:
                         nlist = []
                         for i in range(len(data)-2):
                             nlist.append(float(data[i+2]))
-                    while len(line)!=0:
-                        line = f.readline()
-                        data = line.split()
-                        if(line[0:4] ==" hw:"):
-                            hws = {}
-                            for i in range(len(data)-1):
-                                hw, prob = data[i+1].split(":")
-                                hws[int(hw)] = float(prob)
-                            break
+                    if(hw_ex):
+                        while len(line)!=0:
+                            line = f.readline()
+                            data = line.split()
+                            if(line[0:4] ==" hw:"):
+                                hws = {}
+                                for i in range(len(data)-1):
+                                    hw, prob = data[i+1].split(":")
+                                    hws[int(hw)] = float(prob)
+                                break
                     if(hws!=None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist, hws)
                     if(hws==None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist)
             f.close()
@@ -687,8 +688,9 @@ class kshell_scripts:
 
 
 class transit_scripts:
-    def __init__(self, kshl_dir=None):
+    def __init__(self, kshl_dir=None, verbose=False):
         self.kshl_dir = kshl_dir
+        self.verbose = verbose
         self.filenames = {}
 
     def set_filenames(self, ksh_l, ksh_r, states_list=None, calc_SF=False):
@@ -881,7 +883,7 @@ class transit_scripts:
                 if(idx==3): Z, N = kshl.Z, kshl.N+1
                 Nucl = "{:s}{:d}".format(PeriodicTable.periodic_table[Z],Z+N)
                 kshl_tr = kshell_scripts(kshl_dir=kshl.kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=states_dest)
-                trs = transit_scripts(kshl_dir=kshl.kshl_dir)
+                trs = transit_scripts(kshl_dir=kshl.kshl_dir,verbose=self.verbose)
                 trs.calc_density(kshl,kshl_tr,calc_SF=True)
         # final step
         espe = {}
@@ -894,7 +896,7 @@ class transit_scripts:
             if(idx==3): Z, N = kshl.Z, kshl.N+1
             Nucl = "{:s}{:d}".format(PeriodicTable.periodic_table[Z],Z+N)
             kshl_tr = kshell_scripts(kshl_dir=kshl.kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=states_dest)
-            trs = transit_scripts(kshl_dir=kshl.kshl_dir)
+            trs = transit_scripts(kshl_dir=kshl.kshl_dir,verbose=self.verbose)
             flip = trs.set_filenames(kshl, kshl_tr, calc_SF=True)
             if(flip):
                 Hm_bra = Operator(filename = kshl_tr.fn_snt)
@@ -904,7 +906,11 @@ class transit_scripts:
                 Hm_ket = Operator(filename = kshl_tr.fn_snt)
             for key in trs.filenames.keys():
                 fn = trs.filenames[key]
-                espe_each, sum_sf_each = trs.read_sf_file(fn, Hm_bra, Hm_ket, N_states=N_states)
+                if(not os.path.exists(fn)):
+                    print("{:s} is not found!".format(fn))
+                    continue
+                if(idx==0 or idx==1): espe_each, sum_sf_each = trs.read_sf_file(fn, Hm_bra, Hm_ket, "a^t a", N_states=N_states)
+                if(idx==2 or idx==3): espe_each, sum_sf_each = trs.read_sf_file(fn, Hm_bra, Hm_ket, "a a^t", N_states=N_states)
                 for key in espe_each:
                     if( key in espe ):
                         espe[key] += espe_each[key]
@@ -913,7 +919,10 @@ class transit_scripts:
                         espe[key] = espe_each[key]
                         sum_sf[key] = sum_sf_each[key]
         return espe, sum_sf
-    def read_sf_file(self,fn, Hm_bra, Hm_ket, N_states=None):
+    def read_sf_file(self, fn, Hm_bra, Hm_ket, mode, N_states=None):
+        if(not os.path.exists(fn)):
+            print("{:s} is not found!".format(fn))
+            return None, None
         f = open(fn,'r')
         lines = f.readlines()
         f.close()
@@ -936,18 +945,23 @@ class transit_scripts:
                         read=False
                         espe[label] = energy
                         sum_sfs[label] = sum_sf
-                        print("{:s}{:4d}{:4d}{:4d}{:4d}{:12.6f}".format(fn,*label,sum_sf))
+                        if(self.verbose): print("{:s}{:4d}{:4d}{:4d}{:4d}{:12.6f}".format(fn,*label,sum_sf))
                         energy = 0.0
                         sum_sf = 0.0
                         continue
                     i_bra = int(data[1][:-1])
                     i_ket = int(data[4][:-1])
+                    J2_bra = int(data[0][:-1])
+                    J2_ket = int(data[3][:-1])
                     en_bra = float(data[2]) + Hm_bra.get_0bme()
                     en_ket = float(data[5]) + Hm_ket.get_0bme()
                     if(N_states != None):
                         if(i_bra > N_states): continue
                         if(i_ket > N_states): continue
-                    CS = float(data[7]) / (label[2]+1)
+                    if(mode=="a^t a"):
+                        CS = float(data[7]) / (label[2]+1)
+                    elif(mode=="a a^t"):
+                        CS = float(data[7]) / (label[2]+1) * (J2_bra+1)/(J2_ket+1)
                     sum_sf += CS * (label[2]+1)
                     energy += CS * (en_bra - en_ket)
                 else:

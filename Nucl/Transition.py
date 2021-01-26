@@ -71,3 +71,36 @@ def ME_to_inverse_half_life( ME, Jinit, lam, Ediff, EM ):
 
 if(__name__=="__main__"):
     pass
+
+def mu_sp(l,j,tz):
+    """
+    inputs:
+        l: orbital angular momentum
+        j: total single-particle angular momentum
+       tz: z-compoent of isotpin -1:proton 1:neutron
+    outputs:
+        Single-particle magnetic moment in the unit of mu_N (Schmidt limit)
+    """
+    if(tz==-1):
+        gl = 1
+        gs = 5.586
+    if(tz== 1):
+        gl = 0
+        gs = -3.826
+    if(j == l+0.5): return gl * l + 0.5*(gs-gl)
+    elif(j == l-0.5): return gl * j - j*(gs-gl)/(2*j+2)
+    else:
+        print("Error: j has to be l-1/2 or l+1/2")
+        return None
+def Q_sp(j,A):
+    """
+    inputs:
+        j: total single-particle angular momentum
+        A: mass number
+    outputs:
+        Single-particle Q moment in the unit of e^2 fm^2
+        (3-4*j*(j+1))/(2*(j+1)*(2*j+3)) * \int dr r^4 rho(r)
+        if we take rho as the squre well, it becomes (3-4*j*(j+1))/(2*(j+1)*(2*j+3)) * 3 / 5 * R^2
+    """
+    R = 1.2 * A **(1/3)
+    return (3-4*j*(j+1))/(2*(j+1)*(2*j+3)) * 3 * R**2 / 5

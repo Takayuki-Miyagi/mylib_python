@@ -34,6 +34,45 @@ class Operator:
         if( ms != None ): self.allocate_operator( ms )
         if( filename != None ): self.read_operator_file( filename )
 
+    def espe(self, occs, method="no"):
+        """
+        calculate effective single-particle energies with occupations
+            occs: dictionary {(n1,l1,j1,tz1):occ1, (n2,l2,j2,tz2):occ2, ...}
+            j and tz has to be double (integer)
+        return
+            espes: dictionary {(n1,l1,j1,tz1):espe1, (n2,l2,j2,tz2):espe2, ...}
+        """
+        if(self.ms.rank==3): raise "ESPEs with three-body is not implemented."
+        if(self.rankJ!=0): raise "Operator rank should be 0"
+        if(self.rankP!=1): raise "Operator parity should be 1"
+        if(self.rankZ!=0): raise "Operator pn rank should be 0"
+        orbits = self.ms.orbits
+        espes = {}
+        for a in range(1, orbits.get_num_orbits()+1):
+            oa = orbits.get_orbit(a)
+            espe = 0.0
+            for b in range(1, orbits.get_num_orbits()+1):
+                ob = orbits.get_orbit(b)
+                norm = 1.0
+                if(a==b): norm = 2.0
+                try:
+                    occ = occs[(ob.n, ob.l, ob.j, ob.z)]
+                except:
+                    if(self.verbose): print("occupation is not given, n,l,j,z:", ob.n, ob.l, ob.j, ob.z)
+                    occ = 0.0
+                if(method=="no"):
+                    Jmin = abs(oa.j-ob.j)//2
+                    Jmax =    (oa.j+ob.j)//2
+                    sumV = 0.0
+                    for J in range(Jmin,Jmax+1):
+                        if(a==b and J%2==1): continue
+                        sumV += self.get_2bme_from_indices(a,b,a,b,J,J) * (2*J+1)
+                    espe += sumV * occ / (oa.j+1) * norm
+                elif(method=="monopole"):
+                    espe += self.get_2bme_monopole(a,b,a,b) * occ * (ob.j+1)
+            espes[(oa.n,oa.l,oa.j,oa.z)] = espe + self.get_1bme(a,a)
+        return espes
+
     def allocate_operator(self, ms):
         self.ms = copy.deepcopy(ms)
         self.zero = 0.0
@@ -299,6 +338,29 @@ class Operator:
         c = orbits.orbit_index_from_orbit( oc )
         d = orbits.orbit_index_from_orbit( od )
         return self.get_2bme_from_indices( a, b, c, d, Jab, Jcd )
+    def get_2bme_monopole(self, a, b, c, d):
+        if(self.ms.rank <= 1): return 0
+        norm = 1.0
+        if(a==b): norm *= np.sqrt(2.0)
+        if(c==d): norm *= np.sqrt(2.0)
+        orbits = self.ms.orbits
+        oa = orbits.get_orbit(a)
+        ob = orbits.get_orbit(b)
+        oc = orbits.get_orbit(c)
+        od = orbits.get_orbit(d)
+        Jmin = max(abs(oa.j-ob.j)//2, abs(oc.j-od.j)//2)
+        Jmax = min(   (oa.j+ob.j)//2,    (oc.j+od.j)//2)
+        sumJ = 0.0
+        sumV = 0.0
+        for J in range(Jmin,Jmax+1):
+            if(a==b and J%2==1): continue
+            if(c==d and J%2==1): continue
+            sumV += self.get_2bme_from_indices(a,b,c,d,J,J) * (2*J+1)
+            sumJ += (2*J+1)
+        return sumV / sumJ * norm
+        #return sumV / ((oa.j+1)*(ob.j+1)) * norm
+
+
     def get_3bme_from_mat_indices( self, chbra, chket, bra, ket ):
         if( chbra < chket ):
             if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
