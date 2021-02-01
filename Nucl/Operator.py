@@ -136,15 +136,9 @@ class Operator:
         orbits = self.ms.orbits
         oa = orbits.get_orbit(a)
         ob = orbits.get_orbit(b)
-        if( self._triag(oa.j, ob.j, 2*self.rankJ)):
-            if(self.verbose): print("Warning: J, " + sys._getframe().f_code.co_name )
-            return
-        if( (-1)**(oa.l+ob.l) * self.rankP != 1):
-            if(self.verbose): print("Warning: Parity, " + sys._getframe().f_code.co_name )
-            return
-        if( abs(oa.z-ob.z) != 2*self.rankZ):
-            if(self.verbose): print("Warning: Z, " + sys._getframe().f_code.co_name )
-            return
+        if( self._triag(oa.j, ob.j, 2*self.rankJ)): raise ValueError("Operator rank mismatch")
+        if( (-1)**(oa.l+ob.l) * self.rankP != 1): raise ValueError("Operator parity mismatch")
+        if( abs(oa.z-ob.z) != 2*self.rankZ): raise ValueError("Operator pn mismatch")
         self.one[a-1,b-1] = me
         self.one[b-1,a-1] = me * (-1)**( (ob.j-oa.j)//2 )
     def set_2bme_from_mat_indices( self, chbra, chket, bra, ket, me ):
@@ -164,15 +158,9 @@ class Operator:
         Pcd = (-1)**(oc.l+od.l)
         Zab = (oa.z + ob.z)//2
         Zcd = (oc.z + od.z)//2
-        if( self._triag( Jab, Jcd, self.rankJ )):
-            if(self.verbose): print("Warning: J, " + sys._getframe().f_code.co_name )
-            return
-        if( Pab * Pcd * self.rankP != 1):
-            if(self.verbose): print("Warning: Parity, " + sys._getframe().f_code.co_name )
-            return
-        if( abs(Zab-Zcd) != self.rankZ):
-            if(self.verbose): print("Warning: Z, " + sys._getframe().f_code.co_name )
-            return
+        if( self._triag( Jab, Jcd, self.rankJ )): raise ValueError("Operator rank mismatch")
+        if( Pab * Pcd * self.rankP != 1): raise ValueError("Operator parity mismatch")
+        if( abs(Zab-Zcd) != self.rankZ): raise ValueError("Operator pn mismatch")
         ichbra_tmp = two.get_index(Jab,Pab,Zab)
         ichket_tmp = two.get_index(Jcd,Pcd,Zcd)
         phase = 1
@@ -296,20 +284,20 @@ class Operator:
         Zab = (oa.z + ob.z)//2
         Zcd = (oc.z + od.z)//2
         if( self._triag( Jab, Jcd, self.rankJ )):
-            if(self.verbose): print("Warning: J, " + sys._getframe().f_code.co_name )
-            return 0
+            if(self.verbose): print("Operator rank mismatch: return 0")
+            return 0.0
         if( Pab * Pcd * self.rankP != 1):
-            if(self.verbose): print("Warning: Parity, " + sys._getframe().f_code.co_name )
-            return 0
+            if(self.verbose): print("Operator parity mismatch: return 0")
+            return 0.0
         if( abs(Zab-Zcd) != self.rankZ):
-            if(self.verbose): print("Warning: Z, " + sys._getframe().f_code.co_name )
-            return 0
+            if(self.verbose): print("Operator pn mismatch: return 0")
+            return 0.0
         try:
             ichbra_tmp = two.get_index(Jab,Pab,Zab)
             ichket_tmp = two.get_index(Jcd,Pcd,Zcd)
         except:
             if(self.verbose): print("Warning: channel bra & ket index, " + sys._getframe().f_code.co_name )
-            return 0
+            return 0.0
         phase = 1
         if( ichbra_tmp >= ichket_tmp ):
             ichbra = ichbra_tmp
@@ -327,11 +315,11 @@ class Operator:
             ket = chket.index_from_indices[(cc,dd)]
         except:
             if(self.verbose): print("Warning: bra & ket index, " + sys._getframe().f_code.co_name )
-            return 0
+            return 0.0
         phase *= chbra.phase_from_indices[(aa,bb)] * chket.phase_from_indices[(cc,dd)]
         return self.get_2bme_from_mat_indices(ichbra,ichket,bra,ket)*phase
     def get_2bme_from_orbits( self, oa, ob, oc, od, Jab, Jcd ):
-        if(self.ms.rank <= 1): return 0
+        if(self.ms.rank <= 1): return 0.0
         orbits = self.ms.orbits
         a = orbits.orbit_index_from_orbit( oa )
         b = orbits.orbit_index_from_orbit( ob )
@@ -339,7 +327,7 @@ class Operator:
         d = orbits.orbit_index_from_orbit( od )
         return self.get_2bme_from_indices( a, b, c, d, Jab, Jcd )
     def get_2bme_monopole(self, a, b, c, d):
-        if(self.ms.rank <= 1): return 0
+        if(self.ms.rank <= 1): return 0.0
         norm = 1.0
         if(a==b): norm *= np.sqrt(2.0)
         if(c==d): norm *= np.sqrt(2.0)

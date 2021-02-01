@@ -68,9 +68,7 @@ class TransitionDensity:
         Pcd = (-1)**(oc.l+od.l)
         Zab = (oa.z + ob.z)//2
         Zcd = (oc.z + od.z)//2
-        if( self._triag( Jab, Jcd, jrank )):
-            if(self.verbose): print("Warning: J, " + sys._getframe().f_code.co_name )
-            return
+        if( self._triag( Jab, Jcd, jrank )): raise ValueError("Transition density rank mismatch")
         ichbra = two.get_index(Jab,Pab,Zab)
         ichket = two.get_index(Jcd,Pcd,Zcd)
         chbra = two.get_channel(ichbra)
@@ -95,7 +93,7 @@ class TransitionDensity:
         try:
             return self.two[(chbra,chket)][(bra,ket,jrank)]
         except:
-            if(self.verbose): print("Nothing here " + sys._getframe().f_code.co_name )
+            #if(self.verbose): print("Nothing here " + sys._getframe().f_code.co_name )
             return 0
     def get_2btd_from_indices( self, a, b, c, d, Jab, Jcd, jrank ):
         if(self.ms.rank <= 1): return 0

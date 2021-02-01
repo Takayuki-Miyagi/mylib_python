@@ -972,7 +972,7 @@ class kshell_toolkit:
     def calc_exp_vals(kshl_dir, fn_snt, fn_op, Nucl, states_list, hw_truncation=None, ph_truncation=None,
             run_args=None, Nucl_daughter=None, fn_snt_daughter=None,
             op_rankJ=0, op_rankP=1, op_rankZ=0, verbose=False, mode="all",
-            header="", batch_cmd=None, run_cmd=None):
+            header="", batch_cmd=None, run_cmd=None, type_output="list"):
         """
         inputs:
             kshel_dir (str)    : path to kshell exe files
@@ -1007,8 +1007,9 @@ class kshell_toolkit:
         if(Nucl_daughter==None): Nucl_daughter=Nucl
         if(fn_snt_daughter==None): fn_snt_daughter=fn_snt
 
-        op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ)
-        exp_vals=[]
+        op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ, verbose=verbose)
+        if(type_output=="list"): exp_vals = []
+        if(type_output=="dict"): exp_vals = {}
         for lr in states_list:
             bra = lr[0]
             ket = lr[1]
@@ -1029,8 +1030,8 @@ class kshell_toolkit:
                     fn_density = trs.filenames[lr]
                     n = kshl._number_of_states(ket)
                     wf_idx_to_jpn = kshl.get_wf_idx_to_jpn()
-                    for i_bra in range(1,n+1):
-                        for i_ket in range(1,n+1):
+                    for i_bra in range(1,min(n,len(wf_idx_to_jpn))+1):
+                        for i_ket in range(1,min(n,len(wf_idx_to_jpn))+1):
                             Jbra, Pbra, nn_bra = wf_idx_to_jpn[i_bra-1]
                             Jket, Pket, nn_ket = wf_idx_to_jpn[i_ket-1]
                             Jfbra = _str_J_to_Jfloat(Jbra)
@@ -1039,8 +1040,9 @@ class kshell_toolkit:
                             en_bra = kshl.energy_from_summary((Jbra,Pbra,nn_bra))
                             en_ket = kshl.energy_from_summary((Jket,Pket,nn_ket))
                             if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=i_ket, Jket=Jfbra, wflabel_ket=i_bra)
-                            if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=i_bra, Jket=Jfket, wflabel_ket=i_ket)
-                            exp_vals.append( (Jbra,Pbra,nn_bra,en_bra, Jket,Pket,nn_ket,en_ket, *Density.eval(op)))
+                            if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=i_bra, Jket=Jfket, wflabel_ket=i_ket, verbose=verbose)
+                            if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*Density.eval(op)))
+                            if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = Density.eval(op)
 
             else:
                 kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt_daughter, Nucl=Nucl_daughter, states=bra,
@@ -1063,8 +1065,8 @@ class kshell_toolkit:
                     n_ket = kshl_r._number_of_states(ket)
                     wf_idx_to_jpn_ket = kshl_r.get_wf_idx_to_jpn()
                     wf_idx_to_jpn_bra = kshl_l.get_wf_idx_to_jpn()
-                    for i_bra in range(1,n_bra+1):
-                        for i_ket in range(1,n_ket+1):
+                    for i_bra in range(1,min(n_bra,len(wf_idx_to_jpn_bra))+1):
+                        for i_ket in range(1,min(n_ket,len(wf_idx_to_jpn_ket))+1):
                             Jbra, Pbra, nn_bra = wf_idx_to_jpn_bra[i_bra-1]
                             Jket, Pket, nn_ket = wf_idx_to_jpn_ket[i_ket-1]
                             Jfbra = _str_J_to_Jfloat(Jbra)
@@ -1072,9 +1074,10 @@ class kshell_toolkit:
                             if( not int(abs(Jfbra-Jfket)) <= op_rankJ <= int(Jfbra+Jfket) ): continue
                             en_bra = kshl_l.energy_from_summary((Jbra,Pbra,nn_bra))
                             en_ket = kshl_r.energy_from_summary((Jket,Pket,nn_ket))
-                            if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=i_ket, Jket=Jfbra, wflabel_ket=i_bra)
+                            if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=i_ket, Jket=Jfbra, wflabel_ket=i_bra, verbose=verbose)
                             if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=i_bra, Jket=Jfket, wflabel_ket=i_ket)
-                            exp_vals.append( (Jbra,Pbra,nn_bra,en_bra, Jket,Pket,nn_ket,en_ket, *Density.eval(op)))
+                            if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*Density.eval(op)))
+                            if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = Density.eval(op)
         if(mode=="diag" or mode=="density"): return None
         return exp_vals
 
