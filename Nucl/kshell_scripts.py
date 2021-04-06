@@ -135,6 +135,10 @@ class kshell_scripts:
                 state_str = self._state_string(state)
                 self.fn_ptns[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
                 self.fn_wfs[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+                if(self.run_args != None):
+                    if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0):
+                        self.fn_ptns[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
+                        self.fn_wfs[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
                 if(hw_truncation!=None):
                     self.fn_ptns[state] += "_hw{:d}".format(hw_truncation)
                     self.fn_wfs[state] += "_hw{:d}".format(hw_truncation)
@@ -153,10 +157,14 @@ class kshell_scripts:
                 state_str = self._state_string(state)
                 self.fn_ptns[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
                 self.fn_wfs[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
-                if(hw_truncation!=None):
+                if(self.run_args != None):
+                    if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0):
+                        self.fn_ptns[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
+                        self.fn_wfs[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
+                if(self.hw_truncation!=None):
                     self.fn_ptns[state] += "_hw{:d}".format(hw_truncation)
                     self.fn_wfs[state] += "_hw{:d}".format(hw_truncation)
-                if(ph_truncation!=None):
+                if(self.ph_truncation!=None):
                     self.fn_ptns[state] += "_ph{:s}".format(ph_truncation)
                     self.fn_wfs[state] += "_ph{:s}".format(ph_truncation)
                 self.fn_ptns[state] += "_{:s}.ptn".format(state_str[-1])
@@ -397,15 +405,10 @@ class kshell_scripts:
         f.write(prt)
         f.close()
 
-        #subprocess.call("rm ui.in", shell=True)
-        #subprocess.call("rm save_input_ui.txt", shell=True)
         if(gen_partition): return
         if( dim_cnt ):
-            if( os.path.exists( fn_script+'_p.ptn' ) ):
-                cmd = 'python2 ' + self.kshl_dir+'/count_dim.py ' + fn_snt + ' ' + fn_script + '_p.ptn'
-                subprocess.call(cmd, shell=True)
-            if( os.path.exists( fn_script+'_n.ptn' ) ):
-                cmd = 'python2 ' + self.kshl_dir+'/count_dim.py ' + fn_snt + ' ' + fn_script + '_n.ptn'
+            for fn_ptn in self.fn_ptns.values():
+                cmd = 'python2 ' + self.kshl_dir+'/count_dim.py ' + self.fn_snt + ' ' + fn_ptn
                 subprocess.call(cmd, shell=True)
         else:
             fn_script += ".sh"
@@ -764,6 +767,21 @@ class transit_scripts:
 
     def calc_density(self, ksh_l, ksh_r, states_list=None, header="", batch_cmd=None, run_cmd=None, \
             i_wfs=None, calc_SF=False, parity_mix=True):
+        """
+        calculate < ksh_l | [a^t a] | ksh_r > and < ksh_l | [a^t a^t a a] | ksh_r >
+        input:
+            kshl_l, ksh_r (kshell_scripts class)
+            state_list (list):
+                ex.) [(0+2, 0+2), (0-1, 2-2)] -> <0+1|0+1>, <0+1|0+2>, <0+2|0+1>, <0+2|0+2>, <0-1|2-1>, <0-1|2-2>
+                     [(0.5+1,1.5+1),] -> <0.5+1|1.5+1>
+                     [(+2,+2),] -> <J+1|J+1>, <J+1|J+2>, <J+2|J+1>, <J+2|J+2>
+            header (str): header specifying resource
+            batch_cmd (str): 'sbatch', 'qsub', ...
+            run_cmd (str): 'srun', ...
+            i_fws (list): ex.) [(1,1),(2,2),(3,3),(4,4)]
+            calc_SF (bool): switch for calculation of spectroscopic factor
+            parity_mix (bool)
+        """
         if(states_list==None):
             states_list = [(x,y) for x,y in itertools.product( ksh_l.states.split(","), ksh_r.states.split(",") )]
         bra_side = ksh_l
@@ -909,8 +927,8 @@ class transit_scripts:
                 if(not os.path.exists(fn)):
                     print("{:s} is not found!".format(fn))
                     continue
-                if(idx==0 or idx==1): espe_each, sum_sf_each = trs.read_sf_file(fn, Hm_bra, Hm_ket, "a^t a", N_states=N_states)
-                if(idx==2 or idx==3): espe_each, sum_sf_each = trs.read_sf_file(fn, Hm_bra, Hm_ket, "a a^t", N_states=N_states)
+                if(idx==0 or idx==1): espe_each, sum_sf_each = trs.espe_sf_file(fn, Hm_bra, Hm_ket, "a^t a", N_states=N_states)
+                if(idx==2 or idx==3): espe_each, sum_sf_each = trs.espe_sf_file(fn, Hm_bra, Hm_ket, "a a^t", N_states=N_states)
                 for key in espe_each:
                     if( key in espe ):
                         espe[key] += espe_each[key]
@@ -919,7 +937,61 @@ class transit_scripts:
                         espe[key] = espe_each[key]
                         sum_sf[key] = sum_sf_each[key]
         return espe, sum_sf
-    def read_sf_file(self, fn, Hm_bra, Hm_ket, mode, N_states=None):
+    def read_sf_file(self, fn, mode, N_states=None):
+        if(not os.path.exists(fn)):
+            print("{:s} is not found!".format(fn))
+            return None, None
+        f = open(fn,'r')
+        lines = f.readlines()
+        f.close()
+        sfs = {}
+        read=False
+        for line in lines:
+            if( line[:7] == "orbit :" ):
+                data = line.split()
+                n, l, j, pn = int(data[2]), int(data[3]), int(data[4]), int(data[5])
+                label = (n,l,j,pn)
+            if( line[:51]==" 2xJf      Ef      2xJi     Ei       Ex       C^2*S" ):
+                read=True
+            else:
+                if(read):
+                    data = line.split()
+                    if(len(data)==0):
+                        read=False
+                        continue
+                    i_bra = int(data[1][:-1])
+                    i_ket = int(data[4][:-1])
+                    J2_bra = int(data[0][:-1])
+                    J2_ket = int(data[3][:-1])
+                    en_bra = float(data[2])
+                    en_ket = float(data[5])
+                    if(N_states != None):
+                        if(i_bra > N_states): continue
+                        if(i_ket > N_states): continue
+                    if(mode=="a^t a"):
+                        CS = float(data[7]) / (label[2]+1)
+                    elif(mode=="a a^t"):
+                        CS = float(data[7]) / (label[2]+1) * (J2_bra+1)/(J2_ket+1)
+                    sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS * (label[2]+1), en_bra, en_ket)
+                else:
+                    continue
+        return sfs
+    def read_sfactors(self, fn, mode, N_states=None, Jinfo=True):
+        """
+        return spectroscopic factor in dictionary
+            key: (n, l, j, pn, J_bra, J_ket); j, J_bra, J_ket are double
+            val: spectroscopic factor; normalized such that the summation agrees with hole/particle numbers
+        """
+        full_results = self.read_sf_file(fn, mode, N_states)
+        sfactors = {}
+        for key in full_results.keys():
+            if(Jinfo): label = (*key[:4], key[4], key[6])
+            if(not Jinfo): label = key[:4]
+            if(label in sfactors): sfactors[label] += full_results[key][0]
+            else: sfactors[label] = full_results[key][0]
+        return sfactors
+
+    def espe_sf_file(self, fn, Hm_bra, Hm_ket, mode, N_states=None):
         if(not os.path.exists(fn)):
             print("{:s} is not found!".format(fn))
             return None, None
@@ -972,7 +1044,7 @@ class kshell_toolkit:
     def calc_exp_vals(kshl_dir, fn_snt, fn_op, Nucl, states_list, hw_truncation=None, ph_truncation=None,
             run_args=None, Nucl_daughter=None, fn_snt_daughter=None,
             op_rankJ=0, op_rankP=1, op_rankZ=0, verbose=False, mode="all",
-            header="", batch_cmd=None, run_cmd=None, type_output="list"):
+            header="", batch_cmd=None, run_cmd=None, type_output="list", comment_sntfile="!"):
         """
         inputs:
             kshel_dir (str)    : path to kshell exe files
@@ -1007,7 +1079,7 @@ class kshell_toolkit:
         if(Nucl_daughter==None): Nucl_daughter=Nucl
         if(fn_snt_daughter==None): fn_snt_daughter=fn_snt
 
-        op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ, verbose=verbose)
+        op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ, verbose=verbose, comment=comment_sntfile)
         if(type_output=="list"): exp_vals = []
         if(type_output=="dict"): exp_vals = {}
         for lr in states_list:

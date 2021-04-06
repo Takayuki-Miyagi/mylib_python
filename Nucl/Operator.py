@@ -19,7 +19,7 @@ def _ls_coupling(la, ja, lb, jb, Lab, Sab, J):
 
 
 class Operator:
-    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=False, filename=None, verbose=False):
+    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=False, filename=None, verbose=False, comment="!"):
         self.ms = ms
         self.rankJ = rankJ
         self.rankP = rankP
@@ -32,7 +32,7 @@ class Operator:
         self.three = {}
         if( rankJ != 0 ): self.reduced = True
         if( ms != None ): self.allocate_operator( ms )
-        if( filename != None ): self.read_operator_file( filename )
+        if( filename != None ): self.read_operator_file( filename, comment=comment )
 
     def espe(self, occs, method="no"):
         """
@@ -404,6 +404,7 @@ class Operator:
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         if(filename.find(".op.me2j") != -1):
+        #if(filename.find(".me2j") != -1):
             self._read_general_operator(filename, comment)
             if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")

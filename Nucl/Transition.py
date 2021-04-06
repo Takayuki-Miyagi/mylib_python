@@ -42,6 +42,9 @@ def ME_to_moment( ME, J, lam ):
     output:
         static moment
     """
+    if(lam > 2):
+        print("Do not use for lam>2 case")
+        return 0
     if( abs(ME) < 1.e-10 ): return 0
     return np.sqrt(4**(lam-1) * 4 * np.pi / (2*lam+1) ) * N(wigner_3j(J,lam,J,-J,0,J)) * ME
 

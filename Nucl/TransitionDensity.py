@@ -129,10 +129,10 @@ class TransitionDensity:
     def get_2btd_from_orbits( self, oa, ob, oc, od, Jab, Jcd, jrank ):
         if(self.ms.rank <= 1): return 0
         orbits = self.ms.orbits
-        a = orbits.orbit_index_from_orbit( oa )
-        b = orbits.orbit_index_from_orbit( ob )
-        c = orbits.orbit_index_from_orbit( oc )
-        d = orbits.orbit_index_from_orbit( od )
+        a = orbits.get_orbit_index_from_orbit( oa )
+        b = orbits.get_orbit_index_from_orbit( ob )
+        c = orbits.get_orbit_index_from_orbit( oc )
+        d = orbits.get_orbit_index_from_orbit( od )
         return self.get_2btd_from_indices( a, b, c, d, Jab, Jcd, jrank )
 
     def _triag(self,J1,J2,J3):

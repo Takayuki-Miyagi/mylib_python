@@ -44,7 +44,7 @@ class TwoBodyChannel:
         return self.orbit1_index[idx], self.orbit2_index[idx]
     def get_orbits(self,idx):
         ia, ib = self.get_indices(idx)
-        return self.orbits.get_orbit[ia], self.orbits.get_orbit[ib]
+        return self.orbits.get_orbit(ia), self.orbits.get_orbit(ib)
     def get_JPZ(self):
         return self.J, self.P, self.Z
     def _triag(self,J1,J2,J3):
