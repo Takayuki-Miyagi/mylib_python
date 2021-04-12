@@ -194,16 +194,16 @@ class kshell_scripts:
     def get_wf_idx_to_jpn(self):
         if(len(self.fn_wfs)>1):
             print("Warning, in get_wf_idx_to_jpn in kshell_scripts.py")
-        state = list(self.fn_wfs.keys())[0]
-        fn_wav = self.fn_wfs[state]
-        fn_log = "log_"+fn_wav.split(".wav")[0]+".txt"
-        jpn_to_idx = self.get_wf_index(self.summary_filename())
         n=0
         wf_idx_to_jpn = []
-        for key in jpn_to_idx.keys():
-            if(jpn_to_idx[key][0]==fn_log):
-                n += 1
-                wf_idx_to_jpn.append(key)
+        for state in self.fn_wfs.keys():
+            fn_wav = self.fn_wfs[state]
+            fn_log = "log_"+fn_wav.split(".wav")[0]+".txt"
+            jpn_to_idx = self.get_wf_index(self.summary_filename())
+            for key in jpn_to_idx.keys():
+                if(jpn_to_idx[key][0]==fn_log):
+                    n += 1
+                    wf_idx_to_jpn.append(key)
         return wf_idx_to_jpn
     def wfname_from_state(self, state):
         """
@@ -937,10 +937,13 @@ class transit_scripts:
                         espe[key] = espe_each[key]
                         sum_sf[key] = sum_sf_each[key]
         return espe, sum_sf
-    def read_sf_file(self, fn, mode, N_states=None):
+    def read_sf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None):
         if(not os.path.exists(fn)):
             print("{:s} is not found!".format(fn))
-            return None, None
+            return None
+        e0_bra, e0_ket = 0.0, 0.0
+        if(Hm_bra != None): e0_bra = Hm_bra.get_0bme()
+        if(Hm_ket != None): e0_ket = Hm_ket.get_0bme()
         f = open(fn,'r')
         lines = f.readlines()
         f.close()
@@ -963,8 +966,8 @@ class transit_scripts:
                     i_ket = int(data[4][:-1])
                     J2_bra = int(data[0][:-1])
                     J2_ket = int(data[3][:-1])
-                    en_bra = float(data[2])
-                    en_ket = float(data[5])
+                    en_bra = float(data[2])+e0_bra
+                    en_ket = float(data[5])+e0_ket
                     if(N_states != None):
                         if(i_bra > N_states): continue
                         if(i_ket > N_states): continue
@@ -976,6 +979,59 @@ class transit_scripts:
                 else:
                     continue
         return sfs
+    def read_tsf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None):
+        if(not os.path.exists(fn)):
+            print("{:s} is not found!".format(fn))
+            return None
+        e0_bra, e0_ket = 0.0, 0.0
+        if(Hm_bra != None): e0_bra = Hm_bra.get_0bme()
+        if(Hm_ket != None): e0_ket = Hm_ket.get_0bme()
+        f = open(fn,'r')
+        lines = f.readlines()
+        f.close()
+        sfs = {}
+        read=False
+        for line in lines:
+            data = line.split()
+            if( len(data)==6 and data[0].strip()=="2xJf"):
+                read=True
+            else:
+                if(read):
+                    data = line.split()
+                    if(len(data)==0):
+                        continue
+                    if(data[0]=="TNA"):
+                        a, b, J = int(data[3]), int(data[7]), int(data[11][:-1])
+                        label = (a,b,J)
+                        continue
+                    if(data[0]=="total" and data[1]=="elapsed"): break
+                    i_bra = int(data[1][:-1])
+                    i_ket = int(data[4][:-1])
+                    J2_bra = int(data[0][:-1])
+                    J2_ket = int(data[3][:-1])
+                    en_bra = float(data[2])+e0_bra
+                    en_ket = float(data[5])+e0_ket
+                    if(N_states != None):
+                        if(i_bra > N_states): continue
+                        if(i_ket > N_states): continue
+                    if(mode=="a^ta^t aa"):
+                        CS = float(data[7])**2 / (2*label[2]+1)
+                    elif(mode=="aa a^ta^t"):
+                        CS = float(data[7])**2 / (2*label[2]+1) * (J2_bra+1)/(J2_ket+1)
+                    sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS * (2*label[2]+1), en_bra, en_ket)
+                else:
+                    continue
+        return sfs
+    def check_norm_tsf(self, fn, mode, target_spin, N_states=None, sfs=None):
+        if(sfs==None): sfs = self.read_tsf_file(fn, mode, N_states)
+        if(sfs==None): return
+        n = 0
+        for _ in sfs.keys():
+            if(mode=="a^ta^t aa" and target_spin!=_[4]): n += sfs[_][0]
+            if(mode=="aa a^ta^t" and target_spin!=_[6]): n += sfs[_][0]
+        if(mode=="a^ta^t aa"): print("Number of occupied pairs in the model-space:   {:.2f}".format(n))
+        if(mode=="aa a^ta^t"): print("Number of unoccupied pairs in the model-space: {:.2f}".format(n))
+
     def read_sfactors(self, fn, mode, N_states=None, Jinfo=True):
         """
         return spectroscopic factor in dictionary
