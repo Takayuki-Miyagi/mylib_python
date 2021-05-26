@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 if(__package__==None or __package__==""):
-    import OrbitsIsospin
+    from Orbits import OrbitsIsospin
 else:
     from . import OrbitsIsospin
 class ThreeBodyChannel:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import copy
 if(__package__==None or __package__==""):
-    import Orbits, OrbitsIsospin
+    from Orbits import Orbits, OrbitsIsospin
     import TwoBodySpace
     import ThreeBodySpace
 else:

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-import sys, subprocess
+import sys, subprocess, itertools, math
 import numpy as np
 import copy
 import gzip
 from sympy import N
 from sympy.physics.wigner import wigner_6j, wigner_9j
 if(__package__==None or __package__==""):
+    from Orbits import Orbits, OrbitsIsospin
     import ModelSpace
     import nushell2snt
 else:
@@ -16,6 +17,12 @@ else:
 def _ls_coupling(la, ja, lb, jb, Lab, Sab, J):
     return np.sqrt( (2*ja+1)*(2*jb+1)*(2*Lab+1)*(2*Sab+1) ) * \
             N( wigner_9j( la, 0.5, ja, lb, 0.5, jb, Lab, Sab, J) )
+
+def _ljidx_to_lj(lj):
+    return math.floor((lj+1)/2), math.floor(2*(int(lj/2) + 1/2))
+
+def _lj_to_ljidx(l,j):
+    return math.floor(l+j/2-1/2)
 
 
 class Operator:
@@ -397,14 +404,19 @@ class Operator:
         ket = chket.index_from_indices[(l,m,n,Jlm,Tlm)]
         return self.set_3bme_from_mat_indices(ichbra,ichket,bra,ket) * phase
 
-    def read_operator_file(self, filename, spfile=None, opfile2=None, comment="!", istore=None, A=None):
+    def read_operator_file(self, filename, spfile=None, opfile2=None, comment="!", istore=None, A=None, MuCapType=None):
+        """
+        istore: for muon capture operator file. This will be removed. DO NOT use. Use MuCapType instead.
+        MuCapType: tuple (n, k, w, u, x). n, k, w, u are 'int', while x is str. k=0,1, u is rank of the operator.
+            n is the forbiddeness. x takes 'p', '+', '-', ''
+        """
         if(filename.find(".snt") != -1):
             self._read_operator_snt(filename, comment, A)
             if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
-        if(filename.find(".op.me2j") != -1):
-        #if(filename.find(".me2j") != -1):
+        #if(filename.find(".op.me2j") != -1):
+        if(filename.find(".me2j") != -1):
             self._read_general_operator(filename, comment)
             if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
@@ -434,13 +446,65 @@ class Operator:
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         if(filename.find(".lotta") != -1):
-            if( istore == None ): self._read_lotta_format(filename,0)
-            if( istore != None ): self._read_lotta_format(filename,istore)
+            if( istore != None ):
+                self._read_lotta_format(filename,istore)
+                print("This mode is deprecated")
+                return
+            if( MuCapType == None):
+                print("Specify the operator type!")
+                return
+            istore = self._idx_from_MuCapType(MuCapType)
+            if(istore==None): return
+            self._read_lotta_format(filename,istore)
             if( self.count_nonzero_1bme() == 0):
+                print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
+            return
+        if(filename.find("jiangming") !=-1):
+            self._read_jiangming_format(filename)
+            if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
         print("Unknown file format in " + sys._getframe().f_code.co_name )
         return
+
+    def _idx_from_MuCapType(self,op_type):
+        n, k, w, u, x = op_type
+        if(  k==0 and w==n   and u==n   and x=='s'): return  0
+        elif(k==1 and w==n   and u==n   and x=='s'): return  1
+        elif(k==1 and w==n   and u==n+1 and x=='s'): return  2
+        elif(k==1 and w==n+2 and u==n+1 and x=='s'): return  3
+        elif(k==0 and w==n   and u==n   and x=='+'): return  4
+        elif(k==0 and w==n   and u==n   and x=='-'): return  5
+        elif(k==1 and w==n   and u==n   and x=='+'): return  6
+        elif(k==1 and w==n   and u==n   and x=='-'): return  7
+        elif(k==1 and w==n   and u==n+1 and x=='-'): return  8
+        elif(k==1 and w==n+2 and u==n+1 and x=='+'): return  9
+        elif(k==1 and w==n-1 and u==n   and x=='p'): return 10
+        elif(k==1 and w==n+1 and u==n   and x=='p'): return 11
+        elif(k==1 and w==n+1 and u==n+1 and x=='p'): return 12
+        elif(k==0 and w==n+1 and u==n+1 and x=='p'): return 13
+        else:
+            print("Unknown muon capture operator type! Check the MuCapType!")
+            return None
+
+    def _MuCapType_from_idx(self,i,n):
+        if(  i== 0): return (n,0,n  ,n  ,'s')
+        elif(i== 1): return (n,1,n  ,n  ,'s')
+        elif(i== 2): return (n,1,n  ,n+1,'s')
+        elif(i== 3): return (n,1,n+2,n+1,'s')
+        elif(i== 4): return (n,0,n  ,n  ,'+')
+        elif(i== 5): return (n,0,n  ,n  ,'-')
+        elif(i== 6): return (n,1,n  ,n  ,'+')
+        elif(i== 7): return (n,1,n  ,n  ,'-')
+        elif(i== 8): return (n,1,n  ,n+1,'-')
+        elif(i== 9): return (n,1,n+2,n+1,'+')
+        elif(i==10): return (n,1,n-1,n  ,'p')
+        elif(i==11): return (n,1,n+1,n  ,'p')
+        elif(i==12): return (n,1,n+1,n+1,'p')
+        elif(i==13): return (n,0,n+1,n+1,'p')
+        else:
+            print("Unknown muon capture operator type! Check the MuCapType!")
+            return None
 
     def _triag(self,J1,J2,J3):
         b = True
@@ -632,6 +696,36 @@ class Operator:
             if( abs(me) < 1.e-8): continue
             self.set_1bme( i, j, me )
 
+    def _read_jiangming_format(self, filename):
+        f = open(filename, "r")
+        lines = f.readlines()
+        f.close()
+        if(self.ms==None): raise ValueError("Define model-space first!")
+        orbits = self.ms.orbits
+        #for line in lines[1:]:
+        for line in lines:
+            line_data = line.split(",")
+            indx = [int(x) for x in line_data[:-1]]
+            ME = float(line_data[-1])
+            n1, n2, n3, n4, lj1, lj2, lj3, lj4, J = indx
+            l1, j1 = _ljidx_to_lj(lj1)
+            l2, j2 = _ljidx_to_lj(lj2)
+            l3, j3 = _ljidx_to_lj(lj3)
+            l4, j4 = _ljidx_to_lj(lj4)
+            i = orbits.get_orbit_index(n1, l1, j1, -1)
+            j = orbits.get_orbit_index(n2, l2, j2, -1)
+            k = orbits.get_orbit_index(n3, l3, j3,  1)
+            l = orbits.get_orbit_index(n4, l4, j4,  1)
+            #if(i==j): ME /= np.sqrt(2)
+            #if(k==l): ME /= np.sqrt(2)
+            #if(i==1 and j==3 and k==2 and l==4): # This seems something wrong
+            #    print(indx,ME,lines.index(line))
+            #    print(i,j,k,l,J,ME)
+            #print(indx,ME)
+            #if(indx[-1]==1): sys.exit()
+            self.set_2bme_from_indices(i,j,k,l,J,J,ME)
+        return
+
     def _read_general_operator(self, filename, comment="!"):
         if(filename.find(".gz") != -1): f = gzip.open(filename, "r")
         else: f = open(filename,"r")
@@ -785,7 +879,7 @@ class Operator:
                     oa.n, oa.l, oa.j, ob.n, ob.l, ob.j)
             out += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d}".format(\
                     oc.n, oc.l, oc.j, od.n, od.l, od.j)
-            out += "{0:3d} {1:16.10f}".format(Jab, self.two[key] / np.sqrt(2*Jab+1)) + "\n"
+            out += "{0:3d} {1:16.8e}".format(Jab, self.two[key] / np.sqrt(2*Jab+1)) + "\n"
         f=open("nme.dat","w")
         f.write(out)
         f.close()
@@ -794,7 +888,7 @@ class Operator:
         f = open(filename, "w")
         f.write(" Written by python script \n")
         f.write(" {:3d} {:3d} {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ, self.ms.emax, self.ms.e2max ))
-        f.write("{:14.8f}\n".format( self.zero ) )
+        f.write("{:16.8e}\n".format( self.zero ) )
 
         orbits = self.ms.orbits
         iorbits = OrbitsIsospin( emax=self.ms.emax )
@@ -815,7 +909,7 @@ class Operator:
                     me_nn = self.get_1bme(ni,nj)
                     me_np = self.get_1bme(ni,pj)
                     me_pn = self.get_1bme(pi,nj)
-                f.write("{:14.8f} {:14.8f} {:14.8f} {:14.8f}\n".format(\
+                f.write("{:16.8e} {:16.8e} {:16.8e} {:16.8e}\n".format(\
                         me_pp, me_nn, me_np, me_pn ) )
 
         for i in range(1,norbs):
@@ -852,7 +946,7 @@ class Operator:
                                 me_npnp = self.get_2bme_from_indices(ni,pj,nk,pl,Jij,Jkl)
                                 me_npnn = self.get_2bme_from_indices(ni,pj,nk,nl,Jij,Jkl)
                                 me_nnnn = self.get_2bme_from_indices(ni,nj,nk,nl,Jij,Jkl)
-                                f.write("{:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} {:14.8f} \n".format(\
+                                f.write("{:16.8e} {:16.8e} {:16.8e} {:16.8e} {:16.8e} {:16.8e} {:16.8e} {:16.8e} {:16.8e} {:16.8e} \n".format(\
                                         me_pppp, me_pppn, me_ppnp, me_ppnn, me_pnpn, me_pnnp, me_pnnn, me_npnp, me_npnn, me_nnnn))
         f.close()
 
@@ -878,7 +972,7 @@ class Operator:
             for j in range(1,norbs):
                 me = self.get_1bme(i,j)
                 if( abs(me) < 1.e-10): continue
-                prt += "{0:3d} {1:3d} {2:15.8f}\n".format( i, j, me )
+                prt += "{0:3d} {1:3d} {2:16.8e}\n".format( i, j, me )
         if( self.ms.rank==1 ):
             prt += "! two-body part\n"
             prt += "{0:10d} {1:3d}\n".format( 0, 0 )
@@ -904,9 +998,9 @@ class Operator:
                     c = chket.orbit1_index[ket]
                     d = chket.orbit2_index[ket]
                     if(scalar):
-                        prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:15.8f}\n".format( a, b, c, d, chket.J, self.two[(ichbra,ichket)][(bra,ket)])
+                        prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:16.8e}\n".format( a, b, c, d, chket.J, self.two[(ichbra,ichket)][(bra,ket)])
                     else:
-                        prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d} {6:15.8f}\n".format( a, b, c, d, chbra.J, chket.J, self.two[(ichbra,ichket)][(bra,ket)])
+                        prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d} {6:16.8e}\n".format( a, b, c, d, chbra.J, chket.J, self.two[(ichbra,ichket)][(bra,ket)])
         f = open(filename, "w")
         f.write(prt)
         f.close()
@@ -1023,6 +1117,47 @@ class Operator:
                         if(abs(me) > 1.e-8): self.set_2bme_from_indices(a,b,c,d,chbra.J,chket.J,me)
         self.one = np.zeros( (orbits.get_num_orbits(), orbits.get_num_orbits() ))
 
+    def truncate(self, ms_new):
+        op = Operator(ms=ms_new, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        orb = self.ms.orbits
+        orb_new = ms_new.orbits
+        self.set_0bme(op.get_0bme())
+        for i, j in itertools.product(list(range(1,orb_new.get_num_orbits()+1)), repeat=2):
+            oi = orb_new.get_orbit(i)
+            oj = orb_new.get_orbit(j)
+            ii = orb.get_orbit_index_from_orbit(oi)
+            jj = orb.get_orbit_index_from_orbit(oj)
+            me = self.get_1bme(ii,jj)
+            if(abs(me)>1.e-16): op.set_1bme(i,j,me)
+        for channel in self.two.keys():
+            tbc_bra_old = self.ms.two.get_channel(channel[0])
+            tbc_ket_old = self.ms.two.get_channel(channel[1])
+            try:
+                tbc_bra_new = op.ms.two.get_channel_from_JPZ(tbc_bra_old.J, tbc_bra_old.P, tbc_bra_old.Z)
+                tbc_ket_new = op.ms.two.get_channel_from_JPZ(tbc_ket_old.J, tbc_ket_old.P, tbc_ket_old.Z)
+            except:
+                continue
+            Jij = tbc_bra_new.J
+            Jkl = tbc_ket_new.J
+            for idx in self.two[channel].keys():
+                me = self.two[channel][idx]
+                ii, jj = tbc_bra_old.get_indices(idx[0])
+                kk, ll = tbc_ket_old.get_indices(idx[1])
+                oi = orb.get_orbit(ii)
+                oj = orb.get_orbit(jj)
+                ok = orb.get_orbit(kk)
+                ol = orb.get_orbit(ll)
+                try:
+                    i = orb_new.get_orbit_index_from_orbit(oi)
+                    j = orb_new.get_orbit_index_from_orbit(oj)
+                    k = orb_new.get_orbit_index_from_orbit(ok)
+                    l = orb_new.get_orbit_index_from_orbit(ol)
+                except:
+                    continue
+                op.set_2bme_from_indices(i,j,k,l,Jij,Jkl,me)
+        if(len(self.three) != 0): raise ValueError("Not ready to use!")
+        return op
+
     def _get_embed_1bme_2(self,a,b,c,d,ichbra,ichket,scalar):
         two = self.ms.two
         chbra = two.get_channel(ichbra)
@@ -1052,7 +1187,7 @@ class Operator:
         if(a==b): me /= np.sqrt(2.0)
         if(c==d): me /= np.sqrt(2.0)
         return me
-    def spin_tensor_decomposition(self):
+    def spin_tensor_decomposition(self, chan_J=None):
         if(self.rankJ != 0):
             print("Spin-tensor decomposition is not defined for a non-scalar operator")
             return None
@@ -1062,12 +1197,27 @@ class Operator:
         ops.append( Operator( rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, ms=self.ms ) )
         ms = self.ms.two
         orbits = ms.orbits
+
+        ls_couple_store = {}
+        for oa, ob in itertools.product(orbits.orbits, repeat=2):
+            for Lab, Sab in itertools.product(range( abs(oa.l-ob.l), oa.l+ob.l+1 ),[0,1]):
+                for J in range(abs(Lab-Sab), (Lab+Sab+1)):
+                    ls_couple_store[(oa,ob,Lab,Sab,J)] = _ls_coupling(oa.l, oa.j*0.5, ob.l, ob.j*0.5, Lab, Sab, J)
+        sixj_store = {}
+        lmax=-9999
+        for oa in orbits.orbits:
+            lmax = max(lmax, oa.l)
+        for Lab, Lcd, Sab, Scd in itertools.product(range(2*lmax+1),range(2*lmax+1),[0,1],[0,1]):
+            for J, JJ in itertools.product(range(max(abs(Lab-Sab), abs(Lcd-Scd)), min(Lab+Sab,Lcd+Scd)+1), range(max(abs(Lab-Lcd),abs(Sab-Scd)), min(Lab+Lcd,Sab+Scd)+1)):
+                sixj_store[(Lab,Sab,J,Scd,Lcd,JJ)] = N(wigner_6j(Lab,Sab,J,Scd,Lcd,JJ))
+
         for ch_key in self.two.keys():
             ichbra = ch_key[0]
             ichket = ch_key[1]
             chbra = ms.get_channel(ichbra)
             chket = ms.get_channel(ichket)
             J = chket.J
+            if(chan_J!=None and chan_J!=J): continue
             for key in self.two[ch_key].keys():
                 a = chbra.orbit1_index[key[0]]
                 b = chbra.orbit2_index[key[0]]
@@ -1080,51 +1230,40 @@ class Operator:
 
                 for rank in [0,1,2]:
                     sum3 = 0.0
-                    for Lab in range( abs(oa.l-ob.l), oa.l+ob.l+1 ):
-                        for Sab in [0,1]:
-                            if(self._triag( Lab, Sab, J )): continue
-                            Cab = _ls_coupling(oa.l, oa.j*0.5, ob.l, ob.j*0.5, Lab, Sab, J)
-                            if(abs(Cab) < 1.e-10): continue
-                            for Lcd in range( abs(oc.l-od.l), oc.l+od.l+1 ):
-                                for Scd in [0,1]:
-                                    if(self._triag( Lcd, Scd, J )): continue
-                                    Ccd = _ls_coupling(oc.l, oc.j*0.5, od.l, od.j*0.5, Lcd, Scd, J)
-                                    if(abs(Ccd) < 1.e-10): continue
-                                    SixJ = N(wigner_6j(Lab,Sab,J,Scd,Lcd,rank))
-                                    if(abs(SixJ) < 1.e-10): continue
-
-                                    sum2 = 0.0
-                                    for JJ in range( max(abs(Lab-Sab),abs(Lcd-Scd)), min(Lab+Sab, Lcd+Scd)+1):
-                                        SixJJ = N(wigner_6j(Lab,Sab,JJ,Scd,Lcd,rank))
-                                        if(abs(SixJJ) < 1.e-10): continue
-                                        sum1 = 0.0
-                                        for jaa in [abs(2*oa.l-1), 2*oa.l+1]:
-                                            try:
-                                                aa = orbits.get_orbit_index(oa.n, oa.l, jaa, oa.z)
-                                            except:
-                                                continue
-                                            for jbb in [abs(2*ob.l-1), 2*ob.l+1]:
-                                                try:
-                                                    bb = orbits.get_orbit_index(ob.n, ob.l, jbb, ob.z)
-                                                except:
-                                                    continue
-                                                CCab = _ls_coupling(oa.l, jaa*0.5, ob.l, jbb*0.5, Lab, Sab, JJ)
-                                                for jcc in [abs(2*oc.l-1), 2*oc.l+1]:
-                                                    try:
-                                                        cc = orbits.get_orbit_index(oc.n, oc.l, jcc, oc.z)
-                                                    except:
-                                                        continue
-                                                    for jdd in [abs(2*od.l-1), 2*od.l+1]:
-                                                        try:
-                                                            dd = orbits.get_orbit_index(od.n, od.l, jdd, od.z)
-                                                        except:
-                                                            continue
-                                                        CCcd = _ls_coupling(oc.l, jcc*0.5, od.l, jdd*0.5, Lcd, Scd, JJ)
-                                                        sum1 += self.get_2bme_from_indices(aa,bb,cc,dd,JJ,JJ) * CCab * CCcd
-                                        sum2 += sum1 * SixJJ * (2*JJ+1)*(-1)**JJ
-                                    sum3 += sum2 * SixJ * Cab * Ccd
+                    for Lab, Lcd, Sab, Scd in itertools.product(range( abs(oa.l-ob.l), oa.l+ob.l+1 ),range( abs(oc.l-od.l), oc.l+od.l+1 ),[0,1],[0,1]):
+                        if(self._triag( Lab, Sab, J )): continue
+                        if(self._triag( Lcd, Scd, J )): continue
+                        if(self._triag( Lab, Lcd, rank )): continue
+                        if(self._triag( Sab, Scd, rank )): continue
+                        #Cab = _ls_coupling(oa.l, oa.j*0.5, ob.l, ob.j*0.5, Lab, Sab, J)
+                        #Ccd = _ls_coupling(oc.l, oc.j*0.5, od.l, od.j*0.5, Lcd, Scd, J)
+                        #SixJ = N(wigner_6j(Lab,Sab,J,Scd,Lcd,rank))
+                        Cab = ls_couple_store[(oa,ob,Lab,Sab,J)]
+                        Ccd = ls_couple_store[(oc,od,Lcd,Scd,J)]
+                        SixJ = sixj_store[(Lab,Sab,J,Scd,Lcd,rank)]
+                        if(abs(Cab*Ccd*SixJ) < 1.e-16): continue
+                        sum2 = 0.0
+                        for JJ in range( max(abs(Lab-Sab),abs(Lcd-Scd)), min(Lab+Sab, Lcd+Scd)+1):
+                            #SixJJ = N(wigner_6j(Lab,Sab,JJ,Scd,Lcd,rank))
+                            SixJJ = sixj_store[(Lab,Sab,JJ,Scd,Lcd,rank)]
+                            if(abs(SixJJ) < 1.e-16): continue
+                            sum1 = 0.0
+                            for jaa, jbb, jcc, jdd in itertools.product( [abs(2*oa.l-1), 2*oa.l+1], [abs(2*ob.l-1), 2*ob.l+1], [abs(2*oc.l-1), 2*oc.l+1], [abs(2*od.l-1), 2*od.l+1] ):
+                                try:
+                                    aa = orbits.get_orbit_index(oa.n, oa.l, jaa, oa.z)
+                                    bb = orbits.get_orbit_index(ob.n, ob.l, jbb, ob.z)
+                                    cc = orbits.get_orbit_index(oc.n, oc.l, jcc, oc.z)
+                                    dd = orbits.get_orbit_index(od.n, od.l, jdd, od.z)
+                                except:
+                                    continue
+                                #CCab = _ls_coupling(oa.l, jaa*0.5, ob.l, jbb*0.5, Lab, Sab, JJ)
+                                #CCcd = _ls_coupling(oc.l, jcc*0.5, od.l, jdd*0.5, Lcd, Scd, JJ)
+                                CCab = ls_couple_store[(oa,ob,Lab,Sab,JJ)]
+                                CCcd = ls_couple_store[(oc,od,Lcd,Scd,JJ)]
+                                sum1 += self.get_2bme_from_indices(aa,bb,cc,dd,JJ,JJ) * CCab * CCcd
+                            sum2 += sum1 * SixJJ * (2*JJ+1)*(-1)**JJ
+                        sum3 += sum2 * SixJ * Cab * Ccd
                     ops[rank].set_2bme_from_indices(a,b,c,d,J,J, (-1)**J*(2*rank+1)*sum3)
-                sys.exit()
         return ops
 
 

@@ -12,6 +12,7 @@ def extract_parameters( d_snm, e_snm, d_pnm=None, e_pnm=None, n0=None ):
     #    K: incompressibility
     #    S: symmetry energy
     #    L: slope parameter
+    # Ksym: parameter
     from scipy.interpolate import UnivariateSpline
     from scipy.optimize import minimize
     snm_spl = UnivariateSpline(d_snm,e_snm,s=0,k=4)
@@ -23,13 +24,13 @@ def extract_parameters( d_snm, e_snm, d_pnm=None, e_pnm=None, n0=None ):
         e0 = snm_spl(n0)
     K = snm_spl.derivatives(n0)[2] * 9 * n0**2
     M = snm_spl.derivatives(n0)[3] * 27 * n0**3 # cubic term
-    if(d_pnm==None and e_pnm==None): return n0, e0, K, 0.0, 0.0
-    #if(d_pnm==None and e_pnm==None): return n0, e0, K, M, 0.0
+    if(d_pnm==None and e_pnm==None): return n0, e0, K, M, 0, 0, 0
 
     pnm_spl = UnivariateSpline(d_pnm,e_pnm,s=0,k=4)
     S = pnm_spl(n0) - e0
     L = pnm_spl.derivatives(n0)[1] * 3 * n0
-    return n0,e0,K,S,L
+    Ksym = pnm_spl.derivatives(n0)[2] * 9 * n0**2 - K
+    return n0,e0,K,M,S,L,Ksym
 
 def extract_symmetry_energy_parameters( d_snm, e_snm, d_pnm, e_pnm, n0=None ):
     #

@@ -72,6 +72,11 @@ def ME_to_inverse_half_life( ME, Jinit, lam, Ediff, EM ):
     if(EM=="E"): return 5.498e22 * (ediff / hc)**(2*rank+1) * (rank+1) / (rank * factorial2(2*lam+1)**2) * BEM(ME, Jinit)
     if(EM=="M"): return 6.080e20 * (ediff / hc)**(2*rank+1) * (rank+1) / (rank * factorial2(2*lam+1)**2) * BEM(ME, Jinit)
 
+def RME_to_ME( RME, Jbra, lam, Jket, Mbra, mu, Mket):
+    return RME * (-1)**(Jbra-Mbra) * N(wigner_3j(Jbra,lam,Jket,-Mbra,mu,Mket))
+def ME_to_RME( ME, Jbra, lam, Jket, Mbra, mu, Mket):
+    return ME / (-1)**(Jbra-Mbra) * N(wigner_3j(Jbra,lam,Jket,-Mbra,mu,Mket))
+
 if(__name__=="__main__"):
     pass
 

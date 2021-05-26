@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os, sys, time, subprocess, re, itertools
 import numpy as np
+import pandas as pd
 if(__package__==None or __package__==""):
     import PeriodicTable
     import Operator
@@ -1135,9 +1136,10 @@ class kshell_toolkit:
         if(Nucl_daughter==None): Nucl_daughter=Nucl
         if(fn_snt_daughter==None): fn_snt_daughter=fn_snt
 
-        op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ, verbose=verbose, comment=comment_sntfile)
+        if(fn_op!="" and fn_op!=None): op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ, verbose=verbose, comment=comment_sntfile)
         if(type_output=="list"): exp_vals = []
         if(type_output=="dict"): exp_vals = {}
+        if(type_output=="DataFrame"): exp_vals = pd.DataFrame()
         for lr in states_list:
             bra = lr[0]
             ket = lr[1]
@@ -1171,6 +1173,11 @@ class kshell_toolkit:
                             if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=i_bra, Jket=Jfket, wflabel_ket=i_ket, verbose=verbose)
                             if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*Density.eval(op)))
                             if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = Density.eval(op)
+                            if(type_output=="DataFrame"):
+                                _ = Density.eval(op)
+                                if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl,Jbra,Pbra,nn_bra,en_bra,*_]
+                                if(not flip): _ = [Nucl,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
+                                exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
 
             else:
                 kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt_daughter, Nucl=Nucl_daughter, states=bra,
@@ -1188,7 +1195,8 @@ class kshell_toolkit:
                     if(mode=="density"): continue
                 if(mode=="eval" or mode=="all"):
                     flip = trs.set_filenames(kshl_l, kshl_r, states_list=[lr,])
-                    fn_density = trs.filenames[lr]
+                    if(flip): fn_density = trs.filenames[lr[::-1]]
+                    else:     fn_density = trs.filenames[lr]
                     n_bra = kshl_l._number_of_states(bra)
                     n_ket = kshl_r._number_of_states(ket)
                     wf_idx_to_jpn_ket = kshl_r.get_wf_idx_to_jpn()
@@ -1204,9 +1212,16 @@ class kshell_toolkit:
                             en_ket = kshl_r.energy_from_summary((Jket,Pket,nn_ket))
                             if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=i_ket, Jket=Jfbra, wflabel_ket=i_bra, verbose=verbose)
                             if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=i_bra, Jket=Jfket, wflabel_ket=i_ket)
+                            _ = [Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*Density.eval(op)]
                             if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*Density.eval(op)))
                             if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = Density.eval(op)
+                            if(type_output=="DataFrame"):
+                                _ = Density.eval(op)
+                                if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,*_]
+                                if(not flip): _ = [Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
+                                exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
         if(mode=="diag" or mode=="density"): return None
+        if(type_output=="DataFrame"): exp_vals.columns = ["Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]
         return exp_vals
 
     def calc_2v_decay(kshl_dir=None,
