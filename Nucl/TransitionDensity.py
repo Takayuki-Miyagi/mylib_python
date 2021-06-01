@@ -145,6 +145,10 @@ class TransitionDensity:
             return
         if( file_format=="kshell"):
             self._read_td_kshell_format(filename)
+            if(self.ms == None):
+                self.one=None
+                self.two=None
+                return
             if( self.count_nonzero_1btd() + self.count_nonzero_2btd() == 0):
                 print("The number of non-zero transition density matrix elements is 0 better to check: "+ filename + "!! " + \
                         "Jbra=" + str(self.Jbra) + " (wf label:"+ str(self.wflabel_bra)+"), Jket="+str(self.Jket)+" (wf label:"+str(self.wflabel_ket)+")")
@@ -168,10 +172,15 @@ class TransitionDensity:
             return
         f = open(filename, 'r')
         orbs = Orbits()
-        while True:
+        flag=True
+        for i in range(200):
             line = f.readline()
             if(line[1:12] == "model space"):
+                flag=False
                 break
+        if(flag):
+            print("The file {:s} might be crushed. Please check it!".format(filename))
+            return
         while True:
             entry = f.readline().split()
             if( len(entry)==0 ): break
