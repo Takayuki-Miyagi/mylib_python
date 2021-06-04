@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os, sys, copy, gzip, subprocess, time
 import numpy as np
+import pandas as pd
 if(__package__==None or __package__==""):
     import ModelSpace
 else:
@@ -475,6 +476,37 @@ class TransitionDensity:
                                     #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:16.10f},{:16.10f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl),\
                                     #        op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
         return zero,one,two
+
+    def to_DataFrame(self, rank=None):
+        if(rank==1 or rank==None):
+            orbits = self.ms.orbits
+            tmp = []
+            for idx in self.one.keys():
+                tmp.append({"a":idx[0],"b":idx[1],"rank":idx[2],"1 body":self.one[idx]})
+            if(len(tmp)==0):
+                one = pd.DataFrame()
+            else:
+                one = pd.DataFrame(tmp)
+                one = one.iloc[list(~one["1 body"].eq(0)),:].reset_index(drop=True)
+        if(rank==2 or rank==None):
+            tmp = []
+            for channels in self.two.keys():
+                chbra = self.ms.two.get_channel(channels[0])
+                chket = self.ms.two.get_channel(channels[1])
+                Jab = chbra.J
+                Jcd = chket.J
+                for idx in self.two[channels].keys():
+                    a, b = chbra.get_indices(idx[0])
+                    c, d = chket.get_indices(idx[1])
+                    tmp.append({"a":a, "b":b, "c":c, "d":d, "Jab":Jab, "Jcd":Jcd, "rank":idx[2],"2 body":self.two[channels][idx]})
+            if(len(tmp)==0):
+                two = pd.DataFrame()
+            else:
+                two = pd.DataFrame(tmp)
+                two = two.iloc[list(~two["2 body"].eq(0)),:].reset_index(drop=True)
+        if(rank==1): return one
+        if(rank==2): return two
+        if(rank==None): return one, two
 
 def main():
     file_td="transition-density-file-name"
