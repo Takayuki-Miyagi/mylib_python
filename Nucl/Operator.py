@@ -532,7 +532,8 @@ class Operator:
                     line.find("Zero-Body") != -1):
                 data = line.split()
                 zerobody = float(data[3])
-            b = line.startswith(comment)
+            #b = line.startswith(comment)
+            b = line.startswith(comment) or line.startswith("#")
         data = line.split()
         norbs = int(data[0]) + int(data[1])
 
@@ -540,7 +541,8 @@ class Operator:
         while b == True:
             x = f.tell()
             line = f.readline()
-            b = line.startswith(comment)
+            #b = line.startswith(comment)
+            b = line.startswith(comment) or line.startswith("#")
         f.seek(x)
 
         orbs = Orbits()
@@ -557,7 +559,8 @@ class Operator:
         b = True
         while b == True:
             line = f.readline()
-            b = line.startswith(comment)
+            #b = line.startswith(comment)
+            b = line.startswith(comment) or line.startswith("#")
         data = line.split()
         n = int(data[0])
         method = int(data[1])
@@ -573,7 +576,8 @@ class Operator:
         while b == True:
             x = f.tell()
             line = f.readline()
-            b = line.startswith(comment)
+            #b = line.startswith(comment)
+            b = line.startswith(comment) or line.startswith("#")
         f.seek(x)
 
         for i in range(n):
@@ -585,7 +589,8 @@ class Operator:
         b = True
         while b == True:
             line = f.readline()
-            b = line.startswith(comment)
+            #b = line.startswith(comment)
+            b = line.startswith(comment) or line.startswith("#")
         data = line.split()
         n = int(data[0])
         method = int(data[1])
@@ -600,7 +605,8 @@ class Operator:
         while b == True:
             x = f.tell()
             line = f.readline()
-            b = line.startswith(comment)
+            #b = line.startswith(comment)
+            b = line.startswith(comment) or line.startswith("#")
         f.seek(x)
 
         for i in range(int(data[0])):
@@ -1275,7 +1281,7 @@ class Operator:
         if(rank==1 or rank==None):
             orbits = self.ms.orbits
             tmp = []
-            for a in range(1,orbits.get_num_orbits()):
+            for a in range(1,orbits.get_num_orbits()+1):
                 for b in range(1, a+1):
                     tmp.append({"a":a,"b":b,"1 body":self.get_1bme(a,b)})
             if(len(tmp)==0):

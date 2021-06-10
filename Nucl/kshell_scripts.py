@@ -562,7 +562,7 @@ class kshell_scripts:
     def summary_to_dictionary(self, comment_snt="!"):
         fn_summary = self.summary_filename()
         H = Operator()
-        H.read_operator_file(self.fn_snt,comment=comment_snt)
+        H.read_operator_file(self.fn_snt,comment=comment_snt,A=self.A)
         if(not os.path.exists(fn_summary)): return {}
         f = open(fn_summary,'r')
         lines = f.readlines()
@@ -692,10 +692,11 @@ class kshell_scripts:
 
 
 class transit_scripts:
-    def __init__(self, kshl_dir=None, verbose=False):
+    def __init__(self, kshl_dir=None, verbose=False, bin_output=False):
         self.kshl_dir = kshl_dir
         self.verbose = verbose
         self.filenames = {}
+        self.bin_output = bin_output
 
     def set_filenames(self, ksh_l, ksh_r, states_list=None, calc_SF=False):
         if(states_list==None):
@@ -730,7 +731,9 @@ class transit_scripts:
             fn_density += "_{:s}".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0])
             if(ket_side.hw_truncation!=None): fn_density += "_hw{:d}".format(ket_side.hw_truncation)
             if(ket_side.ph_truncation!=None): fn_density += "_ph{:s}".format(ket_side.ph_truncation)
-            fn_density += "_{:s}{:s}_{:s}{:s}.txt".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
+            fn_density += "_{:s}{:s}_{:s}{:s}".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
+            if(not calc_SF and self.bin_output): fn_density += ".bin"
+            else: fn_density += ".txt"
             self.filenames[(state_l,state_r)] = fn_density
         return flip
 
@@ -763,11 +766,13 @@ class transit_scripts:
         fn_density += "_{:s}".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0])
         if(ket_side.hw_truncation!=None): fn_density += "_hw{:d}".format(ket_side.hw_truncation)
         if(ket_side.ph_truncation!=None): fn_density += "_ph{:s}".format(ket_side.ph_truncation)
-        fn_density += "_{:s}{:s}_{:s}{:s}.txt".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
+        fn_density += "_{:s}{:s}_{:s}{:s}".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
+        if(not calc_SF and self.bin_output): fn_density += ".bin"
+        else: fn_density += ".txt"
         return fn_density, flip
 
     def calc_density(self, ksh_l, ksh_r, states_list=None, header="", batch_cmd=None, run_cmd=None, \
-            i_wfs=None, calc_SF=False, parity_mix=True):
+            i_wfs=None, calc_SF=False, parity_mix=True, binary_output=False):
         """
         calculate < ksh_l | [a^t a] | ksh_r > and < ksh_l | [a^t a^t a a] | ksh_r >
         input:
@@ -816,12 +821,15 @@ class transit_scripts:
                     _file_exists(bra_side.fn_wfs[state_l]) or  _file_exists(ket_side.fn_wfs[state_r])):
                 density_files.append(None)
                 continue
+            fn_density_output = "none"
             fn_density = "density"
             if(calc_SF): fn_density = "SF"
             fn_density += "_{:s}".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0])
             if(ket_side.hw_truncation!=None): fn_density += "_hw{:d}".format(ket_side.hw_truncation)
             if(ket_side.ph_truncation!=None): fn_density += "_ph{:s}".format(ket_side.ph_truncation)
-            fn_density += "_{:s}{:s}_{:s}{:s}.txt".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
+            fn_density += "_{:s}{:s}_{:s}{:s}".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
+            if(not calc_SF and self.bin_output): fn_density_output = fn_density + ".bin"
+            fn_density += ".txt"
 
             density_files.append(fn_density)
             fn_script = os.path.splitext(fn_density)[0] + ".sh"
@@ -837,6 +845,7 @@ class transit_scripts:
             prt += '  fn_ptn_r = "' + ket_side.fn_ptns[state_r]+ '"\n'
             prt += '  fn_load_wave_l = "' + bra_side.fn_wfs[state_l] + '"\n'
             prt += '  fn_load_wave_r = "' + ket_side.fn_wfs[state_r] + '"\n'
+            if(fn_density_output!='none'): prt += '  fn_density = "' + fn_density_output + '"\n'
             if(i_wfs!=None):
                 prt += '  n_eig_lr_pair = '
                 for lr in i_wfs:

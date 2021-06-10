@@ -16,6 +16,7 @@ class TransitionDensity:
         self.wflabel_ket = wflabel_ket
         self.ms = copy.deepcopy(ms)
         self.verbose = verbose
+        self.bin_header = None
         self.one = {}
         self.two = {}
         self.three = {}
@@ -145,7 +146,8 @@ class TransitionDensity:
             print(" set file name!")
             return
         if( file_format=="kshell"):
-            self._read_td_kshell_format(filename)
+            if( filename.find("bin")!=-1): self._read_td_binary(filename)
+            else: self._read_td_kshell_format(filename)
             if(self.ms == None):
                 self.one=None
                 self.two=None
@@ -328,13 +330,84 @@ class TransitionDensity:
                     tbtd = self.two[(ichbra,ichket)][key]
                     print("{0:3d}, {1:3d}, {2:3d}, {3:3d}, {4:3d}, {5:3d}, {6:3d}, {7:12.6f}".format(a,b,c,d,chbra.J,chket.J,Jr,tbtd))
 
+    def _read_td_binary(self, filename, byte_order='little'):
+        with open(filename, "rb") as fp:
+            if(self.ms==None):
+                n_orbs = fp.read(4); n_orbs = int.from_bytes(n_orbs,byteorder=byte_order, signed=True)
+                orbs = Orbits()
+                for i in range(n_orbs):
+                    tmp = []
+                    for j in range(4):
+                        idx = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                        tmp.append(idx)
+                    orbs.add_orbit(*tuple(tmp))
+                ms = ModelSpace()
+                ms.set_modelspace_from_orbits(orbs)
+                self.allocate_density( ms )
+            else: fp.seek(self.ms.orbits.get_num_orbits()*4*4 + 4, 0)
+
+            if(self.bin_header==None):
+                n = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                self.bin_header = []
+                for i in range(n):
+                    J2bra = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                    wflabel_bra = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                    J2ket = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                    wflabel_ket = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                    self.bin_header.append((J2bra,wflabel_bra,J2ket,wflabel_ket))
+            else: fp.seek( 4+len(self.bin_header)*4*4, 1 )
+
+            try:
+                n = self.bin_header.index((int(self.Jbra*2), self.wflabel_bra, int(self.Jket*2), self.wflabel_ket))
+            except:
+                raise ValueError("Mismatch of J and wf label was detected!")
+            for i in range(n):
+                n1 = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                n2 = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                skip_block_size = (n1*20) + (n2*36)
+                fp.seek(skip_block_size, 1)
+
+            bin_parser=[]
+            n1 = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+            n2 = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+            arrs = []
+            for i in range(n1):
+                a = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                b = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                rank = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                arrs.append((a,b,rank))
+            bin_parser.append(arrs)
+
+            arrs = []
+            for i in range(n2):
+                a = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                b = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                c = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                d = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                Jab = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                Jcd = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                rank = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
+                arrs.append((a,b,c,d,Jab,Jcd,rank))
+            bin_parser.append(arrs)
+
+            for i in range(n1):
+                idxs = bin_parser[0][i]
+                v = np.frombuffer(fp.read(8),dtype=np.float64)[0]
+                self.set_1btd(*idxs, v)
+            for i in range(n2):
+                idxs = bin_parser[1][i]
+                v = np.frombuffer(fp.read(8),dtype=np.float64)[0]
+                self.set_2btd_from_indices(*idxs, v)
+        return
 
     def calc_density(kshl_dir, fn_snt, fn_ptn_bra, fn_ptn_ket, fn_wf_bra, fn_wf_ket, i_wfs=None, fn_density=None, \
-            header="", batch_cmd=None, run_cmd=None, fn_input="transit.input", calc_SF=False):
+            header="", batch_cmd=None, run_cmd=None, fn_input="transit.input", calc_SF=False, binary_output=False):
         if(fn_density==None):
             basename = os.path.basename(fn_snt)
-            fn_out = "density_" + os.path.splitext(basename)[0] + ".dat"
+            fn_out = "density_" + os.path.splitext(basename)[0] + ".txt"
         if(fn_density!=None): fn_out = fn_density
+        fn_density_out = "none"
+        if(biary_output): fn_density_out = os.path.splitext(fn_out)[0]+".bin"
         fn_script = os.path.splitext(fn_out)[0] + ".sh"
         cmd = "cp " + kshl_dir + "/transit.exe ./"
         subprocess.call(cmd,shell=True)
@@ -347,6 +420,7 @@ class TransitionDensity:
         prt += '  fn_ptn_r = "' + fn_ptn_ket + '"\n'
         prt += '  fn_load_wave_l = "' + fn_wf_bra + '"\n'
         prt += '  fn_load_wave_r = "' + fn_wf_ket + '"\n'
+        if(fn_density_output!='none'): prt += '  fn_density = "' + fn_density_output + '"\n'
         if(i_wfs!=None):
             prt += '  n_eig_lr_pair = '
             for lr in i_wfs:
