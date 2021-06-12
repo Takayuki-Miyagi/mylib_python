@@ -1110,7 +1110,8 @@ class kshell_toolkit:
     def calc_exp_vals(kshl_dir, fn_snt, fn_op, Nucl, states_list, hw_truncation=None, ph_truncation=None,
             run_args=None, Nucl_daughter=None, fn_snt_daughter=None,
             op_rankJ=0, op_rankP=1, op_rankZ=0, verbose=False, mode="all",
-            header="", batch_cmd=None, run_cmd=None, type_output="list", comment_sntfile="!"):
+            header="", batch_cmd=None, run_cmd=None, type_output="list", comment_sntfile="!",
+            bin_density=False):
         """
         inputs:
             kshel_dir (str)    : path to kshell exe files
@@ -1159,7 +1160,7 @@ class kshell_toolkit:
                 if(mode=="diag" or mode=="all"):
                     kshl.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
                     if(mode=="diag"): continue
-                trs = transit_scripts(kshl_dir=kshl_dir)
+                trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
                 if(mode=="density" or mode=="all"):
                     fn_den, flip = trs.calc_density(kshl, kshl, states_list=[lr,],
                             header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, parity_mix=parity_mixing)
@@ -1197,7 +1198,7 @@ class kshell_toolkit:
                     kshl_l.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
                     kshl_r.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
                     if(mode=="diag"): continue
-                trs = transit_scripts(kshl_dir=kshl_dir)
+                trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
                 if(mode=="density" or mode=="all"):
                     fn_den, flip = trs.calc_density(kshl_l, kshl_r, states_list=[lr,],
                             header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, parity_mix=parity_mixing)
@@ -1221,11 +1222,10 @@ class kshell_toolkit:
                             en_ket = kshl_r.energy_from_summary((Jket,Pket,nn_ket))
                             if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=i_ket, Jket=Jfbra, wflabel_ket=i_bra, verbose=verbose)
                             if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=i_bra, Jket=Jfket, wflabel_ket=i_ket)
-                            _ = [Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*Density.eval(op)]
-                            if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*Density.eval(op)))
-                            if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = Density.eval(op)
+                            _ = Density.eval(op)
+                            if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*_))
+                            if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = _
                             if(type_output=="DataFrame"):
-                                _ = Density.eval(op)
                                 if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,*_]
                                 if(not flip): _ = [Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
                                 exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
@@ -1318,7 +1318,7 @@ class kshell_toolkit:
             kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
             kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
             kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
-            trs = transit_scripts(kshl_dir=kshl_dir)
+            trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
             for state in states_list.split(","):
                 fn_den_l, flip_l = trs.calc_density(kshl_l, kshl_inter, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
                 fn_den_r, flip_r = trs.calc_density(kshl_inter, kshl_r, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
@@ -1327,7 +1327,7 @@ class kshell_toolkit:
             kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
             kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
             kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
-            trs = transit_scripts(kshl_dir=kshl_dir)
+            trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
             edict_inter = kshl_inter.summary_to_dictionary()
             levels = sorted(edict_inter.items(), key=lambda x:x[1])
             egs_inter = levels[0][1]

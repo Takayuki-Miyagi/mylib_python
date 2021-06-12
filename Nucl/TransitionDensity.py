@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, copy, gzip, subprocess, time
+import os, sys, copy, gzip, subprocess, time, itertools
 import numpy as np
 import pandas as pd
 if(__package__==None or __package__==""):
@@ -499,56 +499,57 @@ class TransitionDensity:
         norbs = orbits_op.get_num_orbits()
 
         zero = op.get_0bme()
-        one = 0
-        for i in range(1, norbs+1):
+        one = 0.0
+        for i, j, in itertools.product(list(range(1,norbs+1)), repeat=2):
             oi = orbits_op.get_orbit(i)
             i_d = orbits_de.get_orbit_index(oi.n, oi.l, oi.j, oi.z)
-            for j in range(1, norbs+1):
-                oj = orbits_op.get_orbit(j)
-                j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
-                if( J1!=None and oi.j!=J1 and oj.j!=J1 ): continue
-                if( abs(oi.z-oj.z) != 2*op.rankZ): continue
-                if((-1)**(oi.l+oj.l) * op.rankP != 1): continue
-                if( self._triag( oi.j, oj.j, 2*op.rankJ )): continue
-                if( op.rankJ==0 and op.rankP==1 and op.rankZ==0 ):
-                    one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) * np.sqrt(oj.j+1) / np.sqrt(2*self.Jbra+1)
-                else:
-                    #print( "{:3d}{:3d}{:10.6f}{:10.6f}{:10.6f}".format(i_d,j_d,\
-                    #        op.get_1bme(i,j), self.get_1btd(i_d,j_d,op.rankJ), op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) ))
-                    one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ)
-        two = 0
-        for i in range(1, norbs+1):
-            oi = orbits_op.get_orbit(i)
-            for j in range(i, norbs+1):
-                oj = orbits_op.get_orbit(j)
-                for k in range(1, norbs+1):
-                    ok = orbits_op.get_orbit(k)
-                    for l in range(k, norbs+1):
-                        ol = orbits_op.get_orbit(l)
+            oj = orbits_op.get_orbit(j)
+            j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
+            if( J1!=None and oi.j!=J1 and oj.j!=J1 ): continue
+            if( abs(oi.z-oj.z) != 2*op.rankZ): continue
+            if((-1)**(oi.l+oj.l) * op.rankP != 1): continue
+            if( self._triag( oi.j, oj.j, 2*op.rankJ )): continue
+            if( op.rankJ==0 and op.rankP==1 and op.rankZ==0 ):
+                one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) * np.sqrt(oj.j+1) / np.sqrt(2*self.Jbra+1)
+            else:
+                #print( "{:3d}{:3d}{:10.6f}{:10.6f}{:10.6f}".format(i_d,j_d,\
+                #        op.get_1bme(i,j), self.get_1btd(i_d,j_d,op.rankJ), op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) ))
+                one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ)
 
-                        i_d = orbits_de.get_orbit_index(oi.n, oi.l, oi.j, oi.z)
-                        j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
-                        k_d = orbits_de.get_orbit_index(ok.n, ok.l, ok.j, ok.z)
-                        l_d = orbits_de.get_orbit_index(ol.n, ol.l, ol.j, ol.z)
-                        if((-1)**(oi.l+oj.l+ok.l+ol.l) * op.rankP != 1): continue
-                        if( abs(oi.z+oj.z-ok.z-ol.z) != 2*op.rankZ): continue
-                        for Jij in range( int(abs(oi.j-oj.j)/2), int((oi.j+oj.j)/2)+1):
-                            if(i == j and Jij%2 == 1): continue
-                            for Jkl in range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2+1)):
-                                if(k == l and Jkl%2 == 1): continue
-                                if( self._triag( Jij, Jkl, op.rankJ )): continue
-                                if( J2!=None and Jij!=J2 and Jkl!=J2 ): continue
-                                if(op.rankJ==0 and op.rankP==1 and op.rankZ==0):
-                                    two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ) * \
-                                            np.sqrt(2*Jij+1)/np.sqrt(2*self.Jbra+1)
-                                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ,self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
-                                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl)))
-                                else:
-                                    two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)
-                                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ,self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
-                                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl)))
-                                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:16.10f},{:16.10f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl),\
-                                    #        op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
+        two = 0.0
+        ijlist = list(itertools.combinations_with_replacement(list(range(1,norbs+1)),2))
+        for ij, kl in itertools.product(ijlist, repeat=2):
+            i, j = ij
+            k, l = kl
+            oi = orbits_op.get_orbit(i)
+            oj = orbits_op.get_orbit(j)
+            ok = orbits_op.get_orbit(k)
+            ol = orbits_op.get_orbit(l)
+
+            i_d = orbits_de.get_orbit_index(oi.n, oi.l, oi.j, oi.z)
+            j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
+            k_d = orbits_de.get_orbit_index(ok.n, ok.l, ok.j, ok.z)
+            l_d = orbits_de.get_orbit_index(ol.n, ol.l, ol.j, ol.z)
+            if((-1)**(oi.l+oj.l+ok.l+ol.l) * op.rankP != 1): continue
+            if( abs(oi.z+oj.z-ok.z-ol.z) != 2*op.rankZ): continue
+            Jijlist = list(range( int(abs(oi.j-oj.j)/2), int((oi.j+oj.j)/2)+1))
+            Jkllist = list(range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2)+1))
+            for Jij, Jkl in itertools.product(Jijlist, Jkllist):
+                if(i == j and Jij%2 == 1): continue
+                if(k == l and Jkl%2 == 1): continue
+                if( self._triag( Jij, Jkl, op.rankJ )): continue
+                if( J2!=None and Jij!=J2 and Jkl!=J2 ): continue
+                if(op.rankJ==0 and op.rankP==1 and op.rankZ==0):
+                    two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ) * \
+                            np.sqrt(2*Jij+1)/np.sqrt(2*self.Jbra+1)
+                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ,self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
+                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl)))
+                else:
+                    two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)
+                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ,self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
+                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl)))
+                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:16.10f},{:16.10f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl),\
+                    #        op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
         return zero,one,two
 
     def to_DataFrame(self, rank=None):
