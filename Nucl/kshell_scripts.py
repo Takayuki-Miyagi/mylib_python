@@ -494,12 +494,12 @@ class kshell_scripts:
         prt += '  is_double_j = .true.\n'
         if(op!=None): prt += '  op_type_init = "'+str(op)+'"\n'
         if(fn_operator!=None):
-            prt += '  fn_operator = "'+str(fn_operator)+'"\n'
-            prt += '  operator_irank = '+str(operator_irank)+'\n'
-            prt += '  operator_nbody = '+str(operator_nbody)+'\n'
-            prt += '  operator_iprty = '+str(operator_iprty)+'\n'
+            prt += '  fn_op_init_wf = "'+str(fn_operator)+'"\n'
+            prt += '  irank_op_init_wf = '+str(operator_irank)+'\n'
+            prt += '  nbody_op_init_wf = '+str(operator_nbody)+'\n'
+            prt += '  iprty_op_init_wf = '+str(operator_iprty)+'\n'
         prt += '  eff_charge = 1.0, 0.0\n'
-        prt += '  e1_charge = 1.0, 0.0\n'
+        prt += '  e1_charge =' +str(self.N/self.A)+ ', '+str(-self.Z/self.A) +'\n'
         if(self.run_args!=None):
             for key in self.run_args.keys():
                 prt += '{:s}={:s}\n'.format(key, str(self.run_args[key]))
@@ -831,7 +831,8 @@ class transit_scripts:
             if(not calc_SF and self.bin_output): fn_density_output = fn_density + ".bin"
             fn_density += ".txt"
 
-            density_files.append(fn_density)
+            if(not calc_SF and self.bin_output): density_files.append(fn_density_output)
+            else: density_files.append(fn_density)
             fn_script = os.path.splitext(fn_density)[0] + ".sh"
             fn_input = os.path.splitext(fn_density)[0] + ".input"
             cmd = "cp " + self.kshl_dir + "/transit.exe ./"

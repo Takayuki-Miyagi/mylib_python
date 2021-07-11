@@ -27,7 +27,7 @@ def _lj_to_ljidx(l,j):
 
 
 class Operator:
-    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=False, filename=None, verbose=False, comment="!"):
+    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=True, filename=None, verbose=False, comment="!"):
         self.ms = ms
         self.rankJ = rankJ
         self.rankP = rankP
@@ -38,7 +38,7 @@ class Operator:
         self.one = None
         self.two = {}
         self.three = {}
-        if( rankJ != 0 ): self.reduced = True
+        if( self.rankJ == 0 and self.rankP==1 and self.rankZ==0): self.reduced = False
         if( ms != None ): self.allocate_operator( ms )
         if( filename != None ): self.read_operator_file( filename, comment=comment )
 
@@ -564,12 +564,13 @@ class Operator:
         data = line.split()
         n = int(data[0])
         method = int(data[1])
-        if(A!=None): hw = float(data[2])
         fact1 = 1.0
         if(method==10 and A==None):
             print(" Need to set mass number! ")
             sys.exit()
-        if(A!=None and method==10): fact1 = (1-1/float(A))*hw
+        if(A!=None and method==10):
+            hw = float(data[2])
+            fact1 = (1-1/float(A))*hw
 
 
         b = True
@@ -594,12 +595,13 @@ class Operator:
         data = line.split()
         n = int(data[0])
         method = int(data[1])
-        if(A!=None): hw = float(data[2])
         fact2 = 1.0
         if(method==10 and A==None):
             print(" Need to set mass number! ")
             sys.exit()
-        if(A!=None and method==10): fact2 = hw/float(A)
+        if(A!=None and method==10):
+            hw = float(data[2])
+            fact2 = hw/float(A)
 
         b = True
         while b == True:
@@ -1167,6 +1169,36 @@ class Operator:
                 op.set_2bme_from_indices(i,j,k,l,Jij,Jkl,me)
         if(len(self.three) != 0): raise ValueError("Not ready to use!")
         return op
+
+    def to_reduced(self):
+        if(self.rankJ!=0 or self.rankP!=1 or self.rankZ!=0 or self.reduced): return
+        orbits = self.ms.orbits
+        for i,j in itertools.product(list(range(orbits.get_num_orbits())), repeat=2):
+            oi = orbits.get_orbit(i+1)
+            self.one[i,j] *= np.sqrt(oi.j+1)
+        for channel in self.two.keys():
+            chbra = self.ms.two.get_channel(channel[0])
+            chket = self.ms.two.get_channel(channel[1])
+            Jbra = chbra.J; Jket = chket.J
+            for key in self.two[channel].keys():
+                self.two[channel][key] *= np.sqrt(2*Jket+1)
+        self.reduced=True
+        return
+
+    def to_nonreduced(self):
+        if(self.rankJ!=0 or self.rankP!=1 or self.rankZ!=0 or not self.reduced): return
+        orbits = self.ms.orbits
+        for i,j in itertools.product(list(range(orbits.get_num_orbits())), repeat=2):
+            oi = orbits.get_orbit(i+1)
+            self.one[i,j] /= np.sqrt(oi.j+1)
+        for channel in self.two.keys():
+            chbra = self.ms.two.get_channel(channel[0])
+            chket = self.ms.two.get_channel(channel[1])
+            Jbra = chbra.J; Jket = chket.J
+            for key in self.two[channel].keys():
+                self.two[channel][key] /= np.sqrt(2*Jket+1)
+        self.reduced=False
+        return
 
     def _get_embed_1bme_2(self,a,b,c,d,ichbra,ichket,scalar):
         two = self.ms.two

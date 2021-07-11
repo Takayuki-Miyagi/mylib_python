@@ -509,7 +509,7 @@ class TransitionDensity:
             if( abs(oi.z-oj.z) != 2*op.rankZ): continue
             if((-1)**(oi.l+oj.l) * op.rankP != 1): continue
             if( self._triag( oi.j, oj.j, 2*op.rankJ )): continue
-            if( op.rankJ==0 and op.rankP==1 and op.rankZ==0 ):
+            if( op.rankJ==0 and op.rankP==1 and op.rankZ==0 and (not op.reduced) ):
                 one += op.get_1bme(i,j) * self.get_1btd(i_d,j_d,op.rankJ) * np.sqrt(oj.j+1) / np.sqrt(2*self.Jbra+1)
             else:
                 #print( "{:3d}{:3d}{:10.6f}{:10.6f}{:10.6f}".format(i_d,j_d,\
@@ -532,6 +532,11 @@ class TransitionDensity:
             l_d = orbits_de.get_orbit_index(ol.n, ol.l, ol.j, ol.z)
             if((-1)**(oi.l+oj.l+ok.l+ol.l) * op.rankP != 1): continue
             if( abs(oi.z+oj.z-ok.z-ol.z) != 2*op.rankZ): continue
+
+            #if(oi.z+oj.z==-2): continue
+            #if(oi.z+oj.z==0): continue
+            #if(oi.z+oj.z==2): continue
+
             Jijlist = list(range( int(abs(oi.j-oj.j)/2), int((oi.j+oj.j)/2)+1))
             Jkllist = list(range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2)+1))
             for Jij, Jkl in itertools.product(Jijlist, Jkllist):
@@ -539,7 +544,7 @@ class TransitionDensity:
                 if(k == l and Jkl%2 == 1): continue
                 if( self._triag( Jij, Jkl, op.rankJ )): continue
                 if( J2!=None and Jij!=J2 and Jkl!=J2 ): continue
-                if(op.rankJ==0 and op.rankP==1 and op.rankZ==0):
+                if(op.rankJ==0 and op.rankP==1 and op.rankZ==0 and (not op.reduced)):
                     two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ) * \
                             np.sqrt(2*Jij+1)/np.sqrt(2*self.Jbra+1)
                     #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ,self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
