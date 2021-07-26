@@ -962,16 +962,16 @@ class Operator:
                                         me_pppp, me_pppn, me_ppnp, me_ppnn, me_pnpn, me_pnnp, me_pnnn, me_npnp, me_npnn, me_nnnn))
         f.close()
 
-    def _write_operator_snt(self, filename):
+    def _write_operator_snt(self, filename, p_core=0, n_core=0):
         orbits = self.ms.orbits
         p_norbs = 0; n_norbs = 0
         for o in orbits.orbits:
             if( o.z ==-1 ): p_norbs += 1
             if( o.z == 1 ): n_norbs += 1
         prt = ""
-        prt  += " {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ )
+        prt  += "! {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ )
         prt += "! model space \n"
-        prt += " {0:3d} {1:3d} {2:3d} {3:3d} \n".format( p_norbs, n_norbs, 0, 0 )
+        prt += " {0:3d} {1:3d} {2:3d} {3:3d} \n".format( p_norbs, n_norbs, p_core, n_core )
         norbs = orbits.get_num_orbits()+1
         for i in range(1,norbs):
             o = orbits.get_orbit(i)

@@ -82,7 +82,7 @@ def _Jfloat_to_str(J):
     1.5 -> '3/2'
     """
     if( int(2*J+0.01)%2 == 0): return str(J)
-    if( int(2*J+0.01)%2 == 1): return str(2*J)+"/2"
+    if( int(2*J+0.01)%2 == 1): return str(int(2*J))+"/2"
 
 def _str_to_state_Jfloat(string):
     """
@@ -688,8 +688,31 @@ class kshell_scripts:
             idx = int(Jdouble/2)
             if(P=="+"): return color_list_p[idx%len(color_list_p)]
             if(P=="-"): return color_list_n[idx%len(color_list_n)]
-
-
+    def espe(self, states=None):
+        """
+        state: list of tuple ex.) [('1/2', '+', 1), ('3/2', '+', 1), ...]
+        """
+        e_data = self.get_occupation()
+        H = Operator()
+        H.read_operator_file(self.fn_snt)
+        wf_idx_to_jpn = self.get_wf_idx_to_jpn()
+        if(states!=None):
+            wf_index = self.get_wf_index(self.summary_filename())
+            sts = [ (int(_str_J_to_Jfloat(_[0])*2),_[1],wf_index[_][-1]) for _ in states ]
+        espes = {}
+        for En, vals in e_data.items():
+            if(states!=None):
+                if(not (vals[1], vals[2], vals[3]) in sts): continue
+            occs = {}
+            for i in range(1,len(vals[5])+1):
+                oi = H.ms.orbits.get_orbit(i)
+                occs[oi.get_nljz()] = vals[5][i-1] / (oi.j+1)
+            for i in range(1,len(vals[6])+1):
+                oi = H.ms.orbits.get_orbit(i+len(vals[5]))
+                occs[oi.get_nljz()] = vals[6][i-1] / (oi.j+1)
+            Jstr = _Jfloat_to_str(vals[1]*0.5)
+            espes[wf_idx_to_jpn[vals[3]-1]] = H.espe(occs)
+        return espes
 
 class transit_scripts:
     def __init__(self, kshl_dir=None, verbose=False, bin_output=False):
@@ -1106,6 +1129,53 @@ class transit_scripts:
                 else:
                     continue
         return espe, sum_sfs
+
+    def wf_overlap(self, ksh_l, ksh_r, header="", batch_cmd=None, run_cmd=None):
+        Opl = Operator(filename=ksh_l.fn_snt)
+        Opr = Operator(filename=ksh_r.fn_snt)
+        if(Opl.ms.orbits.get_num_orbits() != Opr.ms.orbits.get_num_orbits()):
+            print("The single-particle orbits definition has to be the same in left and right snt files.")
+            return None
+        for i in range(1,Opl.ms.orbits.get_num_orbits()+1):
+            o1 = Opl.ms.orbits.get_orbit(i)
+            o2 = Opr.ms.orbits.get_orbit(i)
+            if(not Opl.ms.orbits.is_same_orbit(o1,o2)):
+                print("The single-particle orbits definition has to be the same in left and right snt files: "+str(i))
+                return None
+        cmd = "cp " + self.kshl_dir + "/calc_overlap.exe ./"
+        subprocess.call(cmd,shell=True)
+        fn_overlaps = []
+        for state_l, state_r in itertools.product(ksh_l.fn_ptns.keys(), ksh_r.fn_ptns.keys()):
+            fn_base = "Overlap_" + os.path.splitext(ksh_l.fn_wfs[state_l])[0] + "_" + os.path.splitext(ksh_r.fn_wfs[state_r])[0]
+            fn_input = fn_base + ".input"
+            fn_script = fn_base + ".sh"
+            fn_overlap = fn_base + ".txt"
+            fn_overlaps.append(fn_overlap)
+            prt = header + '\n'
+            prt += 'cat >' + fn_input + ' <<EOF\n'
+            prt += '&input\n'
+            prt += '  fn_snt   = "' + ksh_l.fn_snt + '"\n'
+            prt += '  fn_ptn_l = "' + ksh_l.fn_ptns[state_l]+ '"\n'
+            prt += '  fn_ptn_r = "' + ksh_r.fn_ptns[state_r]+ '"\n'
+            prt += '  fn_load_wave_l = "' + ksh_l.fn_wfs[state_l] + '"\n'
+            prt += '  fn_load_wave_r = "' + ksh_r.fn_wfs[state_r] + '"\n'
+            prt += '&end\n'
+            prt += 'EOF\n'
+            if(run_cmd == None):
+                prt += './calc_overlap.exe ' + fn_input + ' > ' + fn_overlap + ' 2>&1\n'
+            if(run_cmd != None):
+                prt += run_cmd + ' ./calc_overlap.exe ' + fn_input + ' > ' + fn_overlap + ' 2>&1\n'
+            prt += 'rm ' + fn_input + '\n'
+            f = open(fn_script,'w')
+            f.write(prt)
+            f.close()
+            os.chmod(fn_script, 0o755)
+            if(batch_cmd == None): cmd = "./" + fn_script
+            if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
+            subprocess.call(cmd, shell=True)
+            if(batch_cmd != None): time.sleep(1)
+        return fn_overlaps
+
 
 class kshell_toolkit:
     def calc_exp_vals(kshl_dir, fn_snt, fn_op, Nucl, states_list, hw_truncation=None, ph_truncation=None,

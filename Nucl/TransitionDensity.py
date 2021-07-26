@@ -533,10 +533,6 @@ class TransitionDensity:
             if((-1)**(oi.l+oj.l+ok.l+ol.l) * op.rankP != 1): continue
             if( abs(oi.z+oj.z-ok.z-ol.z) != 2*op.rankZ): continue
 
-            #if(oi.z+oj.z==-2): continue
-            #if(oi.z+oj.z==0): continue
-            #if(oi.z+oj.z==2): continue
-
             Jijlist = list(range( int(abs(oi.j-oj.j)/2), int((oi.j+oj.j)/2)+1))
             Jkllist = list(range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2)+1))
             for Jij, Jkl in itertools.product(Jijlist, Jkllist):

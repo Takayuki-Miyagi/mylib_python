@@ -106,6 +106,12 @@ class Orbits:
                 self.add_orbits_from_labels( "p0d5","p1s1","p0d3","n0d5","n1s1","n0d3" )
             if( shell_model_space == "pf-shell" ):
                 self.add_orbits_from_labels( "p0f7","p1p3","p1p1","p0f5","n0f7","n1p3","n1p1","n0f5" )
+    def is_same_orbit(self, oi, oj):
+        if(oi.n != oj.n): return False
+        if(oi.l != oj.l): return False
+        if(oi.j != oj.j): return False
+        if(oi.z != oj.z): return False
+        return True
     def print_orbits(self):
         print("Orbits list:")
         print("idx,  n,  l,  j,  z,  e")

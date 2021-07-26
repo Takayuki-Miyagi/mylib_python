@@ -36,7 +36,7 @@ def set_canvas_grid(spans, height=8, width=8, shx=True, shy=True,
         if(x == width):
             x = 0
             y += space[1]
-    return fig, axs
+    return grid, fig, axs
 
 def set_canvas(c=1, r=1, height=6, width=8, shx=True, shy=True, unit="cm"):
     fig, axs = plt.subplots(ncols=c, nrows=r, sharex=shx, sharey=shy )
