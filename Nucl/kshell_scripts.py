@@ -158,6 +158,7 @@ class kshell_scripts:
                 state_str = self._state_string(state)
                 self.fn_ptns[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
                 self.fn_wfs[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+
                 if(self.run_args != None):
                     if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0):
                         self.fn_ptns[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
@@ -241,20 +242,28 @@ class kshell_scripts:
         +1 -> m0p or m1p
         -1 -> m0n or m1n
         """
-        isdigit = re.findall(r'\d+', state)
-        if( len(isdigit)==3 ):
-            if( state.find("+")!=-1): state_str = "j{:d}p".format(int(2*int(isdigit[0])+1))
-            if( state.find("-")!=-1): state_str = "j{:d}n".format(int(2*int(isdigit[0])+1))
-        elif( len(isdigit)==2 ):
-            if( state.find("+")!=-1): state_str = "j{:d}p".format(int(2*int(isdigit[0])))
-            if( state.find("-")!=-1): state_str = "j{:d}n".format(int(2*int(isdigit[0])))
-        elif( len(isdigit)==1 ):
+        if(state.find("+")!=-1): _str = state.split("+")
+        if(state.find("-")!=-1): _str = state.split("-")
+        if(len(_str)!=2): raise ValueError("Input value is not correct: "+state)
+        try:
+            n = int(_str[1])
+        except:
+            raise ValueError("Input value is not correct: "+state)
+        if(_str[0] == ""):
             if( state.find("+")!=-1): state_str = "m0p"
             if( state.find("-")!=-1): state_str = "m0n"
             if(self.A%2==1):
                 if( state.find("+")!=-1): state_str = "m1p"
                 if( state.find("-")!=-1): state_str = "m1n"
+        elif(_str != ""):
+            try:
+                j_double = int(2*float(_str[0]))
+            except:
+                raise ValueError("Input value is not correct: "+state)
+            if( state.find("+")!=-1): state_str = "j{:d}p".format(j_double)
+            if( state.find("-")!=-1): state_str = "j{:d}n".format(j_double)
         return state_str
+
     def get_occupation(self, logs=None, hw_ex=False):
         fn_summary = self.summary_filename()
         H = Operator()
@@ -497,7 +506,7 @@ class kshell_scripts:
             prt += '  fn_op_init_wf = "'+str(fn_operator)+'"\n'
             prt += '  irank_op_init_wf = '+str(operator_irank)+'\n'
             prt += '  nbody_op_init_wf = '+str(operator_nbody)+'\n'
-            prt += '  iprty_op_init_wf = '+str(operator_iprty)+'\n'
+            prt += '  iprty_op_init_wf = '+str(1+(1-operator_iprty)//2)+'\n'
         prt += '  eff_charge = 1.0, 0.0\n'
         prt += '  e1_charge =' +str(self.N/self.A)+ ', '+str(-self.Z/self.A) +'\n'
         if(self.run_args!=None):
@@ -795,7 +804,7 @@ class transit_scripts:
         return fn_density, flip
 
     def calc_density(self, ksh_l, ksh_r, states_list=None, header="", batch_cmd=None, run_cmd=None, \
-            i_wfs=None, calc_SF=False, parity_mix=True, binary_output=False):
+            i_wfs=None, calc_SF=False, parity_mix=True):
         """
         calculate < ksh_l | [a^t a] | ksh_r > and < ksh_l | [a^t a^t a a] | ksh_r >
         input:
@@ -1303,6 +1312,69 @@ class kshell_toolkit:
         if(mode=="diag" or mode=="density"): return None
         if(type_output=="DataFrame"): exp_vals.columns = ["Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]
         return exp_vals
+
+    def calc_sum_rule(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, state, inter_states,\
+            hw_truncation=None, ph_truncation=None, run_args=None, op_type=2, op_rankJ_l=0, op_rankP_l=1, op_rankJ_r=0, op_rankP_r=1,\
+            mode="all", batch_cmd=None, run_cmd=None, header="", inter_prty=[-1,1], method="lsf", en_power=0):
+        Jinit = _str_to_state_Jfloat(state)[0]
+        J2init = int(2*Jinit)
+        Ham = Operator(filename=fn_snt)
+        Opl = Operator(filename=fn_op_l, rankJ=op_rankJ_l, rankP=op_rankP_l)
+        Opr = Operator(filename=fn_op_r, rankJ=op_rankJ_r, rankP=op_rankP_r)
+        ksh_init = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=state,\
+                hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
+        ksh_ex = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=inter_states,\
+                hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
+        sum_rule = 0
+        if(method=="lsf"):
+            for ex_state in inter_states.split(","):
+                J, prty, ninter = _str_to_state_Jfloat(ex_state)
+                J2 = int(2*J)
+                fn_out = "LSF" + str(ninter) + "_" + os.path.basename(ksh_ex.fn_wfs[ex_state])
+                ksh_ex.fn_wfs[ex_state] = fn_out
+        trs = transit_scripts(kshl_dir=kshl_dir, bin_output=True)
+        if(mode=="kshell" or mode == "all"):
+            ksh_init.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+            if(method=="lsf"):
+                ksh_ex.run_kshell(gen_partition=True)
+                for ex_state in inter_states.split(","):
+                    J, prty, ninter = _str_to_state_Jfloat(ex_state)
+                    J2 = int(2*J)
+                    ksh_ex.run_kshell_lsf(ksh_init.fn_ptns[state], ksh_ex.fn_ptns[ex_state], \
+                            ksh_init.fn_wfs[state], ksh_ex.fn_wfs[ex_state], J2, n_vec=ninter, header=header, \
+                            batch_cmd=batch_cmd, run_cmd=run_cmd, fn_operator=fn_op_r, \
+                            operator_irank=op_rankJ_r, operator_nbody=op_type, operator_iprty=op_rankP_r)
+            if(method=="direct"):
+                ksh_ex.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+        if(mode=="density" or mode=="all"):
+            density_files, flip = trs.calc_density(ksh_init, ksh_init, header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+            density_files, flip = trs.calc_density(ksh_init, ksh_ex, header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+            for ex_state in inter_states.split(","):
+                J, prty, ninter = _str_to_state_Jfloat(ex_state)
+                i_wfs = []
+                for i in range(1,ninter+1): i_wfs.append((i,i))
+                density_files, flip = trs.calc_density(ksh_ex, ksh_ex, states_list=[(ex_state, ex_state),], \
+                        header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, i_wfs=i_wfs)
+        if(mode=="eval" or mode=="all"):
+            flip = trs.set_filenames(ksh_init, ksh_init)
+            d_init_init = TransitionDensity(filename=trs.filenames[(state,state)], \
+                    Jbra=Jinit, Jket=Jinit, wflabel_bra=1, wflabel_ket=1)
+            Egs = sum(d_init_init.eval(Ham))
+            for ex_state in inter_states.split(","):
+                J, prty, ninter = _str_to_state_Jfloat(ex_state)
+                for i in range(1,ninter+1):
+                    flip = trs.set_filenames(ksh_ex, ksh_ex)
+                    d_ex_ex = TransitionDensity(filename=trs.filenames[(ex_state,ex_state)], \
+                            Jbra=J, Jket=J, wflabel_bra=i, wflabel_ket=i)
+                    Ex = sum(d_ex_ex.eval(Ham)) - Egs
+                    flip = trs.set_filenames(ksh_init, ksh_ex)
+                    d_init_ex = TransitionDensity(filename=trs.filenames[(state,ex_state)], \
+                            Jbra=Jinit, Jket=J, wflabel_bra=1, wflabel_ket=i)
+                    op_l = sum(d_init_ex.eval(Opl))
+                    op_r = sum(d_init_ex.eval(Opr))
+                    sum_rule += op_l * Ex**en_power * op_r / (J2init+1)
+        return sum_rule
+
 
     def calc_2v_decay(kshl_dir=None,
             fn_snt=None, fn_op=None, Nucl=None, initial_state=None, final_state=None, Nstates_inter=300, hw_truncation=None,

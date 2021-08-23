@@ -22,6 +22,64 @@ class TransitionDensity:
         self.three = {}
         if( ms != None ): self.allocate_density( ms )
         if( filename != None ): self.read_density_file( filename, file_format )
+
+    def __add__(self, other):
+        if(self.Jbra != other.Jbra): raise ValueError
+        if(self.Jket != other.Jket): raise ValueError
+        if(self.wflabel_bra != other.wflabel_bra): raise ValueError
+        if(self.wflabel_ket != other.wflabel_ket): raise ValueError
+        target = TransitionDensity(Jbra=self.Jbra, Jket=self.Jket, wflabel_bra=self.wflabel_bra, wflabel_ket=self.wflabel_ket, ms=self.ms)
+        orbs = self.ms.orbits
+        norbs = orbs.get_num_orbits()
+        for i, j, in itertools.product(list(range(1,norbs+1)), repeat=2):
+            me1 = self.get_1btd(i,j)
+            me2 = other.get_1btd(i,j)
+            self.set_1btd(i,j,me1+me2)
+
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                me1 = self.two[channels][idxs]
+                me2 = other.get_2btd_from_mat_indices(*channels,*idxs)
+                target.set_2btd_form_mat_indices(*channels,*idxs,me1+me2)
+        return target
+
+    def __sub__(self, other):
+        if(self.Jbra != other.Jbra): raise ValueError
+        if(self.Jket != other.Jket): raise ValueError
+        if(self.wflabel_bra != other.wflabel_bra): raise ValueError
+        if(self.wflabel_ket != other.wflabel_ket): raise ValueError
+        target = TransitionDensity(Jbra=self.Jbra, Jket=self.Jket, wflabel_bra=self.wflabel_bra, wflabel_ket=self.wflabel_ket, ms=self.ms)
+        orbs = self.ms.orbits
+        norbs = orbs.get_num_orbits()
+        for i, j, in itertools.product(list(range(1,norbs+1)), repeat=2):
+            me1 = self.get_1btd(i,j)
+            me2 = other.get_1btd(i,j)
+            self.set_1btd(i,j,me1-me2)
+
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                me1 = self.two[channels][idxs]
+                me2 = other.get_2btd_from_mat_indices(*channels,*idxs)
+                target.set_2btd_form_mat_indices(*channels,*idxs,me1-me2)
+        return target
+
+    def __mul__(self, coef):
+        target = TransitionDensity(Jbra=self.Jbra, Jket=self.Jket, wflabel_bra=self.wflabel_bra, wflabel_ket=self.wflabel_ket, ms=self.ms)
+        orbs = self.ms.orbits
+        norbs = orbs.get_num_orbits()
+        for i, j, in itertools.product(list(range(1,norbs+1)), repeat=2):
+            me1 = self.get_1btd(i,j)
+            self.set_1btd(i,j,me1*coef)
+
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                me1 = self.two[channels][idxs]
+                target.set_2btd_form_mat_indices(*channels,*idxs,me1*coef)
+        return target
+
+    def __truediv__(self, coef):
+        return self.__mul__(1/coef)
+
     def allocate_density( self, ms ):
         self.ms = copy.deepcopy(ms)
         orbits = ms.orbits
@@ -583,6 +641,37 @@ class TransitionDensity:
         if(rank==1): return one
         if(rank==2): return two
         if(rank==None): return one, two
+
+    def compare_transition_densities(self, op, ax):
+        orbs = self.ms.orbits
+        norbs = orbs.get_num_orbits()
+        x, y = [], []
+        for i, j, in itertools.product(list(range(1,norbs+1)), repeat=2):
+            me1 = self.get_1btd(i,j)
+            me2 = op.get_1btd(i,j)
+            if(abs(me1) < 1.e-8): continue
+            x.append(me1)
+            y.append(me2)
+        ax.plot(x,y,ms=4,marker="o",c="r",mfc="orange",ls="",label="one-body")
+        if(len(x)>0):
+            vmin = min(x+y)
+            vmax = max(x+y)
+        else:
+            vmin = 1e100
+            vmax =-1e100
+
+        x, y = [], []
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                me1 = self.two[channels][idxs]
+                me2 = op.get_2btd_from_mat_indices(*channels,*idxs)
+                if(abs(me1) < 1.e-8): continue
+                x.append(me1)
+                y.append(me2)
+        ax.plot(x,y,ms=4,marker="s",c="b",mfc="skyblue",ls="",label="two-body")
+        vmin = min(x+y+[vmin,])
+        vmax = max(x+y+[vmax,])
+        ax.plot([vmin,vmax],[vmin,vmax],ls=":",lw=0.8,label="y=x",c="k")
 
 def main():
     file_td="transition-density-file-name"

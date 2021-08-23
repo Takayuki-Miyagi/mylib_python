@@ -42,6 +42,46 @@ class Operator:
         if( ms != None ): self.allocate_operator( ms )
         if( filename != None ): self.read_operator_file( filename, comment=comment )
 
+    def __add__(self, other):
+        if(self.rankJ != other.rankJ): raise ValueError
+        if(self.rankP != other.rankP): raise ValueError
+        if(self.rankZ != other.rankZ): raise ValueError
+        if(self.reduced != other.reduced): raise ValueError
+        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        target.one = self.one + other.one
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                me1 = self.two[channels][idxs]
+                me2 = other.get_2bme_from_mat_indices(*channels,*idxs)
+                target.set_2bme_from_mat_indices(*channels,*idxs,me1+me2)
+        return target
+
+    def __sub__(self, other):
+        if(self.rankJ != other.rankJ): raise ValueError
+        if(self.rankP != other.rankP): raise ValueError
+        if(self.rankZ != other.rankZ): raise ValueError
+        if(self.reduced != other.reduced): raise ValueError
+        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        target.one = self.one - other.one
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                me1 = self.two[channels][idxs]
+                me2 = other.get_2bme_from_mat_indices(*channels,*idxs)
+                target.set_2bme_from_mat_indices(*channels,*idxs,me1-me2)
+        return target
+
+    def __mul__(self, coef):
+        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        target.one = self.one * coef
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                me1 = self.two[channels][idxs]
+                target.set_2bme_from_mat_indices(*channels,*idxs,me1*coef)
+        return target
+
+    def __truediv__(self, coef):
+        return self.__mul__(1/coef)
+
     def espe(self, occs, method="no"):
         """
         calculate effective single-particle energies with occupations
@@ -863,9 +903,9 @@ class Operator:
             line = f.readline()
         f.close()
 
-    def write_operator_file(self, filename):
+    def write_operator_file(self, filename, p_core=0, n_core=0):
         if(filename.find(".snt") != -1):
-            self._write_operator_snt( filename )
+            self._write_operator_snt( filename, p_core=p_core, n_core=n_core )
         if(filename.find(".op.me2j") != -1):
             self._write_general_operator( filename )
         if(filename.find(".me2j") != -1):
@@ -1341,6 +1381,38 @@ class Operator:
         if(rank==1): return one
         if(rank==2): return two
         if(rank==None): return zero, one, two
+
+    def compare_operators(self, op, ax):
+        orbs = self.ms.orbits
+        norbs = orbs.get_num_orbits()
+        x, y = [], []
+        for i, j, in itertools.product(list(range(1,norbs+1)), repeat=2):
+            if(i>j): continue
+            me1 = self.get_1bme(i,j)
+            me2 = op.get_1bme(i,j)
+            if(abs(me1) < 1.e-8): continue
+            x.append(me1)
+            y.append(me2)
+        ax.plot(x,y,ms=4,marker="o",c="r",mfc="orange",ls="",label="one-body")
+        if(len(x)>0):
+            vmin = min(x+y)
+            vmax = max(x+y)
+        else:
+            vmin = 1e100
+            vmax =-1e100
+
+        x, y = [], []
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                me1 = self.two[channels][idxs]
+                me2 = op.get_2bme_from_mat_indices(*channels,*idxs)
+                if(abs(me1) < 1.e-8): continue
+                x.append(me1)
+                y.append(me2)
+        ax.plot(x,y,ms=4,marker="s",c="b",mfc="skyblue",ls="",label="two-body")
+        vmin = min(x+y+[vmin,])
+        vmax = max(x+y+[vmax,])
+        ax.plot([vmin,vmax],[vmin,vmax],ls=":",lw=0.8,label="y=x",c="k")
 
 def main():
     ms = ModelSpace.ModelSpace()

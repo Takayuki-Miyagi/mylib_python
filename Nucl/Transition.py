@@ -114,5 +114,6 @@ def Q_sp(j,A):
     return (3-4*j*(j+1))/(2*(j+1)*(2*j+3)) * 3 * R**2 / 5
 
 if(__name__=="__main__"):
-    print(mu_sp(2,2.5,-1))
+    #print(mu_sp(2,2.5,-1))
+    print(mu_sp(4,3.5,-1))
     #print(Q_sp(2.5,25))
