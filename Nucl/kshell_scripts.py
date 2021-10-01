@@ -13,7 +13,17 @@ else:
 
 def _i2prty(i):
     if(i == 1): return '+'
-    else: return '-'
+    elif(i ==-1): return '-'
+    else:
+        print("Error in _i2prty()")
+        return None
+
+def _prty2i(prty):
+    if(prty == "+"): return 1
+    elif(prty=="-"): return -1
+    else:
+        print("Error in _prty2i()")
+        return None
 
 def _none_check(var, var_name):
     """
@@ -376,9 +386,11 @@ class kshell_scripts:
                     strs = tr.split("_")
                     f.write(strs[0]+'\n')
                     f.write(strs[1]+" "+strs[2]+'\n')
+                f.write('\n')
             if(self.hw_truncation!=None and self.ph_truncation==None):
                 f.write('2\n')
                 f.write(str(self.hw_truncation)+'\n')
+                f.write('\n')
             if(self.hw_truncation!=None and self.ph_truncation!=None):
                 f.write('3\n')
                 f.write(str(self.hw_truncation)+'\n')
@@ -386,6 +398,7 @@ class kshell_scripts:
                     strs = tr.split("_")
                     f.write(strs[0]+'\n')
                     f.write(strs[1]+" "+strs[2]+'\n')
+                f.write('\n')
         if(self.run_args!=None):
             for key in self.run_args.keys():
                 f.write('{:s}={:s}\n'.format(key, str(self.run_args[key])))
@@ -1316,6 +1329,18 @@ class kshell_toolkit:
     def calc_sum_rule(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, state, inter_states,\
             hw_truncation=None, ph_truncation=None, run_args=None, op_type=2, op_rankJ_l=0, op_rankP_l=1, op_rankJ_r=0, op_rankP_r=1,\
             mode="all", batch_cmd=None, run_cmd=None, header="", inter_prty=[-1,1], method="lsf", en_power=0):
+        """
+        Do not use with the operator that changes the Z and N.
+        return value: sum_i ( init | Op_left | i ) ( i | Op_right | init ) * (E_i - E_0)^(en_power)
+        Note that the pivot vector for the state | i ) is Op_right | init )
+        kshl_dir: path to kshell bin
+        Nucl: str ex.) O16
+        fn_snt: Hamiltonian file
+        fn_op_l: file name of Op_left
+        fn_op_r: file name of Op_right
+        state: initial state, must be "Jp1" ex.) "0+1", "2+1", or so
+        inter_states: intermediate states ex.) "0+20,2+20,4+20" or so
+        """
         Jinit = _str_to_state_Jfloat(state)[0]
         J2init = int(2*Jinit)
         Ham = Operator(filename=fn_snt)
@@ -1326,6 +1351,7 @@ class kshell_toolkit:
         ksh_ex = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=inter_states,\
                 hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
         sum_rule = 0
+        Jinit, prtyinit, n = _str_to_state_Jfloat(state)
         if(method=="lsf"):
             for ex_state in inter_states.split(","):
                 J, prty, ninter = _str_to_state_Jfloat(ex_state)
@@ -1339,6 +1365,8 @@ class kshell_toolkit:
                 ksh_ex.run_kshell(gen_partition=True)
                 for ex_state in inter_states.split(","):
                     J, prty, ninter = _str_to_state_Jfloat(ex_state)
+                    if(not abs(J-Jinit) <= op_rankJ_r <= J+Jinit): continue
+                    if(_prty2i(prty) * _prty2i(prtyinit) * op_rankP_r != 1): continue
                     J2 = int(2*J)
                     ksh_ex.run_kshell_lsf(ksh_init.fn_ptns[state], ksh_ex.fn_ptns[ex_state], \
                             ksh_init.fn_wfs[state], ksh_ex.fn_wfs[ex_state], J2, n_vec=ninter, header=header, \
@@ -1347,14 +1375,21 @@ class kshell_toolkit:
             if(method=="direct"):
                 ksh_ex.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
         if(mode=="density" or mode=="all"):
-            density_files, flip = trs.calc_density(ksh_init, ksh_init, header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
-            density_files, flip = trs.calc_density(ksh_init, ksh_ex, header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+            need_density_init=True
             for ex_state in inter_states.split(","):
                 J, prty, ninter = _str_to_state_Jfloat(ex_state)
+                if(not abs(J-Jinit) <= op_rankJ_r <= J+Jinit): continue
+                if(_prty2i(prty) * _prty2i(prtyinit) * op_rankP_r != 1): continue
                 i_wfs = []
+                if(Jinit==J and prtyinit==prty):
+                    need_density_init=False
+                    for i in range(1,ninter+1): i_wfs.append((1,i))
                 for i in range(1,ninter+1): i_wfs.append((i,i))
                 density_files, flip = trs.calc_density(ksh_ex, ksh_ex, states_list=[(ex_state, ex_state),], \
                         header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, i_wfs=i_wfs)
+            if(need_density_init):
+                density_files, flip = trs.calc_density(ksh_init, ksh_init, header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+                density_files, flip = trs.calc_density(ksh_init, ksh_ex, header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
         if(mode=="eval" or mode=="all"):
             flip = trs.set_filenames(ksh_init, ksh_init)
             d_init_init = TransitionDensity(filename=trs.filenames[(state,state)], \
@@ -1362,6 +1397,8 @@ class kshell_toolkit:
             Egs = sum(d_init_init.eval(Ham))
             for ex_state in inter_states.split(","):
                 J, prty, ninter = _str_to_state_Jfloat(ex_state)
+                if(not abs(J-Jinit) <= op_rankJ_r <= J+Jinit): continue
+                if(_prty2i(prty) * _prty2i(prtyinit) * op_rankP_r != 1): continue
                 for i in range(1,ninter+1):
                     flip = trs.set_filenames(ksh_ex, ksh_ex)
                     d_ex_ex = TransitionDensity(filename=trs.filenames[(ex_state,ex_state)], \
