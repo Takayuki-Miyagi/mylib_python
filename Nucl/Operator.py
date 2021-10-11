@@ -82,7 +82,7 @@ class Operator:
     def __truediv__(self, coef):
         return self.__mul__(1/coef)
 
-    def espe(self, occs, method="no"):
+    def espe(self, occs, method="no", bare=False):
         """
         calculate effective single-particle energies with occupations
             occs: dictionary {(n1,l1,j1,tz1):occ1, (n2,l2,j2,tz2):occ2, ...}
@@ -118,7 +118,8 @@ class Operator:
                     espe += sumV * occ / (oa.j+1) * norm
                 elif(method=="monopole"):
                     espe += self.get_2bme_monopole(a,b,a,b) * occ * (ob.j+1)
-            espes[(oa.n,oa.l,oa.j,oa.z)] = espe + self.get_1bme(a,a)
+            if(bare): espes[(oa.n,oa.l,oa.j,oa.z)] = self.get_1bme(a,a)
+            else: espes[(oa.n,oa.l,oa.j,oa.z)] = espe + self.get_1bme(a,a)
         return espes
 
     def allocate_operator(self, ms):

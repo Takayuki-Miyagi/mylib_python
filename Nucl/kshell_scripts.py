@@ -112,7 +112,6 @@ def _str_to_state_Jfloat(string):
         prty = "-"
     return (J, prty, nth)
 
-
 class kshell_scripts:
     def __init__(self, kshl_dir=None, fn_snt=None, Nucl=None, states=None, hw_truncation=None, ph_truncation=None, \
             run_args=None, verbose=False):
@@ -710,7 +709,7 @@ class kshell_scripts:
             idx = int(Jdouble/2)
             if(P=="+"): return color_list_p[idx%len(color_list_p)]
             if(P=="-"): return color_list_n[idx%len(color_list_n)]
-    def espe(self, states=None):
+    def espe(self, states=None, bare=False):
         """
         state: list of tuple ex.) [('1/2', '+', 1), ('3/2', '+', 1), ...]
         """
@@ -733,7 +732,7 @@ class kshell_scripts:
                 oi = H.ms.orbits.get_orbit(i+len(vals[5]))
                 occs[oi.get_nljz()] = vals[6][i-1] / (oi.j+1)
             Jstr = _Jfloat_to_str(vals[1]*0.5)
-            espes[wf_idx_to_jpn[vals[3]-1]] = H.espe(occs)
+            espes[wf_idx_to_jpn[vals[3]-1]] = H.espe(occs, bare=bare)
         return espes
 
 class transit_scripts:
@@ -744,6 +743,7 @@ class transit_scripts:
         self.bin_output = bin_output
 
     def set_filenames(self, ksh_l, ksh_r, states_list=None, calc_SF=False):
+        self.filenames = {}
         if(states_list==None):
             states_list = [(x,y) for x,y in itertools.product( ksh_l.states.split(","), ksh_r.states.split(",") )]
         bra_side = ksh_l
@@ -1326,32 +1326,43 @@ class kshell_toolkit:
         if(type_output=="DataFrame"): exp_vals.columns = ["Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]
         return exp_vals
 
-    def calc_sum_rule(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, state, inter_states,\
+    def calc_sum_rule(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states,\
             hw_truncation=None, ph_truncation=None, run_args=None, op_type=2, op_rankJ_l=0, op_rankP_l=1, op_rankJ_r=0, op_rankP_r=1,\
-            mode="all", batch_cmd=None, run_cmd=None, header="", inter_prty=[-1,1], method="lsf", en_power=0):
+            mode="all", batch_cmd=None, run_cmd=None, header="", inter_prty=[-1,1], method="lsf", en_power=0, final_state=None, \
+            verbose=False):
         """
         Do not use with the operator that changes the Z and N.
-        return value: sum_i ( init | Op_left | i ) ( i | Op_right | init ) * (E_i - E_0)^(en_power)
+        return value: sum_i ( final | Op_left | i ) ( i | Op_right | init ) * (E_i - E_0)^(en_power)
         Note that the pivot vector for the state | i ) is Op_right | init )
         kshl_dir: path to kshell bin
         Nucl: str ex.) O16
         fn_snt: Hamiltonian file
         fn_op_l: file name of Op_left
         fn_op_r: file name of Op_right
-        state: initial state, must be "Jp1" ex.) "0+1", "2+1", or so
+        initial_state: initial state (J, parity, n), J is un-doubled angular momentum
         inter_states: intermediate states ex.) "0+20,2+20,4+20" or so
         """
-        Jinit = _str_to_state_Jfloat(state)[0]
-        J2init = int(2*Jinit)
+        #Jinit = _str_to_state_Jfloat(state)[0]
+        JInit, ParityInit, NInit = initial_state
+        JFinal, ParityFinal, NFinal = initial_state
+        state_ini = str(JInit) + ParityInit + str(NInit)
+        if(final_state != None): JFinal, ParityFinal, NFinal = final_state
+        state_fin = str(JFinal) + ParityFinal + str(NFinal)
+        states_init = str(JInit) + ParityInit + str(NInit) + "," +\
+                str(JFinal) + ParityFinal + str(NFinal)
+        if(JInit==JFinal and ParityInit==ParityFinal):
+            states_init = str(JInit) + ParityInit + str(max(NInit,NFinal))
+            state_ini = states_init
+            state_fin = states_init
+
         Ham = Operator(filename=fn_snt)
         Opl = Operator(filename=fn_op_l, rankJ=op_rankJ_l, rankP=op_rankP_l)
         Opr = Operator(filename=fn_op_r, rankJ=op_rankJ_r, rankP=op_rankP_r)
-        ksh_init = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=state,\
+        ksh_init = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=states_init,\
                 hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
         ksh_ex = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=inter_states,\
                 hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
         sum_rule = 0
-        Jinit, prtyinit, n = _str_to_state_Jfloat(state)
         if(method=="lsf"):
             for ex_state in inter_states.split(","):
                 J, prty, ninter = _str_to_state_Jfloat(ex_state)
@@ -1359,59 +1370,108 @@ class kshell_toolkit:
                 fn_out = "LSF" + str(ninter) + "_" + os.path.basename(ksh_ex.fn_wfs[ex_state])
                 ksh_ex.fn_wfs[ex_state] = fn_out
         trs = transit_scripts(kshl_dir=kshl_dir, bin_output=True)
+        #trs = transit_scripts(kshl_dir=kshl_dir)
         if(mode=="kshell" or mode == "all"):
             ksh_init.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+        if(mode=="inter" or mode=="all"):
             if(method=="lsf"):
                 ksh_ex.run_kshell(gen_partition=True)
                 for ex_state in inter_states.split(","):
                     J, prty, ninter = _str_to_state_Jfloat(ex_state)
-                    if(not abs(J-Jinit) <= op_rankJ_r <= J+Jinit): continue
-                    if(_prty2i(prty) * _prty2i(prtyinit) * op_rankP_r != 1): continue
+                    if(not abs(J-JInit) <= op_rankJ_r <= J+JInit): continue
+                    if(_prty2i(prty) * _prty2i(ParityInit) * op_rankP_r != 1): continue
                     J2 = int(2*J)
-                    ksh_ex.run_kshell_lsf(ksh_init.fn_ptns[state], ksh_ex.fn_ptns[ex_state], \
-                            ksh_init.fn_wfs[state], ksh_ex.fn_wfs[ex_state], J2, n_vec=ninter, header=header, \
+                    ksh_ex.run_kshell_lsf(ksh_init.fn_ptns[state_ini], ksh_ex.fn_ptns[ex_state], \
+                            ksh_init.fn_wfs[state_ini], ksh_ex.fn_wfs[ex_state], J2, n_vec=ninter, header=header, \
                             batch_cmd=batch_cmd, run_cmd=run_cmd, fn_operator=fn_op_r, \
                             operator_irank=op_rankJ_r, operator_nbody=op_type, operator_iprty=op_rankP_r)
             if(method=="direct"):
                 ksh_ex.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
         if(mode=="density" or mode=="all"):
-            need_density_init=True
+            i_wfs = {}
+            for in_state in ksh_init.states.split(","):
+                Jin, Pin, Nin = _str_to_state_Jfloat(in_state)
+                pairs = [(i,i) for i in range(1,Nin+1)]
+                i_wfs[(Jin,Pin,Jin,Pin)] = [pairs,"ini","ini",(in_state,in_state)]
+            for in_state in ksh_init.states.split(","):
+                Jin, Pin, Nin = _str_to_state_Jfloat(in_state)
+                for ex_state in inter_states.split(","):
+                    Jex, Pex, Nex = _str_to_state_Jfloat(ex_state)
+                    pairs = [(i,j) for i in range(1,Nin+1) for j in range(1,Nex+1)]
+                    if((Jin,Pin,Jex,Pex) in i_wfs):
+                        tmp = i_wfs[(Jin,Pin,Jex,Pex)]
+                        pairs += tmp[0]
+                        i_wfs[(Jin,Pin,Jex,Pex)] = [pairs,"ini","ex",(in_state,ex_state)]
+                    else:
+                        i_wfs[(Jin,Pin,Jex,Pex)] = [pairs,"ini","ex",(in_state,ex_state)]
             for ex_state in inter_states.split(","):
-                J, prty, ninter = _str_to_state_Jfloat(ex_state)
-                if(not abs(J-Jinit) <= op_rankJ_r <= J+Jinit): continue
-                if(_prty2i(prty) * _prty2i(prtyinit) * op_rankP_r != 1): continue
-                i_wfs = []
-                if(Jinit==J and prtyinit==prty):
-                    need_density_init=False
-                    for i in range(1,ninter+1): i_wfs.append((1,i))
-                for i in range(1,ninter+1): i_wfs.append((i,i))
-                density_files, flip = trs.calc_density(ksh_ex, ksh_ex, states_list=[(ex_state, ex_state),], \
-                        header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, i_wfs=i_wfs)
-            if(need_density_init):
-                density_files, flip = trs.calc_density(ksh_init, ksh_init, header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
-                density_files, flip = trs.calc_density(ksh_init, ksh_ex, header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+                Jin, Pin, Nin = _str_to_state_Jfloat(ex_state)
+                pairs = [(i,i) for i in range(1,Nin+1)]
+                if((Jin,Pin,Jin,Pin) in i_wfs):
+                    tmp = i_wfs[(Jin,Pin,Jin,Pin)]
+                    pairs += tmp[0]
+                    i_wfs[(Jin,Pin,Jin,Pin)] = [pairs,"ex","ex",(ex_state,ex_state)]
+                else:
+                    i_wfs[(Jin,Pin,Jin,Pin)] = [pairs,"ex","ex",(ex_state,ex_state)]
+            for key in i_wfs.keys():
+                pairs, bra_, ket_, state_pair = i_wfs[key]
+                pairs = list(set(pairs))
+                if(bra_=="ini" and ket_=="ini"):
+                    density_files, flip = trs.calc_density(ksh_init, ksh_init, states_list=[state_pair,], \
+                            header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, i_wfs=pairs)
+                elif(bra_=="ini" and ket_=="ex"):
+                    density_files, flip = trs.calc_density(ksh_init, ksh_ex, states_list=[state_pair,], \
+                            header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, i_wfs=pairs)
+                elif(bra_=="ex" and ket_=="ex"):
+                    density_files, flip = trs.calc_density(ksh_ex, ksh_ex, states_list=[state_pair,], \
+                            header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, i_wfs=pairs)
         if(mode=="eval" or mode=="all"):
+            if(verbose):
+                line = f"{'Jf':>4s},{'Pf':>3s},{'nf':>3s},"
+                line+= f"{'Jmid':>5s},{'Pmid':>5s},{'nmid':>5s},"
+                line+= f"{'Ji':>4s},{'Pi':>3s},{'ni':>3s},"
+                line+= f"{'Ex energy':>12s},{'<Op_l>':>12s},{'<Op_r>':>12s},{'Cntr':>12s},{'Sum':>12s}"
+                print(line)
             flip = trs.set_filenames(ksh_init, ksh_init)
-            d_init_init = TransitionDensity(filename=trs.filenames[(state,state)], \
-                    Jbra=Jinit, Jket=Jinit, wflabel_bra=1, wflabel_ket=1)
-            Egs = sum(d_init_init.eval(Ham))
+            d_ini_ini = TransitionDensity(filename=trs.filenames[(state_ini,state_ini)], \
+                    Jbra=JInit, Jket=JInit, wflabel_bra=NInit, wflabel_ket=NInit)
+            d_fin_fin = TransitionDensity(filename=trs.filenames[(state_fin,state_fin)], \
+                    Jbra=JFinal, Jket=JFinal, wflabel_bra=NFinal, wflabel_ket=NFinal)
+            E_ini = sum(d_ini_ini.eval(Ham))
+            E_fin = sum(d_fin_fin.eval(Ham))
             for ex_state in inter_states.split(","):
                 J, prty, ninter = _str_to_state_Jfloat(ex_state)
-                if(not abs(J-Jinit) <= op_rankJ_r <= J+Jinit): continue
-                if(_prty2i(prty) * _prty2i(prtyinit) * op_rankP_r != 1): continue
+                if(not abs(J-JInit) <= op_rankJ_r <= J+JInit): continue
+                if(_prty2i(prty) * _prty2i(ParityInit) * op_rankP_r != 1): continue
+                if(not abs(J-JFinal) <= op_rankJ_l <= J+JFinal): continue
+                if(_prty2i(prty) * _prty2i(ParityFinal) * op_rankP_l != 1): continue
                 for i in range(1,ninter+1):
                     flip = trs.set_filenames(ksh_ex, ksh_ex)
                     d_ex_ex = TransitionDensity(filename=trs.filenames[(ex_state,ex_state)], \
                             Jbra=J, Jket=J, wflabel_bra=i, wflabel_ket=i)
-                    Ex = sum(d_ex_ex.eval(Ham)) - Egs
+                    Ex = sum(d_ex_ex.eval(Ham)) - (E_ini + E_fin)*0.5
                     flip = trs.set_filenames(ksh_init, ksh_ex)
-                    d_init_ex = TransitionDensity(filename=trs.filenames[(state,ex_state)], \
-                            Jbra=Jinit, Jket=J, wflabel_bra=1, wflabel_ket=i)
-                    op_l = sum(d_init_ex.eval(Opl))
-                    op_r = sum(d_init_ex.eval(Opr))
-                    sum_rule += op_l * Ex**en_power * op_r / (J2init+1)
+                    if(flip):
+                        d_ini_ex = TransitionDensity(filename=trs.filenames[(ex_state,state_ini)], \
+                                Jbra=J, Jket=JInit, wflabel_bra=i, wflabel_ket=NInit)
+                        d_fin_ex = TransitionDensity(filename=trs.filenames[(ex_state,state_fin)], \
+                                Jbra=J, Jket=JFinal, wflabel_bra=i, wflabel_ket=NFinal)
+                    else:
+                        d_ini_ex = TransitionDensity(filename=trs.filenames[(state_ini,ex_state)], \
+                                Jbra=JInit, Jket=J, wflabel_bra=NInit, wflabel_ket=i)
+                        d_fin_ex = TransitionDensity(filename=trs.filenames[(state_fin,ex_state)], \
+                                Jbra=JFinal, Jket=J, wflabel_bra=NFinal, wflabel_ket=i)
+                    op_l = sum(d_fin_ex.eval(Opl))
+                    op_r = sum(d_ini_ex.eval(Opr))
+                    cntr = op_l * Ex**en_power * op_r / (2*JInit+1)
+                    sum_rule += cntr
+                    if(verbose):
+                        line = f"{JFinal:4.1f},{ParityFinal:>3s},{NFinal:3d},"
+                        line+= f"{J:5.1f},{prty:>5s},{i:5d},"
+                        line+= f"{JInit:4.1f},{ParityInit:>3s},{NInit:3d},"
+                        line+= f"{Ex:12.6f},{op_l:12.6f},{op_r:12.6f},{cntr:12.6f},{sum_rule:12.6f}"
+                        print(line)
         return sum_rule
-
 
     def calc_2v_decay(kshl_dir=None,
             fn_snt=None, fn_op=None, Nucl=None, initial_state=None, final_state=None, Nstates_inter=300, hw_truncation=None,
