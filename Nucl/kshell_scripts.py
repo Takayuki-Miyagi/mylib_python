@@ -443,7 +443,7 @@ class kshell_scripts:
 
     def run_kshell_lsf(self, fn_ptn_init, fn_ptn, fn_wf, fn_wf_out, J2, \
             op=None, fn_input=None, n_vec=100, header="", batch_cmd=None, run_cmd=None, \
-            fn_operator=None, operator_irank=0, operator_nbody=1, operator_iprty=1):
+            fn_operator=None, operator_irank=0, operator_nbody=1, operator_iprty=1, neig_load_wave=1):
         """
         This is for Lanczos strength function method. |v1> = Op |v0> and do Lanczos starting from |v1>
 
@@ -511,6 +511,7 @@ class kshell_scripts:
         prt += '  n_eigen = '+str(n_vec)+'\n'
         prt += '  n_restart_vec = '+str(min(n_vec,200))+'\n'
         prt += '  mtot = '+str(J2)+'\n'
+        prt += '  neig_load_wave = '+str(neig_load_wave)+'\n'
         prt += '  maxiter = 1\n'
         prt += '  is_double_j = .true.\n'
         if(op!=None): prt += '  op_type_init = "'+str(op)+'"\n'
@@ -1384,7 +1385,8 @@ class kshell_toolkit:
                     ksh_ex.run_kshell_lsf(ksh_init.fn_ptns[state_ini], ksh_ex.fn_ptns[ex_state], \
                             ksh_init.fn_wfs[state_ini], ksh_ex.fn_wfs[ex_state], J2, n_vec=ninter, header=header, \
                             batch_cmd=batch_cmd, run_cmd=run_cmd, fn_operator=fn_op_r, \
-                            operator_irank=op_rankJ_r, operator_nbody=op_type, operator_iprty=op_rankP_r)
+                            operator_irank=op_rankJ_r, operator_nbody=op_type, operator_iprty=op_rankP_r,\
+                            neig_load_wave=NInit)
             if(method=="direct"):
                 ksh_ex.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
         if(mode=="density" or mode=="all"):
