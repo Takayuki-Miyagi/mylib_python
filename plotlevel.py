@@ -108,6 +108,20 @@ def draw_energies(axs, edict, xcenter, width, color=None, color_index=None, lw=4
         if(c == None): c = get_state_color(J,P, color_index)
         axs.plot([xcenter-width,xcenter+width],[edict[key],edict[key]],c=c,lw=lw)
 
+def draw_spe_from_imsrg_log(ax, filename, xcenter, width=0.3, lw=1, jmax=None, proton=True, neutron=True)
+    fp = open(filename, "r")
+    lines = fp.readlines()
+    fp.close()
+    spe = {}
+    flag = False
+    for line in lines:
+        data = line.split()
+        if(flag and len(data)==0): flag=False
+        if(len(data)==0): continue
+        if(flag): spe[(int(data[1]), int(data[2]), int(data[3]), int(data[4]))] = (float(data[5]), float(data[6]))
+        if(data[0]=='i:'): flag=True
+    draw_single_particle_energies(ax, spe, xcenter, width=width, lw=lw, jmax=jmax, proton=proton, neutron=neutron)
+
 def draw_single_particle_energies(axs, spe, xcenter, width=0.3, lw=1, jmax=None, proton=True, neutron=True):
     if(jmax == None):
         jmax = 0
@@ -188,7 +202,7 @@ def draw_spe(axs, spe, xcenter, width=0.3, pn = "proton",lw=4):
         if(key[2] == "particle"): ls = "--"
         axs.plot([xcenter-width,xcenter+width],[spe[key],spe[key]],c=c,lw=lw,ls=ls)
 
-def put_spe_label(axs, spe, xcenter, pn="proton", fontsize=12):
+def put_spe_label(axs, spe, xcenter, pn="proton", fontsize=0.2):
     if(pn == "proton"): c = "red"
     if(pn == "neutron"): c = "blue"
     for key in spe.keys():
