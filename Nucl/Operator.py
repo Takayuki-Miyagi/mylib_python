@@ -38,6 +38,7 @@ class Operator:
         self.one = None
         self.two = {}
         self.three = {}
+        self.kshell_options = []
         if( self.rankJ == 0 and self.rankP==1 and self.rankZ==0): self.reduced = False
         if( ms != None ): self.allocate_operator( ms )
         if( filename != None ): self.read_operator_file( filename, comment=comment )
@@ -48,6 +49,7 @@ class Operator:
         if(self.rankZ != other.rankZ): raise ValueError
         if(self.reduced != other.reduced): raise ValueError
         target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        target.zero = self.zero + other.zero
         target.one = self.one + other.one
         for channels in self.two.keys():
             for idxs in self.two[channels].keys():
@@ -62,6 +64,7 @@ class Operator:
         if(self.rankZ != other.rankZ): raise ValueError
         if(self.reduced != other.reduced): raise ValueError
         target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        target.zero = self.zero - other.zero
         target.one = self.one - other.one
         for channels in self.two.keys():
             for idxs in self.two[channels].keys():
@@ -72,6 +75,7 @@ class Operator:
 
     def __mul__(self, coef):
         target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        target.zero = self.zero * coef
         target.one = self.one * coef
         for channels in self.two.keys():
             for idxs in self.two[channels].keys():
@@ -636,6 +640,9 @@ class Operator:
         data = line.split()
         n = int(data[0])
         method = int(data[1])
+        self.kshell_options.append(method)
+        if(len(data)>2): self.kshell_options.append(int(float(data[2])))
+        if(len(data)>3): self.kshell_options.append(float(data[3]))
         fact2 = 1.0
         if(method==10 and A==None):
             print(" Need to set mass number! ")
@@ -1010,7 +1017,8 @@ class Operator:
             if( o.z ==-1 ): p_norbs += 1
             if( o.z == 1 ): n_norbs += 1
         prt = ""
-        prt  += "! {:3d} {:3d} {:3d}\n".format( self.rankJ, self.rankP, self.rankZ )
+        prt += "! J:{:3d} P:{:3d} Tz:{:3d}\n".format( self.rankJ, self.rankP, self.rankZ )
+        prt += "! Zero body term: {:16.8e}\n".format(self.zero)
         prt += "! model space \n"
         prt += " {0:3d} {1:3d} {2:3d} {3:3d} \n".format( p_norbs, n_norbs, p_core, n_core )
         norbs = orbits.get_num_orbits()+1
@@ -1034,7 +1042,12 @@ class Operator:
             f.close()
             return
         prt += "! two-body part\n"
-        prt += "{0:10d} {1:3d}\n".format( self.count_nonzero_2bme(), 0 )
+        prt += "{:10d} ".format(self.count_nonzero_2bme())
+        if(len(self.kshell_options)==0): prt += "{:3d} ".format(0)
+        if(len(self.kshell_options)>0): prt += "{:3d} ".format(self.kshell_options[0])
+        if(len(self.kshell_options)>1): prt += "{:3d} ".format(self.kshell_options[1])
+        if(len(self.kshell_options)>2): prt += "{:10.6f} ".format(self.kshell_options[2])
+        prt += "\n"
         scalar = False
         if(self.rankJ == 0 and self.rankZ == 0): scalar = True
         two = self.ms.two
@@ -1172,16 +1185,20 @@ class Operator:
 
     def truncate(self, ms_new):
         op = Operator(ms=ms_new, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        op.kshell_options = self.kshell_options
         orb = self.ms.orbits
         orb_new = ms_new.orbits
         self.set_0bme(op.get_0bme())
         for i, j in itertools.product(list(range(1,orb_new.get_num_orbits()+1)), repeat=2):
             oi = orb_new.get_orbit(i)
             oj = orb_new.get_orbit(j)
-            ii = orb.get_orbit_index_from_orbit(oi)
-            jj = orb.get_orbit_index_from_orbit(oj)
-            me = self.get_1bme(ii,jj)
-            if(abs(me)>1.e-16): op.set_1bme(i,j,me)
+            try:
+                ii = orb.get_orbit_index_from_orbit(oi)
+                jj = orb.get_orbit_index_from_orbit(oj)
+                me = self.get_1bme(ii,jj)
+                if(abs(me)>1.e-16): op.set_1bme(i,j,me)
+            except:
+                continue
         for channel in self.two.keys():
             tbc_bra_old = self.ms.two.get_channel(channel[0])
             tbc_ket_old = self.ms.two.get_channel(channel[1])

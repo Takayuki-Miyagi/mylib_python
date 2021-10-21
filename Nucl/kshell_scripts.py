@@ -994,7 +994,7 @@ class transit_scripts:
                         espe[key] = espe_each[key]
                         sum_sf[key] = sum_sf_each[key]
         return espe, sum_sf
-    def read_sf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None):
+    def read_sf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None, type_output="DataFrame"):
         if(not os.path.exists(fn)):
             print("{:s} is not found!".format(fn))
             return None
@@ -1004,7 +1004,8 @@ class transit_scripts:
         f = open(fn,'r')
         lines = f.readlines()
         f.close()
-        sfs = {}
+        if(type_output=="dict"): sfs = {}
+        if(type_output=="DataFrame"): sfs = pd.DataFrame()
         read=False
         for line in lines:
             if( line[:7] == "orbit :" ):
@@ -1032,9 +1033,11 @@ class transit_scripts:
                         CS = float(data[7]) / (label[2]+1)
                     elif(mode=="a a^t"):
                         CS = float(data[7]) / (label[2]+1) * (J2_bra+1)/(J2_ket+1)
-                    sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS * (label[2]+1), en_bra, en_ket)
+                    if(type_output=="dict"): sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS * (label[2]+1), en_bra, en_ket)
+                    if(type_output=="DataFrame"): sfs = sfs.append(pd.DataFrame([[*label,J2_bra,i_bra,J2_ket,i_ket,CS * (label[2]+1), en_bra, en_ket]]), ignore_index=True)
                 else:
                     continue
+        if(type_output=="DataFrame"): sfs.columns = ["n","l","j2","tz2","J2 bra", "wflabel bra","J2 ket","wflabel ket","CS^2","En bra","En ket"]
         return sfs
     def read_tsf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None):
         if(not os.path.exists(fn)):
@@ -1046,7 +1049,8 @@ class transit_scripts:
         f = open(fn,'r')
         lines = f.readlines()
         f.close()
-        sfs = {}
+        if(type_output=="dict"): sfs = {}
+        if(type_output=="DataFrame"): sfs = pd.DataFrame()
         read=False
         for line in lines:
             data = line.split()
@@ -1076,8 +1080,11 @@ class transit_scripts:
                     elif(mode=="aa a^ta^t"):
                         CS = float(data[7])**2 / (2*label[2]+1) * (J2_bra+1)/(J2_ket+1)
                     sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS * (2*label[2]+1), en_bra, en_ket)
+                    if(type_output=="dict"): sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS * (2*label[2]+1), en_bra, en_ket)
+                    if(type_output=="DataFrame"): sfs = sfs.append(pd.DataFrame([[*label,J2_bra,i_bra,J2_ket,i_ket,CS * (2*label[2]+1), en_bra, en_ket]]), ignore_index=True)
                 else:
                     continue
+        if(type_output=="DataFrame"): sfs.columns = ["p","q","Jpq", "J2 bra", "wflabel bra","J2 ket","wflabel ket","TNA","En bra","En ket"]
         return sfs
     def check_norm_tsf(self, fn, mode, target_spin, N_states=None, sfs=None):
         if(sfs==None): sfs = self.read_tsf_file(fn, mode, N_states)
@@ -1363,15 +1370,16 @@ class kshell_toolkit:
                 hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
         ksh_ex = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=inter_states,\
                 hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
+        df = pd.DataFrame()
         sum_rule = 0
         if(method=="lsf"):
+            ksh_ex.run_kshell(gen_partition=True)
             for ex_state in inter_states.split(","):
                 J, prty, ninter = _str_to_state_Jfloat(ex_state)
                 J2 = int(2*J)
                 fn_out = "LSF" + str(ninter) + "_" + os.path.basename(ksh_ex.fn_wfs[ex_state])
                 ksh_ex.fn_wfs[ex_state] = fn_out
         trs = transit_scripts(kshl_dir=kshl_dir, bin_output=True)
-        #trs = transit_scripts(kshl_dir=kshl_dir)
         if(mode=="kshell" or mode == "all"):
             ksh_init.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
         if(mode=="inter" or mode=="all"):
@@ -1428,6 +1436,7 @@ class kshell_toolkit:
                     density_files, flip = trs.calc_density(ksh_ex, ksh_ex, states_list=[state_pair,], \
                             header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, i_wfs=pairs)
         if(mode=="eval" or mode=="all"):
+            columns = ['Jf','Pf','nf','Jmid','Pmid','nmid','Ji','Pi','ni','Ex energy','<Op_l>','<Op_r>']
             if(verbose):
                 line = f"{'Jf':>4s},{'Pf':>3s},{'nf':>3s},"
                 line+= f"{'Jmid':>5s},{'Pmid':>5s},{'nmid':>5s},"
@@ -1467,13 +1476,16 @@ class kshell_toolkit:
                     op_r = sum(d_ini_ex.eval(Opr))
                     cntr = op_l * Ex**en_power * op_r / (2*JInit+1)
                     sum_rule += cntr
+                    _ = [JFinal,ParityFinal,NFinal,J,prty,i,JInit,ParityInit,NInit,Ex,op_l,op_r]
+                    df = df.append(pd.DataFrame([_]), ignore_index=True)
                     if(verbose):
                         line = f"{JFinal:4.1f},{ParityFinal:>3s},{NFinal:3d},"
                         line+= f"{J:5.1f},{prty:>5s},{i:5d},"
                         line+= f"{JInit:4.1f},{ParityInit:>3s},{NInit:3d},"
                         line+= f"{Ex:12.6f},{op_l:12.6f},{op_r:12.6f},{cntr:12.6f},{sum_rule:12.6f}"
                         print(line)
-        return sum_rule
+            df.columns = columns
+        return sum_rule, df
 
     def calc_2v_decay(kshl_dir=None,
             fn_snt=None, fn_op=None, Nucl=None, initial_state=None, final_state=None, Nstates_inter=300, hw_truncation=None,

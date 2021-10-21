@@ -108,7 +108,7 @@ def draw_energies(axs, edict, xcenter, width, color=None, color_index=None, lw=4
         if(c == None): c = get_state_color(J,P, color_index)
         axs.plot([xcenter-width,xcenter+width],[edict[key],edict[key]],c=c,lw=lw)
 
-def draw_spe_from_imsrg_log(ax, filename, xcenter, width=0.3, lw=1, jmax=None, proton=True, neutron=True)
+def draw_spe_from_imsrg_log(ax, filename, xcenter, width=0.3, lw=1, jmax=None, proton=True, neutron=True):
     fp = open(filename, "r")
     lines = fp.readlines()
     fp.close()
