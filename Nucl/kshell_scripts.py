@@ -1334,7 +1334,7 @@ class kshell_toolkit:
         if(type_output=="DataFrame"): exp_vals.columns = ["Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]
         return exp_vals
 
-    def calc_sum_rule(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states,\
+    def calc_sum_rule_Tz00(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states,\
             hw_truncation=None, ph_truncation=None, run_args=None, op_type=2, op_rankJ_l=0, op_rankP_l=1, op_rankJ_r=0, op_rankP_r=1,\
             mode="all", batch_cmd=None, run_cmd=None, header="", inter_prty=[-1,1], method="lsf", en_power=0, final_state=None, \
             verbose=False):
@@ -1487,130 +1487,278 @@ class kshell_toolkit:
             df.columns = columns
         return sum_rule, df
 
-    def calc_2v_decay(kshl_dir=None,
-            fn_snt=None, fn_op=None, Nucl=None, initial_state=None, final_state=None, Nstates_inter=300, hw_truncation=None,
-            run_args=None, op_type=-10, op_rankJ=1, op_rankP=1, op_rankZ=1, verbose=False, step="kshell",
-            direction="nn->pp", mode="direct", batch_cmd=None, run_cmd=None, Q=0.0, header="", list_prty_gs_inter=[-1,1],
-            calc_only_inter=False):
+    def calc_sum_rule_Tz11(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states,\
+            hw_truncation=None, ph_truncation=None, run_args=None, op_type=-14, op_rankJ_l=0, op_rankP_l=1, op_rankJ_r=0, op_rankP_r=1,\
+            mode="all", batch_cmd=None, run_cmd=None, header="", inter_prty=[-1,1], method="lsf", en_power=0, final_state=None, \
+            verbose=False):
+        Z, N, A = _ZNA_from_str(Nucl)
+        if(op_type==-14 or op_type==-10):
+            Nucl_middle = PeriodicTable.periodic_table[Z+1] + str(A)
+            Nucl_final = PeriodicTable.periodic_table[Z+2] + str(A)
+        elif(op_type==-15 or op_type==-11):
+            Nucl_middle = PeriodicTable.periodic_table[Z-1] + str(A)
+            Nucl_final = PeriodicTable.periodic_table[Z-2] + str(A)
+        else:
+            print(f"It seems the value of 'op_type' is wrong: {op_type:3d}")
+        JInit, ParityInit, NInit = initial_state
+        JFinal, ParityFinal, NFinal = initial_state
+        state_ini = str(JInit) + ParityInit + str(NInit)
+        if(final_state != None): JFinal, ParityFinal, NFinal = final_state
+        state_fin = str(JFinal) + ParityFinal + str(NFinal)
+        Ham = Operator(filename=fn_snt)
+        Opl = Operator(filename=fn_op_l, rankJ=op_rankJ_l, rankP=op_rankP_l, rankZ=1)
+        Opr = Operator(filename=fn_op_r, rankJ=op_rankJ_r, rankP=op_rankP_r, rankZ=1)
+        ksh_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=state_ini,\
+                hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
+        ksh_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_final, states=state_fin,\
+                hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
+        ksh_ex = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_middle, states=inter_states,\
+                hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
+        df = pd.DataFrame()
+        sum_rule = 0
+        if(method=="lsf"):
+            ksh_ex.run_kshell(gen_partition=True)
+            for ex_state in inter_states.split(","):
+                J, prty, ninter = _str_to_state_Jfloat(ex_state)
+                J2 = int(2*J)
+                fn_out = "LSF" + str(ninter) + "_" + os.path.basename(ksh_ex.fn_wfs[ex_state])
+                ksh_ex.fn_wfs[ex_state] = fn_out
+        trs_r = transit_scripts(kshl_dir=kshl_dir, bin_output=True)
+        trs_l = transit_scripts(kshl_dir=kshl_dir, bin_output=True)
+        if(mode=="kshell" or mode == "all"):
+            ksh_r.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+            ksh_l.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+        if(mode=="inter" or mode=="all"):
+            if(method=="lsf"):
+                ksh_ex.run_kshell(gen_partition=True)
+                for ex_state in inter_states.split(","):
+                    J, prty, ninter = _str_to_state_Jfloat(ex_state)
+                    if(not abs(J-JInit) <= op_rankJ_r <= J+JInit): continue
+                    if(_prty2i(prty) * _prty2i(ParityInit) * op_rankP_r != 1): continue
+                    J2 = int(2*J)
+                    ksh_ex.run_kshell_lsf(ksh_r.fn_ptns[state_ini], ksh_ex.fn_ptns[ex_state], \
+                            ksh_r.fn_wfs[state_ini], ksh_ex.fn_wfs[ex_state], J2, n_vec=ninter, header=header, \
+                            batch_cmd=batch_cmd, run_cmd=run_cmd, fn_operator=fn_op_r, \
+                            operator_irank=op_rankJ_r, operator_nbody=op_type, operator_iprty=op_rankP_r,\
+                            neig_load_wave=NInit)
+            if(method=="direct"):
+                ksh_ex.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+        if(mode=="density" or mode=="all"):
+            density_files, flip = trs_r.calc_density(ksh_r, ksh_r, states_list=[(state_ini,state_ini),], \
+                    header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+            for ex_state in inter_states.split(","):
+                density_files, flip = trs_r.calc_density(ksh_r, ksh_ex, states_list=[(state_ini,ex_state),], \
+                        header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+                density_files, flip = trs_r.calc_density(ksh_ex, ksh_ex, states_list=[(ex_state,ex_state),], \
+                        header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+            density_files, flip = trs_l.calc_density(ksh_l, ksh_l, states_list=[(state_ini,state_ini),], \
+                    header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+            for ex_state in inter_states.split(","):
+                density_files, flip = trs_l.calc_density(ksh_l, ksh_ex, states_list=[(state_ini,ex_state),], \
+                        header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+        if(mode=="eval" or mode=="all"):
+            columns = ['Jf','Pf','nf','Jmid','Pmid','nmid','Ji','Pi','ni','Ex energy','<Op_l>','<Op_r>']
+            if(verbose):
+                line = f"{'Jf':>4s},{'Pf':>3s},{'nf':>3s},"
+                line+= f"{'Jmid':>5s},{'Pmid':>5s},{'nmid':>5s},"
+                line+= f"{'Ji':>4s},{'Pi':>3s},{'ni':>3s},"
+                line+= f"{'Ex energy':>12s},{'<Op_l>':>12s},{'<Op_r>':>12s},{'Cntr':>12s},{'Sum':>12s}"
+                print(line)
+            flip_l = trs_l.set_filenames(ksh_l, ksh_l)
+            flip_r = trs_r.set_filenames(ksh_r, ksh_r)
+            d_r_r = TransitionDensity(filename=trs_r.filenames[(state_ini,state_ini)], \
+                    Jbra=JInit, Jket=JInit, wflabel_bra=NInit, wflabel_ket=NInit)
+            d_l_l = TransitionDensity(filename=trs_l.filenames[(state_fin,state_fin)], \
+                    Jbra=JFinal, Jket=JFinal, wflabel_bra=NFinal, wflabel_ket=NFinal)
+            E_ini = sum(d_r_r.eval(Ham))
+            E_fin = sum(d_l_l.eval(Ham))
+            for ex_state in inter_states.split(","):
+                J, prty, ninter = _str_to_state_Jfloat(ex_state)
+                if(not abs(J-JInit) <= op_rankJ_r <= J+JInit): continue
+                if(_prty2i(prty) * _prty2i(ParityInit) * op_rankP_r != 1): continue
+                if(not abs(J-JFinal) <= op_rankJ_l <= J+JFinal): continue
+                if(_prty2i(prty) * _prty2i(ParityFinal) * op_rankP_l != 1): continue
+                for i in range(1,ninter+1):
+                    flip = trs_r.set_filenames(ksh_ex, ksh_ex)
+                    d_ex_ex = TransitionDensity(filename=trs_r.filenames[(ex_state,ex_state)], \
+                            Jbra=J, Jket=J, wflabel_bra=i, wflabel_ket=i)
+                    Ex = sum(d_ex_ex.eval(Ham)) - (E_ini + E_fin)*0.5
+                    flip_r = trs_r.set_filenames(ksh_r, ksh_ex)
+                    flip_l = trs_l.set_filenames(ksh_l, ksh_ex)
+                    if(flip_r):
+                        d_r_ex = TransitionDensity(filename=trs_r.filenames[(ex_state,state_ini)], \
+                                Jbra=J, Jket=JInit, wflabel_bra=i, wflabel_ket=NInit)
+                    else:
+                        d_r_ex = TransitionDensity(filename=trs_r.filenames[(state_ini,ex_state)], \
+                                Jbra=JInit, Jket=J, wflabel_bra=NInit, wflabel_ket=i)
 
-        """
-        This would have redundant steps, but easy to run. Do not use for a big run.
-        inputs:
-            kshel_dir: path to kshell exe files
-            fn_snt: file name of snt
-            fn_op : file name of operator
-            Nucl: parent nuclide
-            initial_state: spin and parity of parent nucleus: str like "0+1"
-            final_state: spin and parity of daughter nucleus: str like "0+1"
-        """
-        if(_none_check(kshl_dir, 'kshl_dir')): return
-        if(_none_check(fn_snt, 'fn_snt')): return
-        if(_none_check(fn_op, 'fn_op')): return
-        if(_none_check(Nucl, 'Nucl')): return
-        if(_none_check(initial_state, 'initial_state')): return
-        if(_none_check(final_state, 'final_state')): return
-        gs_candidate_inter = ""
-        for prty in list_prty_gs_inter:
-            if(prty==-1): gs_candidate_inter += "-1,"
-            if(prty== 1): gs_candidate_inter += "+1,"
-        gs_candidate_inter = gs_candidate_inter[:-1]
-        op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ)
-        Z_par, N_par, A = _ZNA_from_str(Nucl)
-        if(direction=="nn->pp"):
-            Z_dau = Z_par + 2
-            N_dau = N_par - 2
-            Z_int = Z_par + 1
-            N_int = N_par - 1
-        elif(direction=="pp->nn"):
-            Z_dau = Z_par - 2
-            N_dau = N_par + 2
-            Z_int = Z_par - 1
-            N_int = N_par + 1
-        Nucl_daughter = "{:s}{:d}".format(PeriodicTable.periodic_table[Z_dau], A)
-        Nucl_inter = "{:s}{:d}".format(PeriodicTable.periodic_table[Z_int], A)
-        bra = final_state
-        ket = initial_state
-        Jbra, pbra, i_bra = _str_to_state_Jfloat(bra)
-        Jket, pket, i_ket = _str_to_state_Jfloat(ket)
-        if( abs(Jbra-Jket) > 2*op_rankJ ):
-            print("Error: J={:d} and J={:d} cannot be connected by J=2*{:d} operator".format(Jbra,Jket,op_Jrank))
-            return None
+                    if(flip_l):
+                        d_l_ex = TransitionDensity(filename=trs_l.filenames[(ex_state,state_fin)], \
+                                Jbra=J, Jket=JFinal, wflabel_bra=i, wflabel_ket=NFinal)
+                    else:
+                        d_l_ex = TransitionDensity(filename=trs_l.filenames[(state_fin,ex_state)], \
+                                Jbra=JFinal, Jket=J, wflabel_bra=NFinal, wflabel_ket=i)
+                    op_l = sum(d_l_ex.eval(Opl))
+                    op_r = sum(d_r_ex.eval(Opr))
+                    cntr = op_l * Ex**en_power * op_r / (2*JInit+1)
+                    sum_rule += cntr
+                    _ = [JFinal,ParityFinal,NFinal,J,prty,i,JInit,ParityInit,NInit,Ex,op_l,op_r]
+                    df = df.append(pd.DataFrame([_]), ignore_index=True)
+                    if(verbose):
+                        line = f"{JFinal:4.1f},{ParityFinal:>3s},{NFinal:3d},"
+                        line+= f"{J:5.1f},{prty:>5s},{i:5d},"
+                        line+= f"{JInit:4.1f},{ParityInit:>3s},{NInit:3d},"
+                        line+= f"{Ex:12.6f},{op_l:12.6f},{op_r:12.6f},{cntr:12.6f},{sum_rule:12.6f}"
+                        print(line)
+            df.columns = columns
+        return sum_rule, df
 
-        states_list = ""
-        if(op_rankP== 1): op_prty="+"
-        if(op_rankP==-1): op_prty="-"
-        for J in range(int(abs(Jbra-op_rankJ)), int(Jbra+op_rankJ+1)):
-            if(not abs(Jket-op_rankJ) <= J <= Jket+op_rankJ): continue
-            states_list += "{:d}{:s}{:d},".format(J,op_prty,Nstates_inter)
-        states_list = states_list[:-1]
-        if(step=="kshell"):
-            kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
-            kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
-            kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=gs_candidate_inter, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
-            if(not calc_only_inter):
-                kshl_l.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
-                kshl_r.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
-                fn_tmp = "GS_{:s}_{:s}".format(Nucl_inter, os.path.splitext(os.path.basename(fn_snt))[0])
-                kshl_inter.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, fn_script=fn_tmp)
+    def calc_sum_rule(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states,\
+            hw_truncation=None, ph_truncation=None, run_args=None, op_type=2, op_rankJ_l=0, op_rankP_l=1, op_rankZ_l=0,
+            op_rankJ_r=0, op_rankP_r=1, op_rankZ_r=0, \
+            mode="all", batch_cmd=None, run_cmd=None, header="", inter_prty=[-1,1], method="lsf", en_power=0, final_state=None, \
+            verbose=False):
+        if(op_rankZ_l == 0 and op_rankZ_r==0):
+            return kshell_toolkit.calc_sum_rule_Tz00(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states, \
+                    hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args, op_type=op_type, \
+                    op_rankJ_l=op_rankJ_l, op_rankP_l=op_rankP_l, op_rankJ_r=op_rankJ_r, op_rankP_r=op_rankP_r, \
+                    mode=mode, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header, inter_prty=inter_prty, method=method,\
+                    en_power=en_power, final_state=final_state, verbose=verbose)
+        if(op_rankZ_l == 1 and op_rankZ_r==1):
+            return kshell_toolkit.calc_sum_rule_Tz11(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states, \
+                    hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args, op_type=op_type, \
+                    op_rankJ_l=op_rankJ_l, op_rankP_l=op_rankP_l, op_rankJ_r=op_rankJ_r, op_rankP_r=op_rankP_r, \
+                    mode=mode, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header, inter_prty=inter_prty, method=method,\
+                    en_power=en_power, final_state=final_state, verbose=verbose)
+        else:
+            print("Not implemented: ")
+            return
 
-            kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
-            if(mode=="direct"): kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd, header=header)
-            if(mode=="lsf"):
-                kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd,gen_partition=True,header=header)
-                for state in states_list.split(","):
-                    Jinter, prty, n_inter = _str_to_state_Jfloat(state)
-                    kshl_inter.run_kshell_lsf( kshl_r.fn_ptns[ket], kshl_inter.fn_ptns[state], \
-                            kshl_r.fn_wfs[ket], kshl_inter.fn_wfs[state], int(2*Jinter), fn_operator=fn_op, \
-                            n_vec=Nstates_inter, operator_irank=op_rankJ, operator_iprty=op_rankP, operator_nbody=op_type, \
-                            batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
-                    #kshl_inter.run_kshell_lsf( kshl_r.fn_ptns[ket], kshl_inter.fn_ptns[state], \
-                    #        kshl_r.fn_wfs[ket], kshl_inter.fn_wfs[state], int(2*Jinter), op="GT", \
-                    #        n_vec=Nstates_inter, operator_irank=op_rankJ, operator_iprty=op_rankP,\
-                    #        batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
 
-        elif(step=="density"):
-            kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
-            kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
-            kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
-            trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
-            for state in states_list.split(","):
-                fn_den_l, flip_l = trs.calc_density(kshl_l, kshl_inter, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
-                fn_den_r, flip_r = trs.calc_density(kshl_inter, kshl_r, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+    #def calc_2v_decay(kshl_dir=None,
+    #        fn_snt=None, fn_op=None, Nucl=None, initial_state=None, final_state=None, Nstates_inter=300, hw_truncation=None,
+    #        run_args=None, op_type=-10, op_rankJ=1, op_rankP=1, op_rankZ=1, verbose=False, step="kshell",
+    #        direction="nn->pp", mode="direct", batch_cmd=None, run_cmd=None, Q=0.0, header="", list_prty_gs_inter=[-1,1],
+    #        calc_only_inter=False):
 
-        elif(step=="eval"):
-            kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
-            kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
-            kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
-            trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
-            edict_inter = kshl_inter.summary_to_dictionary()
-            levels = sorted(edict_inter.items(), key=lambda x:x[1])
-            egs_inter = levels[0][1]
-            prt = ""
-            reduced_me = 0.0
-            for state in states_list.split(","):
-                l = (bra,state)
-                flip_l = trs.set_filenames(kshl_l, kshl_inter, states_list=[l,])
-                fn_den_l = trs.filenames[l]
-                r = (state,ket)
-                flip_r = trs.set_filenames(kshl_inter, kshl_r, states_list=[r,])
-                fn_den_r = trs.filenames[r]
-                Jinter, prty, n_inter = _str_to_state_Jfloat(state)
-                if(A%2==0): Jinter_str = str(int(Jinter))
-                if(A%2==1): Jinter_str = "{:d}/2".format(int(2*Jinter))
-                reduced_me_J = 0.0
-                for i_inter in range(1, n_inter+1):
-                    if(flip_l): Density_L = TransitionDensity(filename=fn_den_l, Jbra=Jinter, wflabel_bra=i_inter, Jket=Jbra, wflabel_ket=i_bra)
-                    if(flip_r): Density_R = TransitionDensity(filename=fn_den_r, Jbra=Jket, wflabel_bra=i_ket, Jket=Jinter, wflabel_ket=i_inter)
-                    if(not flip_l): Density_L = TransitionDensity(filename=fn_den_l, Jbra=Jbra, wflabel_bra=i_bra, Jket=Jinter, wflabel_ket=i_inter)
-                    if(not flip_r): Density_R = TransitionDensity(filename=fn_den_r, Jbra=Jinter, wflabel_bra=i_inter, Jket=Jket, wflabel_ket=i_ket)
-                    me_l = sum(Density_L.eval(op))
-                    me_r = sum(Density_R.eval(op))
-                    me = me_l * me_r
-                    en_inter = edict_inter[(Jinter_str,prty,i_inter)]
-                    reduced_me_J += me / ( en_inter-egs_inter + Q)
-                    prt += "{:6.1f} {:s} {:6d} {:14.8f} {:14.8f} {:14.8f} {:14.8f}\n".format(Jinter, prty, i_inter, me_l, me_r, en_inter-egs_inter+Q, reduced_me_J)
-                """
-                TODO: following summation is not correct
-                """
-                reduced_me += reduced_me_J
-            return prt
+    #    """
+    #    This would have redundant steps, but easy to run. Do not use for a big run.
+    #    inputs:
+    #        kshel_dir: path to kshell exe files
+    #        fn_snt: file name of snt
+    #        fn_op : file name of operator
+    #        Nucl: parent nuclide
+    #        initial_state: spin and parity of parent nucleus: str like "0+1"
+    #        final_state: spin and parity of daughter nucleus: str like "0+1"
+    #    """
+    #    if(_none_check(kshl_dir, 'kshl_dir')): return
+    #    if(_none_check(fn_snt, 'fn_snt')): return
+    #    if(_none_check(fn_op, 'fn_op')): return
+    #    if(_none_check(Nucl, 'Nucl')): return
+    #    if(_none_check(initial_state, 'initial_state')): return
+    #    if(_none_check(final_state, 'final_state')): return
+    #    gs_candidate_inter = ""
+    #    for prty in list_prty_gs_inter:
+    #        if(prty==-1): gs_candidate_inter += "-1,"
+    #        if(prty== 1): gs_candidate_inter += "+1,"
+    #    gs_candidate_inter = gs_candidate_inter[:-1]
+    #    op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ)
+    #    Z_par, N_par, A = _ZNA_from_str(Nucl)
+    #    if(direction=="nn->pp"):
+    #        Z_dau = Z_par + 2
+    #        N_dau = N_par - 2
+    #        Z_int = Z_par + 1
+    #        N_int = N_par - 1
+    #    elif(direction=="pp->nn"):
+    #        Z_dau = Z_par - 2
+    #        N_dau = N_par + 2
+    #        Z_int = Z_par - 1
+    #        N_int = N_par + 1
+    #    Nucl_daughter = "{:s}{:d}".format(PeriodicTable.periodic_table[Z_dau], A)
+    #    Nucl_inter = "{:s}{:d}".format(PeriodicTable.periodic_table[Z_int], A)
+    #    bra = final_state
+    #    ket = initial_state
+    #    Jbra, pbra, i_bra = _str_to_state_Jfloat(bra)
+    #    Jket, pket, i_ket = _str_to_state_Jfloat(ket)
+    #    if( abs(Jbra-Jket) > 2*op_rankJ ):
+    #        print("Error: J={:d} and J={:d} cannot be connected by J=2*{:d} operator".format(Jbra,Jket,op_Jrank))
+    #        return None
+
+    #    states_list = ""
+    #    if(op_rankP== 1): op_prty="+"
+    #    if(op_rankP==-1): op_prty="-"
+    #    for J in range(int(abs(Jbra-op_rankJ)), int(Jbra+op_rankJ+1)):
+    #        if(not abs(Jket-op_rankJ) <= J <= Jket+op_rankJ): continue
+    #        states_list += "{:d}{:s}{:d},".format(J,op_prty,Nstates_inter)
+    #    states_list = states_list[:-1]
+    #    if(step=="kshell"):
+    #        kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
+    #        kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
+    #        kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=gs_candidate_inter, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
+    #        if(not calc_only_inter):
+    #            kshl_l.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+    #            kshl_r.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+    #            fn_tmp = "GS_{:s}_{:s}".format(Nucl_inter, os.path.splitext(os.path.basename(fn_snt))[0])
+    #            kshl_inter.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, fn_script=fn_tmp)
+
+    #        kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
+    #        if(mode=="direct"): kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd, header=header)
+    #        if(mode=="lsf"):
+    #            kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd,gen_partition=True,header=header)
+    #            for state in states_list.split(","):
+    #                Jinter, prty, n_inter = _str_to_state_Jfloat(state)
+    #                kshl_inter.run_kshell_lsf( kshl_r.fn_ptns[ket], kshl_inter.fn_ptns[state], \
+    #                        kshl_r.fn_wfs[ket], kshl_inter.fn_wfs[state], int(2*Jinter), fn_operator=fn_op, \
+    #                        n_vec=Nstates_inter, operator_irank=op_rankJ, operator_iprty=op_rankP, operator_nbody=op_type, \
+    #                        batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+    #                #kshl_inter.run_kshell_lsf( kshl_r.fn_ptns[ket], kshl_inter.fn_ptns[state], \
+    #                #        kshl_r.fn_wfs[ket], kshl_inter.fn_wfs[state], int(2*Jinter), op="GT", \
+    #                #        n_vec=Nstates_inter, operator_irank=op_rankJ, operator_iprty=op_rankP,\
+    #                #        batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+
+    #    elif(step=="density"):
+    #        kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
+    #        kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
+    #        kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
+    #        trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
+    #        for state in states_list.split(","):
+    #            fn_den_l, flip_l = trs.calc_density(kshl_l, kshl_inter, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+    #            fn_den_r, flip_r = trs.calc_density(kshl_inter, kshl_r, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
+
+    #    elif(step=="eval"):
+    #        kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
+    #        kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
+    #        kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
+    #        trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
+    #        edict_inter = kshl_inter.summary_to_dictionary()
+    #        levels = sorted(edict_inter.items(), key=lambda x:x[1])
+    #        egs_inter = levels[0][1]
+    #        prt = ""
+    #        reduced_me = 0.0
+    #        for state in states_list.split(","):
+    #            l = (bra,state)
+    #            flip_l = trs.set_filenames(kshl_l, kshl_inter, states_list=[l,])
+    #            fn_den_l = trs.filenames[l]
+    #            r = (state,ket)
+    #            flip_r = trs.set_filenames(kshl_inter, kshl_r, states_list=[r,])
+    #            fn_den_r = trs.filenames[r]
+    #            Jinter, prty, n_inter = _str_to_state_Jfloat(state)
+    #            if(A%2==0): Jinter_str = str(int(Jinter))
+    #            if(A%2==1): Jinter_str = "{:d}/2".format(int(2*Jinter))
+    #            reduced_me_J = 0.0
+    #            for i_inter in range(1, n_inter+1):
+    #                if(flip_l): Density_L = TransitionDensity(filename=fn_den_l, Jbra=Jinter, wflabel_bra=i_inter, Jket=Jbra, wflabel_ket=i_bra)
+    #                if(flip_r): Density_R = TransitionDensity(filename=fn_den_r, Jbra=Jket, wflabel_bra=i_ket, Jket=Jinter, wflabel_ket=i_inter)
+    #                if(not flip_l): Density_L = TransitionDensity(filename=fn_den_l, Jbra=Jbra, wflabel_bra=i_bra, Jket=Jinter, wflabel_ket=i_inter)
+    #                if(not flip_r): Density_R = TransitionDensity(filename=fn_den_r, Jbra=Jinter, wflabel_bra=i_inter, Jket=Jket, wflabel_ket=i_ket)
+    #                me_l = sum(Density_L.eval(op))
+    #                me_r = sum(Density_R.eval(op))
+    #                me = me_l * me_r
+    #                en_inter = edict_inter[(Jinter_str,prty,i_inter)]
+    #                reduced_me_J += me / ( en_inter-egs_inter + Q)
+    #                prt += "{:6.1f} {:s} {:6d} {:14.8f} {:14.8f} {:14.8f} {:14.8f}\n".format(Jinter, prty, i_inter, me_l, me_r, en_inter-egs_inter+Q, reduced_me_J)
+    #            """
+    #            TODO: following summation is not correct
+    #            """
+    #            reduced_me += reduced_me_J
+    #        return prt
