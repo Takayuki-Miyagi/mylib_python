@@ -1549,8 +1549,10 @@ class kshell_toolkit:
             for ex_state in inter_states.split(","):
                 density_files, flip = trs_r.calc_density(ksh_r, ksh_ex, states_list=[(state_ini,ex_state),], \
                         header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+                Jex, Pex, Nex = _str_to_state_Jfloat(ex_state)
+                i_wfs = [(i,i) for i in range(1,Nex+1)]
                 density_files, flip = trs_r.calc_density(ksh_ex, ksh_ex, states_list=[(ex_state,ex_state),], \
-                        header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
+                        header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, i_wfs=i_wfs)
             density_files, flip = trs_l.calc_density(ksh_l, ksh_l, states_list=[(state_ini,state_ini),], \
                     header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
             for ex_state in inter_states.split(","):
