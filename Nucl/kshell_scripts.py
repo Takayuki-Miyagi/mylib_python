@@ -443,7 +443,8 @@ class kshell_scripts:
 
     def run_kshell_lsf(self, fn_ptn_init, fn_ptn, fn_wf, fn_wf_out, J2, \
             op=None, fn_input=None, n_vec=100, header="", batch_cmd=None, run_cmd=None, \
-            fn_operator=None, operator_irank=0, operator_nbody=1, operator_iprty=1, neig_load_wave=1):
+            fn_operator=None, operator_irank=0, operator_nbody=1, operator_iprty=1, neig_load_wave=1, \
+            need_converged_vec=False, T2_projection=None):
         """
         This is for Lanczos strength function method. |v1> = Op |v0> and do Lanczos starting from |v1>
 
@@ -483,6 +484,8 @@ class kshell_scripts:
             !          -11  cn+ cp  for beta decay (only in set_ob_channel)
             !          -12  cp+ cp+ cn cn  for 0v-bb decay
             !          -13  cn+ cn+ cp cp  for 0v-bb decay (not yet used)
+            !          -14  cp+ cn  for beta decay 1+2
+            !          -15  cn+ cp  for beta decay 1+2
         """
         fn_script = os.path.basename(os.path.splitext(fn_wf_out)[0]) + ".sh"
         fn_out = "log_" + os.path.basename(os.path.splitext(fn_wf_out)[0]) + ".txt"
@@ -507,13 +510,15 @@ class kshell_scripts:
         prt += '  fn_ptn_init = "' + fn_ptn_init + '"\n'
         prt += '  fn_load_wave = "' + fn_wf + '"\n'
         prt += '  fn_save_wave = "' + fn_wf_out + '"\n'
-        prt += '  max_lanc_vec = '+str(n_vec)+'\n'
         prt += '  n_eigen = '+str(n_vec)+'\n'
-        prt += '  n_restart_vec = '+str(min(n_vec,200))+'\n'
         prt += '  mtot = '+str(J2)+'\n'
         prt += '  neig_load_wave = '+str(neig_load_wave)+'\n'
-        prt += '  maxiter = 1\n'
         prt += '  is_double_j = .true.\n'
+        if(not need_converged_vec):
+            prt += '  max_lanc_vec = '+str(n_vec)+'\n'
+            prt += '  n_restart_vec = '+str(min(n_vec,200))+'\n'
+            prt += '  maxiter = 1\n'
+        if(T2_projection!=None): prt += '  tt_proj = '+str(T2_projection)+'\n'
         if(op!=None): prt += '  op_type_init = "'+str(op)+'"\n'
         if(fn_operator!=None):
             prt += '  fn_op_init_wf = "'+str(fn_operator)+'"\n'
@@ -542,6 +547,56 @@ class kshell_scripts:
         if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
         subprocess.call(cmd, shell=True)
         if(batch_cmd != None): time.sleep(1)
+
+    def run_kshell_ias_lsf(self, initial_state=(0,"+",1), target_J2=0, target_prty="+", n_vec=1, \
+            fn_operator=None, mode = "", isospin_projection=None, p_core=None, n_core=None, \
+            batch_cmd=None, run_cmd=None, header=""):
+        H = Operator(filename=self.fn_snt)
+        if(mode=="p<-n" or mode=="n<-p"):
+            Op = Operator(ms=H.ms, rankZ=1)
+            if(fn_operator==None):
+                if(p_core == None or n_core == None): raise ValueError("Specify proton and neutron numbers in core!")
+                fn_operator = "Op_IAS_"+os.path.basename(self.fn_snt)
+                Op.set_fermi_op()
+                Op.write_operator_file(fn_operator, p_core=p_core, n_core=n_core)
+        elif(mode=="pp<-nn" or mode=="nn<-pp"):
+            Op = Operator(ms=H.ms, rankZ=2)
+            if(fn_operator==None):
+                if(p_core == None or n_core == None): raise ValueError("Specify proton and neutron numbers in core!")
+                fn_operator = "Op_DIAS_"+os.path.basename(self.fn_snt)
+                Op.set_double_fermi_op()
+                Op.write_operator_file(fn_operator, p_core=p_core, n_core=n_core)
+        else:
+            raise ValueError()
+        if(mode=="p<-n"):
+            op_nbody = -14
+            Nucl_target = PeriodicTable.periodic_table[self.Z+1]+str(self.A)
+        elif(mode=="n<-p"):
+            op_nbody = -15
+            Nucl_target = PeriodicTable.periodic_table[self.Z-1]+str(self.A)
+        elif(mode=="pp<-nn"):
+            op_nbody = -12
+            Nucl_target = PeriodicTable.periodic_table[self.Z+2]+str(self.A)
+        elif(mode=="nn<-pp"):
+            op_nbody = -13
+            Nucl_target = PeriodicTable.periodic_table[self.Z-2]+str(self.A)
+        else:
+            raise ValueError()
+        target_state_str = str(0.5*target_J2) + target_prty + str(n_vec)
+        ksh_target = kshell_scripts(self.kshl_dir, self.fn_snt, Nucl_target, target_state_str,\
+                hw_truncation=self.hw_truncation, ph_truncation=self.ph_truncation, \
+                run_args=self.run_args)
+        ksh_target.run_kshell(gen_partition=True)
+        key = ""
+        for _ in self.fn_ptns.keys():
+            if(_[0] == "+" or _[0] == "-"): raise ValueError("Please run initital state calculation with J-scheme (double-lanczos)")
+            _st = _str_to_state_Jfloat(_)
+            if(_st[0] == initial_state[0] and _st[1] == initial_state[1]): key = _
+        ksh_target.fn_wfs[target_state_str] = "LSF" + "_" + os.path.basename(ksh_target.fn_wfs[target_state_str])
+        ksh_target.run_kshell_lsf(self.fn_ptns[key], ksh_target.fn_ptns[target_state_str], \
+                self.fn_wfs[key], ksh_target.fn_wfs[target_state_str],\
+                J2=target_J2, n_vec=n_vec, header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, fn_operator=fn_operator, \
+                operator_irank=0, operator_nbody=op_nbody, operator_iprty=1, neig_load_wave=initial_state[2])
 
     def basename(self):
         return "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
@@ -1335,8 +1390,9 @@ class kshell_toolkit:
         return exp_vals
 
     def calc_sum_rule_Tz00(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states,\
-            hw_truncation=None, ph_truncation=None, run_args=None, op_type=2, op_rankJ_l=0, op_rankP_l=1, op_rankJ_r=0, op_rankP_r=1,\
-            mode="all", batch_cmd=None, run_cmd=None, header="", inter_prty=[-1,1], method="lsf", en_power=0, final_state=None, \
+            hw_truncation=None, ph_truncation=None, run_args=None, op_type=2, op_rankJ_l=0, op_rankP_l=1, op_rankZ_l=0, \
+            op_rankJ_r=0, op_rankP_r=1, op_rankZ_r=0, mode="all",\
+            batch_cmd=None, run_cmd=None, header="", inter_prty=[-1,1], method="lsf", en_power=0, final_state=None, \
             verbose=False):
         """
         Do not use with the operator that changes the Z and N.
@@ -1350,7 +1406,12 @@ class kshell_toolkit:
         initial_state: initial state (J, parity, n), J is un-doubled angular momentum
         inter_states: intermediate states ex.) "0+20,2+20,4+20" or so
         """
-        #Jinit = _str_to_state_Jfloat(state)[0]
+        Z, N, A = _ZNA_from_str(Nucl)
+        Nucl_middle = Nucl
+        if(op_type==-10 or op_type==-14): Nucl_middle = PeriodicTable.periodic_table[Z+1] + str(A)
+        if(op_type==-11 or op_type==-15): Nucl_middle = PeriodicTable.periodic_table[Z-1] + str(A)
+        if(op_type==-12): Nucl_middle = PeriodicTable.periodic_table[Z+2] + str(A)
+        if(op_type==-13): Nucl_middle = PeriodicTable.periodic_table[Z-2] + str(A)
         JInit, ParityInit, NInit = initial_state
         JFinal, ParityFinal, NFinal = initial_state
         state_ini = str(JInit) + ParityInit + str(NInit)
@@ -1364,11 +1425,11 @@ class kshell_toolkit:
             state_fin = states_init
 
         Ham = Operator(filename=fn_snt)
-        Opl = Operator(filename=fn_op_l, rankJ=op_rankJ_l, rankP=op_rankP_l)
-        Opr = Operator(filename=fn_op_r, rankJ=op_rankJ_r, rankP=op_rankP_r)
+        Opl = Operator(filename=fn_op_l, rankJ=op_rankJ_l, rankP=op_rankP_l, rankZ=op_rankZ_l)
+        Opr = Operator(filename=fn_op_r, rankJ=op_rankJ_r, rankP=op_rankP_r, rankZ=op_rankZ_r)
         ksh_init = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=states_init,\
                 hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
-        ksh_ex = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=inter_states,\
+        ksh_ex = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_middle, states=inter_states,\
                 hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args)
         df = pd.DataFrame()
         sum_rule = 0
@@ -1408,7 +1469,7 @@ class kshell_toolkit:
                 for ex_state in inter_states.split(","):
                     Jex, Pex, Nex = _str_to_state_Jfloat(ex_state)
                     pairs = [(i,j) for i in range(1,Nin+1) for j in range(1,Nex+1)]
-                    if((Jin,Pin,Jex,Pex) in i_wfs):
+                    if((Jin,Pin,Jex,Pex) in i_wfs and Nucl==Nucl_middle):
                         tmp = i_wfs[(Jin,Pin,Jex,Pex)]
                         pairs += tmp[0]
                         i_wfs[(Jin,Pin,Jex,Pex)] = [pairs,"ini","ex",(in_state,ex_state)]
@@ -1417,7 +1478,7 @@ class kshell_toolkit:
             for ex_state in inter_states.split(","):
                 Jin, Pin, Nin = _str_to_state_Jfloat(ex_state)
                 pairs = [(i,i) for i in range(1,Nin+1)]
-                if((Jin,Pin,Jin,Pin) in i_wfs):
+                if((Jin,Pin,Jin,Pin) in i_wfs and Nucl==Nucl_middle):
                     tmp = i_wfs[(Jin,Pin,Jin,Pin)]
                     pairs += tmp[0]
                     i_wfs[(Jin,Pin,Jin,Pin)] = [pairs,"ex","ex",(ex_state,ex_state)]
@@ -1619,14 +1680,22 @@ class kshell_toolkit:
             hw_truncation=None, ph_truncation=None, run_args=None, op_type=2, op_rankJ_l=0, op_rankP_l=1, op_rankZ_l=0,
             op_rankJ_r=0, op_rankP_r=1, op_rankZ_r=0, \
             mode="all", batch_cmd=None, run_cmd=None, header="", inter_prty=[-1,1], method="lsf", en_power=0, final_state=None, \
-            verbose=False):
+            verbose=False, Nucl_final=None):
+        if(Nucl_final==None): Nucl_final=Nucl
         if(op_rankZ_l == 0 and op_rankZ_r==0):
             return kshell_toolkit.calc_sum_rule_Tz00(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states, \
                     hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args, op_type=op_type, \
                     op_rankJ_l=op_rankJ_l, op_rankP_l=op_rankP_l, op_rankJ_r=op_rankJ_r, op_rankP_r=op_rankP_r, \
                     mode=mode, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header, inter_prty=inter_prty, method=method,\
                     en_power=en_power, final_state=final_state, verbose=verbose)
-        if(op_rankZ_l == 1 and op_rankZ_r==1):
+        if(Nucl_final==Nucl):
+            return kshell_toolkit.calc_sum_rule_Tz00(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states, \
+                    hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args, op_type=op_type, \
+                    op_rankJ_l=op_rankJ_l, op_rankP_l=op_rankP_l, op_rankJ_r=op_rankJ_r, op_rankP_r=op_rankP_r,
+                    op_rankZ_l=op_rankZ_l, op_rankZ_r=op_rankZ_r, \
+                    mode=mode, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header, inter_prty=inter_prty, method=method,\
+                    en_power=en_power, final_state=final_state, verbose=verbose)
+        if(op_rankZ_l == 1 and op_rankZ_r==1 and Nucl_final!=Nucl):
             return kshell_toolkit.calc_sum_rule_Tz11(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states, \
                     hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args, op_type=op_type, \
                     op_rankJ_l=op_rankJ_l, op_rankP_l=op_rankP_l, op_rankJ_r=op_rankJ_r, op_rankP_r=op_rankP_r, \

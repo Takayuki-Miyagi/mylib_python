@@ -1432,6 +1432,51 @@ class Operator:
         vmax = max(x+y+[vmax,])
         ax.plot([vmin,vmax],[vmin,vmax],ls=":",lw=0.8,label="y=x",c="k")
 
+    def set_fermi_op(self):
+        """
+        set < p || 1 || q > < p or n| tau_+/- | n or p > = \sqrt{(2j_p+1)} \sqrt{2}
+        """
+        orbits = self.ms.orbits
+        for p in range(1,orbits.get_num_orbits()+1):
+            for q in range(p,orbits.get_num_orbits()+1):
+                op = orbits.get_orbit(p)
+                oq = orbits.get_orbit(q)
+                if(op.z == oq.z): continue
+                if(op.n != oq.n): continue
+                if(op.l != oq.l): continue
+                if(op.j != oq.j): continue
+                self.set_1bme(p,q,np.sqrt((op.j+1) * 2))
+        self.reduced=True
+
+    def set_double_fermi_op(self):
+        """
+        set < pq:J || 1 || rs:J > < pp or nn | (tau tau)_+/- | nn or pp > = \sqrt{(2J+1)} 2
+        """
+        orbits = self.ms.orbits
+        for channels in self.two.keys():
+            chbra, chket = self.ms.two.get_channel(channels[0]), self.ms.two.get_channel(channels[1])
+            if(chbra.J != chket.J): continue
+            if(chbra.P != chket.P): continue
+            if(abs(chbra.Z - chket.Z) != 2): continue
+            J = chket.J
+            for ibra in range(chbra.get_number_states()):
+                p, q = chbra.get_indices(ibra)
+                o_p, o_q = chbra.get_orbits(ibra)
+                for iket in range(chket.get_number_states()):
+                    r, s = chket.get_indices(iket)
+                    o_r, o_s = chket.get_orbits(iket)
+                    me = 0.0
+                    if(o_p.n == o_r.n and o_p.l == o_r.l and o_p.j == o_r.j and \
+                            o_q.n == o_s.n and o_q.l == o_s.l and o_q.j == o_s.j):
+                        me += np.sqrt(2*J+1) * 2
+                    if(o_p.n == o_s.n and o_p.l == o_s.l and o_p.j == o_s.j and \
+                            o_q.n == o_r.n and o_q.l == o_r.l and o_q.j == o_r.j):
+                        me += np.sqrt(2*J+1) * 2 * (-1)**((o_r.j+o_s.j)/2 - J+1)
+                    if(p==q): me /= np.sqrt(2)
+                    if(r==s): me /= np.sqrt(2)
+                    if(abs(me) > 1.e-8): self.set_2bme_from_indices(p, q, r, s, J, J, me)
+        self.reduced=True
+
 def main():
     ms = ModelSpace.ModelSpace()
     ms.set_modelspace_from_boundaries(4)
