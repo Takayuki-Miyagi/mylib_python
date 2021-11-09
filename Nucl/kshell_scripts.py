@@ -389,7 +389,7 @@ class kshell_scripts:
             if(self.hw_truncation!=None and self.ph_truncation==None):
                 f.write('2\n')
                 f.write(str(self.hw_truncation)+'\n')
-                f.write('\n')
+                #f.write('\n')
             if(self.hw_truncation!=None and self.ph_truncation!=None):
                 f.write('3\n')
                 f.write(str(self.hw_truncation)+'\n')
@@ -549,8 +549,8 @@ class kshell_scripts:
         if(batch_cmd != None): time.sleep(1)
 
     def run_kshell_ias_lsf(self, initial_state=(0,"+",1), target_J2=0, target_prty="+", n_vec=1, \
-            fn_operator=None, mode = "", isospin_projection=None, p_core=None, n_core=None, \
-            batch_cmd=None, run_cmd=None, header=""):
+            fn_operator=None, mode = "", T2_projection=None, p_core=None, n_core=None, \
+            batch_cmd=None, run_cmd=None, header="", need_converged_vec=False, set_filename=False):
         H = Operator(filename=self.fn_snt)
         if(mode=="p<-n" or mode=="n<-p"):
             Op = Operator(ms=H.ms, rankZ=1)
@@ -582,7 +582,8 @@ class kshell_scripts:
             Nucl_target = PeriodicTable.periodic_table[self.Z-2]+str(self.A)
         else:
             raise ValueError()
-        target_state_str = str(0.5*target_J2) + target_prty + str(n_vec)
+        target_state_str = str(target_J2//2) + target_prty + str(n_vec)
+        if(self.A%2==1): target_state_str = str(0.5*target_J2) + target_prty + str(n_vec)
         ksh_target = kshell_scripts(self.kshl_dir, self.fn_snt, Nucl_target, target_state_str,\
                 hw_truncation=self.hw_truncation, ph_truncation=self.ph_truncation, \
                 run_args=self.run_args)
@@ -593,10 +594,12 @@ class kshell_scripts:
             _st = _str_to_state_Jfloat(_)
             if(_st[0] == initial_state[0] and _st[1] == initial_state[1]): key = _
         ksh_target.fn_wfs[target_state_str] = "LSF" + "_" + os.path.basename(ksh_target.fn_wfs[target_state_str])
-        ksh_target.run_kshell_lsf(self.fn_ptns[key], ksh_target.fn_ptns[target_state_str], \
+        if(not set_filename): ksh_target.run_kshell_lsf(self.fn_ptns[key], ksh_target.fn_ptns[target_state_str], \
                 self.fn_wfs[key], ksh_target.fn_wfs[target_state_str],\
                 J2=target_J2, n_vec=n_vec, header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, fn_operator=fn_operator, \
-                operator_irank=0, operator_nbody=op_nbody, operator_iprty=1, neig_load_wave=initial_state[2])
+                operator_irank=0, operator_nbody=op_nbody, operator_iprty=1, neig_load_wave=initial_state[2],\
+                T2_projection=T2_projection, need_converged_vec=need_converged_vec)
+        return ksh_target
 
     def basename(self):
         return "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
