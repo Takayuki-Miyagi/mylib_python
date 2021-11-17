@@ -185,22 +185,33 @@ class kshell_scripts:
         self.Z, self.N, self.A = _ZNA_from_str(self.Nucl)
     def set_run_args(self, run_args):
         self.run_args = run_args
-    def get_wf_index( self, fn_summary ):
+    def get_wf_index( self, fn_summary, use_logs=False ):
         jpn_to_idx = {}
-        f = open( fn_summary, "r" )
-        lines = f.readlines()
-        f.close()
         logs = set()
         idxs = {}
-        for line in lines[5:]:
-            dat = line.split()
-            if( len(dat) == 0 ): continue
-            if( dat[-1] in logs ):
-                idxs[ dat[-1] ] += 1
-            else:
-                idxs[ dat[-1] ] = 1
-                logs.add( dat[-1] )
-            jpn_to_idx[(dat[1],dat[2],int(dat[3]))] = (dat[-1], idxs[ dat[-1] ])
+        if(use_logs):
+            data = self.get_occupation()
+            for key in data.keys():
+                fn_log = data[key][1]
+                if( fn_log in logs ):
+                    idxs[ fn_log ] += 1
+                else:
+                    idxs[ fn_log ] = 1
+                    logs.add( fn_log )
+                jpn_to_idx[key] = (fn_log, idxs[ fn_log ])
+        else:
+            f = open( fn_summary, "r" )
+            lines = f.readlines()
+            f.close()
+            for line in lines[5:]:
+                dat = line.split()
+                if( len(dat) == 0 ): continue
+                if( dat[-1] in logs ):
+                    idxs[ dat[-1] ] += 1
+                else:
+                    idxs[ dat[-1] ] = 1
+                    logs.add( dat[-1] )
+                jpn_to_idx[(dat[1],dat[2],int(dat[3]))] = (dat[-1], idxs[ dat[-1] ])
         return jpn_to_idx
     def get_wf_idx_to_jpn(self):
         if(len(self.fn_wfs)>1):
@@ -221,7 +232,8 @@ class kshell_scripts:
         return the wave function name of the specified state.
         state: ex: ('0','+',1), ('1/2','+',1), so J is string not doubled
         """
-        wf_labels = self.get_wf_index(self.summary_filename())
+        #wf_labels = self.get_wf_index(self.summary_filename())
+        wf_labels = self.get_wf_index(self.summary_filename(), use_logs=True)
         fn_log = wf_labels[state][0]
         fn_wav = fn_log.split("log_")[1].split(".txt")[0]+".wav"
         return fn_wav
@@ -273,6 +285,37 @@ class kshell_scripts:
             if( state.find("-")!=-1): state_str = "j{:d}n".format(j_double)
         return state_str
 
+    def logs_to_dictionary(self, logs=None):
+        H = Operator()
+        H.read_operator_file(self.fn_snt)
+        if(logs==None):
+            logs = []
+            states = self.states.split(",")
+            for state in states:
+                state_str = self._state_string(state)
+                log = "log_{:s}_{:s}_{:s}.txt".format(self.Nucl, os.path.splitext( os.path.basename(self.fn_snt))[0], state_str)
+                logs.append(log)
+        e_data = {}
+        for log in logs:
+            f = open(log,"r")
+            while True:
+                line = f.readline()
+                if(not line): break
+                dat = line.split()
+                if(len(dat) < 2): continue
+                if(dat[1] == "<H>:"):
+                    dat = line.split()
+                    n_eig= int(dat[0])
+                    ene  = float(dat[2]) + H.get_0bme()
+                    J = dat[6]
+                    if(self.A%2==0): J = str(int(dat[6][:-2])//2)
+                    prty = int(dat[8])
+                    prty = _i2prty(prty)
+                    line = f.readline()
+                    e_data[(J,prty,n_eig)] = ene
+            f.close()
+        return e_data
+
     def get_occupation(self, logs=None, hw_ex=False):
         fn_summary = self.summary_filename()
         H = Operator()
@@ -297,6 +340,8 @@ class kshell_scripts:
                     n_eig= int(dat[0])
                     ene  = float(dat[2]) + H.get_0bme()
                     mtot = int(dat[6][:-2])
+                    J = dat[6]
+                    if(self.A%2==0): J = str(int(dat[6][:-2])//2)
                     prty = int(dat[8])
                     prty = _i2prty(prty)
                     hws = None
@@ -327,8 +372,10 @@ class kshell_scripts:
                                     hw, prob = data[i+1].split(":")
                                     hws[int(hw)] = float(prob)
                                 break
-                    if(hws!=None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist, hws)
-                    if(hws==None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist)
+                    #if(hws!=None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist, hws)
+                    #if(hws==None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist)
+                    if(hws!=None): e_data[ (J,prty,n_eig) ] = (ene, log, tt, plist, nlist, hws)
+                    if(hws==None): e_data[ (J,prty,n_eig) ] = (ene, log, tt, plist, nlist)
             f.close()
         return e_data
 
@@ -389,7 +436,6 @@ class kshell_scripts:
             if(self.hw_truncation!=None and self.ph_truncation==None):
                 f.write('2\n')
                 f.write(str(self.hw_truncation)+'\n')
-                #f.write('\n')
             if(self.hw_truncation!=None and self.ph_truncation!=None):
                 f.write('3\n')
                 f.write(str(self.hw_truncation)+'\n')
@@ -408,7 +454,7 @@ class kshell_scripts:
         if(self.verbose): cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in'
         if(not self.verbose): cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in silent'
         subprocess.call(cmd, shell=True)
-        subprocess.call("rm ui.in",shell=True)
+        #subprocess.call("rm ui.in",shell=True)
         if(not self.verbose): subprocess.call("rm save_input_ui.txt",shell=True)
         f = open(fn_script+".sh", "r")
         lines = f.readlines()
@@ -778,20 +824,19 @@ class kshell_scripts:
         wf_idx_to_jpn = self.get_wf_idx_to_jpn()
         if(states!=None):
             wf_index = self.get_wf_index(self.summary_filename())
-            sts = [ (int(_str_J_to_Jfloat(_[0])*2),_[1],wf_index[_][-1]) for _ in states ]
+            sts = [ (_[0],_[1],wf_index[_][-1]) for _ in states ]
         espes = {}
-        for En, vals in e_data.items():
+        for key, vals in e_data.items():
             if(states!=None):
-                if(not (vals[1], vals[2], vals[3]) in sts): continue
+                if(not key in sts): continue
             occs = {}
-            for i in range(1,len(vals[5])+1):
+            for i in range(1,len(vals[3])+1):
                 oi = H.ms.orbits.get_orbit(i)
-                occs[oi.get_nljz()] = vals[5][i-1] / (oi.j+1)
-            for i in range(1,len(vals[6])+1):
-                oi = H.ms.orbits.get_orbit(i+len(vals[5]))
-                occs[oi.get_nljz()] = vals[6][i-1] / (oi.j+1)
-            Jstr = _Jfloat_to_str(vals[1]*0.5)
-            espes[wf_idx_to_jpn[vals[3]-1]] = H.espe(occs, bare=bare)
+                occs[oi.get_nljz()] = vals[3][i-1] / (oi.j+1)
+            for i in range(1,len(vals[4])+1):
+                oi = H.ms.orbits.get_orbit(i+len(vals[3]))
+                occs[oi.get_nljz()] = vals[4][i-1] / (oi.j+1)
+            espes[wf_idx_to_jpn[key[2]-1]] = H.espe(occs, bare=bare)
         return espes
 
 class transit_scripts:
