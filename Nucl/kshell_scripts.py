@@ -285,7 +285,7 @@ class kshell_scripts:
             if( state.find("-")!=-1): state_str = "j{:d}n".format(j_double)
         return state_str
 
-    def logs_to_dictionary(self, logs=None):
+    def logs_to_dictionary(self, logs=None, isospin=False):
         H = Operator()
         H.read_operator_file(self.fn_snt)
         if(logs==None):
@@ -296,6 +296,7 @@ class kshell_scripts:
                 log = "log_{:s}_{:s}_{:s}.txt".format(self.Nucl, os.path.splitext( os.path.basename(self.fn_snt))[0], state_str)
                 logs.append(log)
         e_data = {}
+        Njpi = {}
         for log in logs:
             f = open(log,"r")
             while True:
@@ -309,10 +310,14 @@ class kshell_scripts:
                     ene  = float(dat[2]) + H.get_0bme()
                     J = dat[6]
                     if(self.A%2==0): J = str(int(dat[6][:-2])//2)
+                    if(not J in Njpi): Njpi[J]=1
+                    else: Njpi[J]+=1
                     prty = int(dat[8])
                     prty = _i2prty(prty)
                     line = f.readline()
-                    e_data[(J,prty,n_eig)] = ene
+                    TT = float(line.split()[1])
+                    if(not isospin): e_data[(J,prty,Njpi[J])] = ene
+                    if(isospin): e_data[(J,prty,Njpi[J])] = (ene, -0.5 + 0.5*np.sqrt(1+4*TT))
             f.close()
         return e_data
 
@@ -454,7 +459,7 @@ class kshell_scripts:
         if(self.verbose): cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in'
         if(not self.verbose): cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in silent'
         subprocess.call(cmd, shell=True)
-        #subprocess.call("rm ui.in",shell=True)
+        subprocess.call("rm ui.in",shell=True)
         if(not self.verbose): subprocess.call("rm save_input_ui.txt",shell=True)
         f = open(fn_script+".sh", "r")
         lines = f.readlines()

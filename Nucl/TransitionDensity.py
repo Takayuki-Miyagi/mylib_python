@@ -547,14 +547,19 @@ class TransitionDensity:
         subprocess.call(cmd, shell=True)
         time.sleep(1)
 
-    def eval_expectation_value( self, op, J1=None, J2=None ):
-        return self.calc_expectation_value( op, J1, J2 )
-    def eval( self, op, J1=None, J2=None ):
-        return self.calc_expectation_value( op, J1, J2 )
-    def calc_expectation_value( self, op, J1=None, J2=None ):
+    def eval_expectation_value( self, op, J1=None, J2=None, pn=None ):
+        return self.calc_expectation_value( op, J1, J2, pn )
+    def eval( self, op, J1=None, J2=None, pn=None ):
+        return self.calc_expectation_value( op, J1, J2, pn )
+    def calc_expectation_value( self, op, J1=None, J2=None, pn=None ):
         orbits_de = self.ms.orbits
         orbits_op = op.ms.orbits
         norbs = orbits_op.get_num_orbits()
+        if(pn!=None):
+            if(pn=="pp"): tz=-1
+            if(pn=="nn"): tz=1
+            if(pn=="pn"): tz=0
+        else: tz=None
 
         zero = op.get_0bme()
         one = 0.0
@@ -563,6 +568,7 @@ class TransitionDensity:
             i_d = orbits_de.get_orbit_index(oi.n, oi.l, oi.j, oi.z)
             oj = orbits_op.get_orbit(j)
             j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
+            if( tz!=None and oi.z!=tz and oj.z!=tz ): continue
             if( J1!=None and oi.j!=J1 and oj.j!=J1 ): continue
             if( abs(oi.z-oj.z) != 2*op.rankZ): continue
             if((-1)**(oi.l+oj.l) * op.rankP != 1): continue
@@ -590,6 +596,7 @@ class TransitionDensity:
             l_d = orbits_de.get_orbit_index(ol.n, ol.l, ol.j, ol.z)
             if((-1)**(oi.l+oj.l+ok.l+ol.l) * op.rankP != 1): continue
             if( abs(oi.z+oj.z-ok.z-ol.z) != 2*op.rankZ): continue
+            if( tz!=None and (oi.z+oj.z)//2!=tz and (ok.z+ol.z)//2!=tz ): continue
 
             Jijlist = list(range( int(abs(oi.j-oj.j)/2), int((oi.j+oj.j)/2)+1))
             Jkllist = list(range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2)+1))
