@@ -109,7 +109,8 @@ def scalar(spfile, intfile, sntfile):
     spe = [float(i) for i in arr]
     massdep = False
     if(nline < 0):
-        nline = - nline
+        #nline = - nline
+        nline = 1000000000 # practically no limit
         if(abs(ncore + zcore - spe[nspe]) > 1.e-8): raise "not implemented"
         if(abs(int(spe[nspe+1]) - spe[nspe+1]) > 1.e-8): raise "not implemented"
         massdep  = int(spe[nspe+1]), -spe[nspe+2]
@@ -154,7 +155,6 @@ def scalar(spfile, intfile, sntfile):
                 add_v_tbme( (i, j+ns, k+ns, l), JT, v_tbme)
                 add_v_tbme( (i+ns, j, k, l+ns), JT, v_tbme)
                 add_v_tbme( (i+ns, j, k+ns, l), JT, v_tbme)
-
     tbij_tz = {}
     for i in range(1,nnorb+1):
         n1,l1,j1,t1 = i2nljtz[i]

@@ -310,14 +310,14 @@ class kshell_scripts:
                     ene  = float(dat[2]) + H.get_0bme()
                     J = dat[6]
                     if(self.A%2==0): J = str(int(dat[6][:-2])//2)
-                    if(not J in Njpi): Njpi[J]=1
-                    else: Njpi[J]+=1
                     prty = int(dat[8])
                     prty = _i2prty(prty)
+                    if(not (J,prty) in Njpi): Njpi[(J,prty)]=1
+                    else: Njpi[(J,prty)]+=1
                     line = f.readline()
                     TT = float(line.split()[1])
-                    if(not isospin): e_data[(J,prty,Njpi[J])] = ene
-                    if(isospin): e_data[(J,prty,Njpi[J])] = (ene, -0.5 + 0.5*np.sqrt(1+4*TT))
+                    if(not isospin): e_data[(J,prty,Njpi[(J,prty)])] = ene
+                    if(isospin): e_data[(J,prty,Njpi[(J,prty)])] = (ene, -0.5 + 0.5*np.sqrt(1+4*TT))
             f.close()
         return e_data
 
@@ -333,6 +333,7 @@ class kshell_scripts:
                 log = "log_{:s}_{:s}_{:s}.txt".format(self.Nucl, os.path.splitext( os.path.basename(self.fn_snt))[0], state_str)
                 logs.append(log)
         e_data = {}
+        Njpi = {}
         for log in logs:
             f = open(log,"r")
             while True:
@@ -349,6 +350,8 @@ class kshell_scripts:
                     if(self.A%2==0): J = str(int(dat[6][:-2])//2)
                     prty = int(dat[8])
                     prty = _i2prty(prty)
+                    if(not (J,prty) in Njpi): Njpi[(J,prty)]=1
+                    else: Njpi[(J,prty)]+=1
                     hws = None
                     while ene in e_data: ene += 0.000001
                     line = f.readline()
@@ -379,8 +382,8 @@ class kshell_scripts:
                                 break
                     #if(hws!=None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist, hws)
                     #if(hws==None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist)
-                    if(hws!=None): e_data[ (J,prty,n_eig) ] = (ene, log, tt, plist, nlist, hws)
-                    if(hws==None): e_data[ (J,prty,n_eig) ] = (ene, log, tt, plist, nlist)
+                    if(hws!=None): e_data[ (J,prty,Njpi[(J,prty)]) ] = (ene, log, tt, plist, nlist, hws)
+                    if(hws==None): e_data[ (J,prty,Njpi[(J,prty)]) ] = (ene, log, tt, plist, nlist)
             f.close()
         return e_data
 
@@ -480,9 +483,13 @@ class kshell_scripts:
 
         if(gen_partition): return
         if( dim_cnt ):
+            res = []
             for fn_ptn in self.fn_ptns.values():
                 cmd = 'python2 ' + self.kshl_dir+'/count_dim.py ' + self.fn_snt + ' ' + fn_ptn
-                subprocess.call(cmd, shell=True)
+                #subprocess.call(cmd, shell=True)
+                process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                res.append(process.communicate()[0])
+            return res
         else:
             fn_script += ".sh"
             os.chmod(fn_script, 0o755)
