@@ -124,6 +124,8 @@ class kshell_scripts:
                 "0.5+2,1.5-2,2.5+6" means two 1/2+ states, two 3/2- states, and 6 5/2+ states
         hw_truncation: int
         ph_truncation: "(oribit index)_(min occ)_(max occ)-(orbit index)_(min)_(max)-..."
+            note: it is also possible to do like "(orbit index1)_(orbit index2)_(orbit index3)_..._(min occ)_(max occ)".
+            Here, (min occ) and (max occ) are truncation of sum of the occupations of the orbits.
         run_args: additional arguments for kshell run
         """
         self.kshl_dir = kshl_dir
@@ -418,8 +420,8 @@ class kshell_scripts:
             f.write('1\n')
             for tr in self.ph_truncation.split("-"):
                 strs = tr.split("_")
-                f.write(strs[0]+'\n')
-                f.write(strs[1]+" "+strs[2]+'\n')
+                f.write(" ".join(strs[:-2])+'\n')
+                f.write(strs[-2]+" "+strs[-1]+'\n')
             f.write('\n')
         if(self.hw_truncation!=None and self.ph_truncation==None):
             f.write('2\n')
@@ -431,6 +433,8 @@ class kshell_scripts:
                 strs = tr.split("_")
                 f.write(strs[0]+'\n')
                 f.write(strs[1]+" "+strs[2]+'\n')
+                f.write(" ".join(strs[:-2])+'\n')
+                f.write(strs[-2]+" "+strs[-1]+'\n')
             f.write('\n')
         if(unnatural):
             if(self.hw_truncation==None and self.ph_truncation==None): f.write('\n')
@@ -438,8 +442,8 @@ class kshell_scripts:
                 f.write('1\n')
                 for tr in self.ph_truncation.split("-"):
                     strs = tr.split("_")
-                    f.write(strs[0]+'\n')
-                    f.write(strs[1]+" "+strs[2]+'\n')
+                    f.write(" ".join(strs[:-2])+'\n')
+                    f.write(strs[-2]+" "+strs[-1]+'\n')
                 f.write('\n')
             if(self.hw_truncation!=None and self.ph_truncation==None):
                 f.write('2\n')
@@ -449,8 +453,8 @@ class kshell_scripts:
                 f.write(str(self.hw_truncation)+'\n')
                 for tr in self.ph_truncation.split("-"):
                     strs = tr.split("_")
-                    f.write(strs[0]+'\n')
-                    f.write(strs[1]+" "+strs[2]+'\n')
+                    f.write(" ".join(strs[:-2])+'\n')
+                    f.write(strs[-2]+" "+strs[-1]+'\n')
                 f.write('\n')
         if(self.run_args!=None):
             for key in self.run_args.keys():
