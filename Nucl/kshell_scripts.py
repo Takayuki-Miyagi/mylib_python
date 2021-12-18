@@ -140,53 +140,50 @@ class kshell_scripts:
         if(run_args!=None): self.run_args=run_args
         self.edict_previous={}
         self.fn_snt = fn_snt
-        if(fn_snt != None and states != None):
-            self.fn_ptns = {}
-            self.fn_wfs = {}
-            for state in self.states.split(","):
-                state_str = self._state_string(state)
-                self.fn_ptns[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
-                self.fn_wfs[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
-                if(self.run_args != None):
-                    if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0):
-                        self.fn_ptns[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
-                        self.fn_wfs[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
-                if(hw_truncation!=None):
-                    self.fn_ptns[state] += "_hw{:d}".format(hw_truncation)
-                    self.fn_wfs[state] += "_hw{:d}".format(hw_truncation)
-                if(ph_truncation!=None):
-                    self.fn_ptns[state] += "_ph{:s}".format(ph_truncation)
-                    self.fn_wfs[state] += "_ph{:s}".format(ph_truncation)
-                self.fn_ptns[state] += "_{:s}.ptn".format(state_str[-1])
-                self.fn_wfs[state] += "_{:s}.wav".format(state_str)
-    def get_x_position(self): return self.plot_position
-    def set_snt_file(self, fn_snt, set_other_files=False):
-        self.fn_snt = fn_snt
-        if(set_other_files):
-            self.fn_ptns = {}
-            self.fn_wfs = {}
-            for state in self.states.split(","):
-                state_str = self._state_string(state)
-                self.fn_ptns[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
-                self.fn_wfs[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+        if(fn_snt != None and states != None): self.set_filenames()
 
-                if(self.run_args != None):
-                    if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0):
-                        self.fn_ptns[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
-                        self.fn_wfs[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
-                if(self.hw_truncation!=None):
-                    self.fn_ptns[state] += "_hw{:d}".format(hw_truncation)
-                    self.fn_wfs[state] += "_hw{:d}".format(hw_truncation)
-                if(self.ph_truncation!=None):
-                    self.fn_ptns[state] += "_ph{:s}".format(ph_truncation)
-                    self.fn_wfs[state] += "_ph{:s}".format(ph_truncation)
-                self.fn_ptns[state] += "_{:s}.ptn".format(state_str[-1])
-                self.fn_wfs[state] += "_{:s}.wav".format(state_str)
-    def set_nucl(self, nucl):
+    def get_x_position(self): return self.plot_position
+
+    def set_filenames(self):
+        if(self.Nucl == None): raise ValueError("Target nucleid is not defined!")
+        if(self.fn_snt == None): raise ValueError("snt file is not defined!")
+        if(self.states == None): raise ValueError("Target states are not defined!")
+        self.fn_ptns = {}
+        self.fn_wfs = {}
+        for state in self.states.split(","):
+            state_str = self._state_string(state)
+            self.fn_ptns[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+            self.fn_wfs[state] = "{:s}_{:s}".format(self.Nucl, os.path.splitext(os.path.basename(self.fn_snt))[0])
+            if(self.run_args != None):
+                if( 'beta_cm' in self.run_args and self.run_args['beta_cm'] != 0):
+                    self.fn_ptns[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
+                    self.fn_wfs[state] += "_betacm{:d}".format(self.run_args['beta_cm'])
+            if(self.hw_truncation!=None):
+                self.fn_ptns[state] += "_hw{:d}".format(self.hw_truncation)
+                self.fn_wfs[state] += "_hw{:d}".format(self.hw_truncation)
+            if(self.ph_truncation!=None):
+                self.fn_ptns[state] += "_ph{:s}".format(self.ph_truncation)
+                self.fn_wfs[state] += "_ph{:s}".format(self.ph_truncation)
+            self.fn_ptns[state] += "_{:s}.ptn".format(state_str[-1])
+            self.fn_wfs[state] += "_{:s}.wav".format(state_str)
+
+    def set_snt_file(self, fn_snt, set_other_files=True):
+        self.fn_snt = fn_snt
+        if(set_other_files): self.set_filenames()
+
+    def set_truncations(self, hw_truncation=None, ph_truncation=None, set_other_files=True):
+        self.hw_truncation = hw_truncation
+        self.ph_truncation = ph_truncation
+        if(set_other_files): self.set_filenames()
+
+    def set_nucl(self, nucl, set_other_files=True):
         self.Nucl = nucl
         self.Z, self.N, self.A = _ZNA_from_str(self.Nucl)
+        if(set_other_files): self.set_filenames()
+
     def set_run_args(self, run_args):
         self.run_args = run_args
+
     def get_wf_index( self, fn_summary, use_logs=False ):
         jpn_to_idx = {}
         logs = set()
@@ -215,6 +212,7 @@ class kshell_scripts:
                     logs.add( dat[-1] )
                 jpn_to_idx[(dat[1],dat[2],int(dat[3]))] = (dat[-1], idxs[ dat[-1] ])
         return jpn_to_idx
+
     def get_wf_idx_to_jpn(self):
         if(len(self.fn_wfs)>1):
             print("Warning, in get_wf_idx_to_jpn in kshell_scripts.py")
@@ -229,6 +227,7 @@ class kshell_scripts:
                     n += 1
                     wf_idx_to_jpn.append(key)
         return wf_idx_to_jpn
+
     def wfname_from_state(self, state):
         """
         return the wave function name of the specified state.
@@ -295,7 +294,8 @@ class kshell_scripts:
             states = self.states.split(",")
             for state in states:
                 state_str = self._state_string(state)
-                log = "log_{:s}_{:s}_{:s}.txt".format(self.Nucl, os.path.splitext( os.path.basename(self.fn_snt))[0], state_str)
+                #log = "log_{:s}_{:s}_{:s}.txt".format(self.Nucl, os.path.splitext( os.path.basename(self.fn_snt))[0], state_str)
+                log = "log_{:s}.txt".format(os.path.splitext( os.path.basename(self.fn_wfs[state]))[0])
                 logs.append(log)
         e_data = {}
         Njpi = {}
@@ -723,6 +723,7 @@ class kshell_scripts:
             except:
                 continue
         return edict
+
     def plot_levels(self, ax, edict=None, \
             absolute=False, show_Jpi=False, connect=True, \
             bar_width=0.3, lw=1, window_size=4, color_mode="parity", \
@@ -736,6 +737,7 @@ class kshell_scripts:
                 absolute=absolute, show_Jpi=show_Jpi, connect=connect, \
                 bar_width=bar_width, lw=lw, window_size=window_size, \
                 color_mode=color_mode, states=states)
+
     def set_Jpi_labels(self, ax, edict=None, absolute=False, lw=1, bar_width=0.3, window_size=4, color_mode="parity", states=None):
         if(edict==None): edict = self.summary_to_dictionary()
         if(edict=={}): return
@@ -814,6 +816,7 @@ class kshell_scripts:
                 bar_width=bar_width, window_size=window_size, color_mode=color_mode, \
                 states=states)
         self.edict_previous=edict
+
     def _get_color(self, key, color_mode):
         color_list_p = ['red','salmon','orange','darkgoldenrod','gold','olive', 'lime','forestgreen','turquoise','teal','skyblue']
         color_list_n = ['navy','blue','mediumpurple','blueviolet','mediumorchid','purple','magenta','pink','crimson']
@@ -830,6 +833,7 @@ class kshell_scripts:
             idx = int(Jdouble/2)
             if(P=="+"): return color_list_p[idx%len(color_list_p)]
             if(P=="-"): return color_list_n[idx%len(color_list_n)]
+
     def espe(self, states=None, bare=False):
         """
         state: list of tuple ex.) [('1/2', '+', 1), ('3/2', '+', 1), ...]
@@ -1113,6 +1117,7 @@ class transit_scripts:
                         espe[key] = espe_each[key]
                         sum_sf[key] = sum_sf_each[key]
         return espe, sum_sf
+
     def read_sf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None, type_output="DataFrame"):
         if(not os.path.exists(fn)):
             print("{:s} is not found!".format(fn))
@@ -1158,6 +1163,7 @@ class transit_scripts:
                     continue
         if(type_output=="DataFrame"): sfs.columns = ["n","l","j2","tz2","J2 bra", "wflabel bra","J2 ket","wflabel ket","CS^2","En bra","En ket"]
         return sfs
+
     def read_tsf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None):
         if(not os.path.exists(fn)):
             print("{:s} is not found!".format(fn))
@@ -1205,6 +1211,7 @@ class transit_scripts:
                     continue
         if(type_output=="DataFrame"): sfs.columns = ["p","q","Jpq", "J2 bra", "wflabel bra","J2 ket","wflabel ket","TNA","En bra","En ket"]
         return sfs
+
     def check_norm_tsf(self, fn, mode, target_spin, N_states=None, sfs=None):
         if(sfs==None): sfs = self.read_tsf_file(fn, mode, N_states)
         if(sfs==None): return
@@ -1769,131 +1776,3 @@ class kshell_toolkit:
             print("Not implemented: ")
             return
 
-
-    #def calc_2v_decay(kshl_dir=None,
-    #        fn_snt=None, fn_op=None, Nucl=None, initial_state=None, final_state=None, Nstates_inter=300, hw_truncation=None,
-    #        run_args=None, op_type=-10, op_rankJ=1, op_rankP=1, op_rankZ=1, verbose=False, step="kshell",
-    #        direction="nn->pp", mode="direct", batch_cmd=None, run_cmd=None, Q=0.0, header="", list_prty_gs_inter=[-1,1],
-    #        calc_only_inter=False):
-
-    #    """
-    #    This would have redundant steps, but easy to run. Do not use for a big run.
-    #    inputs:
-    #        kshel_dir: path to kshell exe files
-    #        fn_snt: file name of snt
-    #        fn_op : file name of operator
-    #        Nucl: parent nuclide
-    #        initial_state: spin and parity of parent nucleus: str like "0+1"
-    #        final_state: spin and parity of daughter nucleus: str like "0+1"
-    #    """
-    #    if(_none_check(kshl_dir, 'kshl_dir')): return
-    #    if(_none_check(fn_snt, 'fn_snt')): return
-    #    if(_none_check(fn_op, 'fn_op')): return
-    #    if(_none_check(Nucl, 'Nucl')): return
-    #    if(_none_check(initial_state, 'initial_state')): return
-    #    if(_none_check(final_state, 'final_state')): return
-    #    gs_candidate_inter = ""
-    #    for prty in list_prty_gs_inter:
-    #        if(prty==-1): gs_candidate_inter += "-1,"
-    #        if(prty== 1): gs_candidate_inter += "+1,"
-    #    gs_candidate_inter = gs_candidate_inter[:-1]
-    #    op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ)
-    #    Z_par, N_par, A = _ZNA_from_str(Nucl)
-    #    if(direction=="nn->pp"):
-    #        Z_dau = Z_par + 2
-    #        N_dau = N_par - 2
-    #        Z_int = Z_par + 1
-    #        N_int = N_par - 1
-    #    elif(direction=="pp->nn"):
-    #        Z_dau = Z_par - 2
-    #        N_dau = N_par + 2
-    #        Z_int = Z_par - 1
-    #        N_int = N_par + 1
-    #    Nucl_daughter = "{:s}{:d}".format(PeriodicTable.periodic_table[Z_dau], A)
-    #    Nucl_inter = "{:s}{:d}".format(PeriodicTable.periodic_table[Z_int], A)
-    #    bra = final_state
-    #    ket = initial_state
-    #    Jbra, pbra, i_bra = _str_to_state_Jfloat(bra)
-    #    Jket, pket, i_ket = _str_to_state_Jfloat(ket)
-    #    if( abs(Jbra-Jket) > 2*op_rankJ ):
-    #        print("Error: J={:d} and J={:d} cannot be connected by J=2*{:d} operator".format(Jbra,Jket,op_Jrank))
-    #        return None
-
-    #    states_list = ""
-    #    if(op_rankP== 1): op_prty="+"
-    #    if(op_rankP==-1): op_prty="-"
-    #    for J in range(int(abs(Jbra-op_rankJ)), int(Jbra+op_rankJ+1)):
-    #        if(not abs(Jket-op_rankJ) <= J <= Jket+op_rankJ): continue
-    #        states_list += "{:d}{:s}{:d},".format(J,op_prty,Nstates_inter)
-    #    states_list = states_list[:-1]
-    #    if(step=="kshell"):
-    #        kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
-    #        kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
-    #        kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=gs_candidate_inter, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
-    #        if(not calc_only_inter):
-    #            kshl_l.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
-    #            kshl_r.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
-    #            fn_tmp = "GS_{:s}_{:s}".format(Nucl_inter, os.path.splitext(os.path.basename(fn_snt))[0])
-    #            kshl_inter.run_kshell(batch_cmd=batch_cmd, run_cmd=run_cmd, fn_script=fn_tmp)
-
-    #        kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args, verbose=verbose)
-    #        if(mode=="direct"): kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd, header=header)
-    #        if(mode=="lsf"):
-    #            kshl_inter.run_kshell(batch_cmd=batch_cmd,run_cmd=run_cmd,gen_partition=True,header=header)
-    #            for state in states_list.split(","):
-    #                Jinter, prty, n_inter = _str_to_state_Jfloat(state)
-    #                kshl_inter.run_kshell_lsf( kshl_r.fn_ptns[ket], kshl_inter.fn_ptns[state], \
-    #                        kshl_r.fn_wfs[ket], kshl_inter.fn_wfs[state], int(2*Jinter), fn_operator=fn_op, \
-    #                        n_vec=Nstates_inter, operator_irank=op_rankJ, operator_iprty=op_rankP, operator_nbody=op_type, \
-    #                        batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
-    #                #kshl_inter.run_kshell_lsf( kshl_r.fn_ptns[ket], kshl_inter.fn_ptns[state], \
-    #                #        kshl_r.fn_wfs[ket], kshl_inter.fn_wfs[state], int(2*Jinter), op="GT", \
-    #                #        n_vec=Nstates_inter, operator_irank=op_rankJ, operator_iprty=op_rankP,\
-    #                #        batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
-
-    #    elif(step=="density"):
-    #        kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
-    #        kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
-    #        kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
-    #        trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
-    #        for state in states_list.split(","):
-    #            fn_den_l, flip_l = trs.calc_density(kshl_l, kshl_inter, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
-    #            fn_den_r, flip_r = trs.calc_density(kshl_inter, kshl_r, batch_cmd=batch_cmd, run_cmd=run_cmd, header=header)
-
-    #    elif(step=="eval"):
-    #        kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_daughter, states=bra, hw_truncation=hw_truncation, run_args=run_args)
-    #        kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket, hw_truncation=hw_truncation, run_args=run_args)
-    #        kshl_inter = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl_inter, states=states_list, hw_truncation=hw_truncation, run_args=run_args)
-    #        trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
-    #        edict_inter = kshl_inter.summary_to_dictionary()
-    #        levels = sorted(edict_inter.items(), key=lambda x:x[1])
-    #        egs_inter = levels[0][1]
-    #        prt = ""
-    #        reduced_me = 0.0
-    #        for state in states_list.split(","):
-    #            l = (bra,state)
-    #            flip_l = trs.set_filenames(kshl_l, kshl_inter, states_list=[l,])
-    #            fn_den_l = trs.filenames[l]
-    #            r = (state,ket)
-    #            flip_r = trs.set_filenames(kshl_inter, kshl_r, states_list=[r,])
-    #            fn_den_r = trs.filenames[r]
-    #            Jinter, prty, n_inter = _str_to_state_Jfloat(state)
-    #            if(A%2==0): Jinter_str = str(int(Jinter))
-    #            if(A%2==1): Jinter_str = "{:d}/2".format(int(2*Jinter))
-    #            reduced_me_J = 0.0
-    #            for i_inter in range(1, n_inter+1):
-    #                if(flip_l): Density_L = TransitionDensity(filename=fn_den_l, Jbra=Jinter, wflabel_bra=i_inter, Jket=Jbra, wflabel_ket=i_bra)
-    #                if(flip_r): Density_R = TransitionDensity(filename=fn_den_r, Jbra=Jket, wflabel_bra=i_ket, Jket=Jinter, wflabel_ket=i_inter)
-    #                if(not flip_l): Density_L = TransitionDensity(filename=fn_den_l, Jbra=Jbra, wflabel_bra=i_bra, Jket=Jinter, wflabel_ket=i_inter)
-    #                if(not flip_r): Density_R = TransitionDensity(filename=fn_den_r, Jbra=Jinter, wflabel_bra=i_inter, Jket=Jket, wflabel_ket=i_ket)
-    #                me_l = sum(Density_L.eval(op))
-    #                me_r = sum(Density_R.eval(op))
-    #                me = me_l * me_r
-    #                en_inter = edict_inter[(Jinter_str,prty,i_inter)]
-    #                reduced_me_J += me / ( en_inter-egs_inter + Q)
-    #                prt += "{:6.1f} {:s} {:6d} {:14.8f} {:14.8f} {:14.8f} {:14.8f}\n".format(Jinter, prty, i_inter, me_l, me_r, en_inter-egs_inter+Q, reduced_me_J)
-    #            """
-    #            TODO: following summation is not correct
-    #            """
-    #            reduced_me += reduced_me_J
-    #        return prt
