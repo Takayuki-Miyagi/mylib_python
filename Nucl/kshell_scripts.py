@@ -167,6 +167,16 @@ class kshell_scripts:
             self.fn_ptns[state] += "_{:s}.ptn".format(state_str[-1])
             self.fn_wfs[state] += "_{:s}.wav".format(state_str)
 
+    def set_options(self, set_filenames=True, **kwargs):
+        if('fn_snt' in kwargs): self.fn_snt = kwargs['fn_snt']
+        if('Nucl' in kwargs):
+            self.Nucl = kwargs['Nucl']
+            self.Z, self.N, self.A = _ZNA_from_str(self.Nucl)
+        if('run_args' in kwargs): self.run_args = kwargs['run_args']
+        if('hw_truncation' in kwargs): self.hw_truncation = kwargs['hw_truncation']
+        if('ph_truncation' in kwargs): self.ph_truncation = kwargs['ph_truncation']
+        if(set_filenames): self.set_filenames()
+
     def set_snt_file(self, fn_snt, set_other_files=True):
         self.fn_snt = fn_snt
         if(set_other_files): self.set_filenames()
@@ -294,12 +304,14 @@ class kshell_scripts:
             states = self.states.split(",")
             for state in states:
                 state_str = self._state_string(state)
-                #log = "log_{:s}_{:s}_{:s}.txt".format(self.Nucl, os.path.splitext( os.path.basename(self.fn_snt))[0], state_str)
                 log = "log_{:s}.txt".format(os.path.splitext( os.path.basename(self.fn_wfs[state]))[0])
                 logs.append(log)
         e_data = {}
         Njpi = {}
         for log in logs:
+            if(not os.path.exists(log)):
+                print(f"{log} is not found")
+                continue
             f = open(log,"r")
             while True:
                 line = f.readline()
@@ -337,6 +349,9 @@ class kshell_scripts:
         e_data = {}
         Njpi = {}
         for log in logs:
+            if(not os.path.exists(log)):
+                print(f"{log} is not found")
+                continue
             f = open(log,"r")
             while True:
                 line = f.readline()
