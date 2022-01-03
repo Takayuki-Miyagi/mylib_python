@@ -3,7 +3,6 @@ import sys, os, subprocess, itertools, math
 import numpy as np
 import copy
 import gzip
-from sympy import N
 from sympy.physics.wigner import wigner_6j, wigner_9j
 import pandas as pd
 if(__package__==None or __package__==""):
@@ -17,7 +16,7 @@ else:
 
 def _ls_coupling(la, ja, lb, jb, Lab, Sab, J):
     return np.sqrt( (2*ja+1)*(2*jb+1)*(2*Lab+1)*(2*Sab+1) ) * \
-            N( wigner_9j( la, 0.5, ja, lb, 0.5, jb, Lab, Sab, J) )
+            np.float( wigner_9j( la, 0.5, ja, lb, 0.5, jb, Lab, Sab, J) )
 
 def _ljidx_to_lj(lj):
     return math.floor((lj+1)/2), math.floor(2*(int(lj/2) + 1/2))
@@ -41,6 +40,8 @@ class Operator:
         self.p_core = p_core
         self.n_core = n_core
         self.kshell_options = []
+        self.ls_couple_store = {}
+        self.sixj_store = {}
         if( self.rankJ == 0 and self.rankP==1 and self.rankZ==0): self.reduced = False
         if( ms != None ): self.allocate_operator( ms )
         if( filename != None ): self.read_operator_file( filename, comment=comment )
@@ -418,7 +419,6 @@ class Operator:
             sumV += self.get_2bme_from_indices(a,b,c,d,J,J) * (2*J+1)
             sumJ += (2*J+1)
         return sumV / sumJ * norm
-        #return sumV / ((oa.j+1)*(ob.j+1)) * norm
 
 
     def get_3bme_from_mat_indices( self, chbra, chket, bra, ket ):
@@ -480,7 +480,6 @@ class Operator:
             if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
                 print("The number of non-zero operator matrix elements is 0 better to check: "+ filename + "!!")
             return
-        #if(filename.find(".op.me2j") != -1):
         if(filename.find(".me2j") != -1):
             self._read_general_operator(filename, comment)
             if( self.count_nonzero_1bme() + self.count_nonzero_2bme() == 0):
@@ -596,7 +595,6 @@ class Operator:
                     line.find("Zero-Body") != -1):
                 data = line.split()
                 zerobody = float(data[3])
-            #b = line.startswith(comment)
             b = line.startswith(comment) or line.startswith("#")
         data = line.split()
         norbs = int(data[0]) + int(data[1])
@@ -607,7 +605,6 @@ class Operator:
         while b == True:
             x = f.tell()
             line = f.readline()
-            #b = line.startswith(comment)
             b = line.startswith(comment) or line.startswith("#")
         f.seek(x)
 
@@ -625,7 +622,6 @@ class Operator:
         b = True
         while b == True:
             line = f.readline()
-            #b = line.startswith(comment)
             b = line.startswith(comment) or line.startswith("#")
         data = line.split()
         n = int(data[0])
@@ -643,7 +639,6 @@ class Operator:
         while b == True:
             x = f.tell()
             line = f.readline()
-            #b = line.startswith(comment)
             b = line.startswith(comment) or line.startswith("#")
         f.seek(x)
 
@@ -656,7 +651,6 @@ class Operator:
         b = True
         while b == True:
             line = f.readline()
-            #b = line.startswith(comment)
             b = line.startswith(comment) or line.startswith("#")
         data = line.split()
         n = int(data[0])
@@ -676,7 +670,6 @@ class Operator:
         while b == True:
             x = f.tell()
             line = f.readline()
-            #b = line.startswith(comment)
             b = line.startswith(comment) or line.startswith("#")
         f.seek(x)
 
@@ -708,14 +701,12 @@ class Operator:
             p_n = int(entry[3])
             p_l = int(entry[4])
             p_j = int(entry[5])
-            #if(2*p_n + p_l != 2): continue
             orbs.add_orbit(p_n, p_l, p_j, -1)
         for line in lines[1:]:
             entry = line.split()
             n_n = int(entry[0])
             n_l = int(entry[1])
             n_j = int(entry[2])
-            #if(2*n_n + n_l != 2): continue
             orbs.add_orbit(n_n, n_l, n_j, 1)
         ms = ModelSpace(rank=1)
         ms.set_modelspace_from_orbits( orbs )
@@ -730,8 +721,6 @@ class Operator:
             p_n = int(entry[3])
             p_l = int(entry[4])
             p_j = int(entry[5])
-            #if(2*p_n + p_l != 2): continue
-            #if(2*n_n + n_l != 2): continue
             mes = [ float(entry[i+6]) for i in range(len(entry)-6) ]
             i = orbs.get_orbit_index(n_n,n_l,n_j, 1)
             j = orbs.get_orbit_index(p_n,p_l,p_j,-1)
@@ -783,7 +772,6 @@ class Operator:
         f.close()
         if(self.ms==None): raise ValueError("Define model-space first!")
         orbits = self.ms.orbits
-        #for line in lines[1:]:
         for line in lines:
             line_data = line.split(",")
             indx = [int(x) for x in line_data[:-1]]
@@ -797,13 +785,6 @@ class Operator:
             j = orbits.get_orbit_index(n2, l2, j2, -1)
             k = orbits.get_orbit_index(n3, l3, j3,  1)
             l = orbits.get_orbit_index(n4, l4, j4,  1)
-            #if(i==j): ME /= np.sqrt(2)
-            #if(k==l): ME /= np.sqrt(2)
-            #if(i==1 and j==3 and k==2 and l==4): # This seems something wrong
-            #    print(indx,ME,lines.index(line))
-            #    print(i,j,k,l,J,ME)
-            #print(indx,ME)
-            #if(indx[-1]==1): sys.exit()
             self.set_2bme_from_indices(i,j,k,l,J,J,ME)
         return
 
@@ -1320,18 +1301,18 @@ class Operator:
         ms = self.ms.two
         orbits = ms.orbits
 
-        ls_couple_store = {}
-        for oa, ob in itertools.product(orbits.orbits, repeat=2):
-            for Lab, Sab in itertools.product(range( abs(oa.l-ob.l), oa.l+ob.l+1 ),[0,1]):
-                for J in range(abs(Lab-Sab), (Lab+Sab+1)):
-                    ls_couple_store[(oa,ob,Lab,Sab,J)] = _ls_coupling(oa.l, oa.j*0.5, ob.l, ob.j*0.5, Lab, Sab, J)
-        sixj_store = {}
-        lmax=-9999
-        for oa in orbits.orbits:
-            lmax = max(lmax, oa.l)
-        for Lab, Lcd, Sab, Scd in itertools.product(range(2*lmax+1),range(2*lmax+1),[0,1],[0,1]):
-            for J, JJ in itertools.product(range(max(abs(Lab-Sab), abs(Lcd-Scd)), min(Lab+Sab,Lcd+Scd)+1), range(max(abs(Lab-Lcd),abs(Sab-Scd)), min(Lab+Lcd,Sab+Scd)+1)):
-                sixj_store[(Lab,Sab,J,Scd,Lcd,JJ)] = N(wigner_6j(Lab,Sab,J,Scd,Lcd,JJ))
+        if(len(self.ls_couple_store)==0):
+            for oa, ob in itertools.product(orbits.orbits, repeat=2):
+                for Lab, Sab in itertools.product(range( abs(oa.l-ob.l), oa.l+ob.l+1 ),[0,1]):
+                    for J in range(abs(Lab-Sab), (Lab+Sab+1)):
+                        self.ls_couple_store[(oa,ob,Lab,Sab,J)] = _ls_coupling(oa.l, oa.j*0.5, ob.l, ob.j*0.5, Lab, Sab, J)
+        if(len(self.sixj_store)==0):
+            lmax=-9999
+            for oa in orbits.orbits:
+                lmax = max(lmax, oa.l)
+            for Lab, Lcd, Sab, Scd in itertools.product(range(2*lmax+1),range(2*lmax+1),[0,1],[0,1]):
+                for J, JJ in itertools.product(range(max(abs(Lab-Sab), abs(Lcd-Scd)), min(Lab+Sab,Lcd+Scd)+1), range(max(abs(Lab-Lcd),abs(Sab-Scd)), min(Lab+Lcd,Sab+Scd)+1)):
+                    self.sixj_store[(Lab,Sab,J,Scd,Lcd,JJ)] = np.float(wigner_6j(Lab,Sab,J,Scd,Lcd,JJ))
 
         for ch_key in self.two.keys():
             ichbra = ch_key[0]
@@ -1357,17 +1338,13 @@ class Operator:
                         if(self._triag( Lcd, Scd, J )): continue
                         if(self._triag( Lab, Lcd, rank )): continue
                         if(self._triag( Sab, Scd, rank )): continue
-                        #Cab = _ls_coupling(oa.l, oa.j*0.5, ob.l, ob.j*0.5, Lab, Sab, J)
-                        #Ccd = _ls_coupling(oc.l, oc.j*0.5, od.l, od.j*0.5, Lcd, Scd, J)
-                        #SixJ = N(wigner_6j(Lab,Sab,J,Scd,Lcd,rank))
-                        Cab = ls_couple_store[(oa,ob,Lab,Sab,J)]
-                        Ccd = ls_couple_store[(oc,od,Lcd,Scd,J)]
-                        SixJ = sixj_store[(Lab,Sab,J,Scd,Lcd,rank)]
+                        Cab = self.ls_couple_store[(oa,ob,Lab,Sab,J)]
+                        Ccd = self.ls_couple_store[(oc,od,Lcd,Scd,J)]
+                        SixJ = self.sixj_store[(Lab,Sab,J,Scd,Lcd,rank)]
                         if(abs(Cab*Ccd*SixJ) < 1.e-16): continue
                         sum2 = 0.0
                         for JJ in range( max(abs(Lab-Sab),abs(Lcd-Scd)), min(Lab+Sab, Lcd+Scd)+1):
-                            #SixJJ = N(wigner_6j(Lab,Sab,JJ,Scd,Lcd,rank))
-                            SixJJ = sixj_store[(Lab,Sab,JJ,Scd,Lcd,rank)]
+                            SixJJ = self.sixj_store[(Lab,Sab,JJ,Scd,Lcd,rank)]
                             if(abs(SixJJ) < 1.e-16): continue
                             sum1 = 0.0
                             for jaa, jbb, jcc, jdd in itertools.product( [abs(2*oa.l-1), 2*oa.l+1], [abs(2*ob.l-1), 2*ob.l+1], [abs(2*oc.l-1), 2*oc.l+1], [abs(2*od.l-1), 2*od.l+1] ):
@@ -1378,10 +1355,8 @@ class Operator:
                                     dd = orbits.get_orbit_index(od.n, od.l, jdd, od.z)
                                 except:
                                     continue
-                                #CCab = _ls_coupling(oa.l, jaa*0.5, ob.l, jbb*0.5, Lab, Sab, JJ)
-                                #CCcd = _ls_coupling(oc.l, jcc*0.5, od.l, jdd*0.5, Lcd, Scd, JJ)
-                                CCab = ls_couple_store[(oa,ob,Lab,Sab,JJ)]
-                                CCcd = ls_couple_store[(oc,od,Lcd,Scd,JJ)]
+                                CCab = self.ls_couple_store[(oa,ob,Lab,Sab,JJ)]
+                                CCcd = self.ls_couple_store[(oc,od,Lcd,Scd,JJ)]
                                 sum1 += self.get_2bme_from_indices(aa,bb,cc,dd,JJ,JJ) * CCab * CCcd
                             sum2 += sum1 * SixJJ * (2*JJ+1)*(-1)**JJ
                         sum3 += sum2 * SixJ * Cab * Ccd
@@ -1498,6 +1473,61 @@ class Operator:
                     if(r==s): me /= np.sqrt(2)
                     if(abs(me) > 1.e-8): self.set_2bme_from_indices(p, q, r, s, J, J, me)
         self.reduced=True
+
+    def surface_delta_interaction(self, R0, hw, g0, g1=0, g2=0, g3=0):
+        """
+        surface-delta interaction, V * delta( r1 - r2 ) * delta( |r1| - R0 )
+        V0 = g0 + g1 (sigma1 . sigma2) + g2 (tau1 . tau2) + g3 (sigma1 . sigma2) (tau1 . tau2)
+        g0, g1, g2, g3 are in unit of MeV fm4
+        hw is the frequency for the HO basis function
+        """
+        if(__package__==None or __package__==""):
+            from BasicFunctions import HO_radial, Ysigma
+        else:
+            from .BasicFunctions import HO_radial, Ysigma
+        from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j
+        from sympy import N
+        def me_sdi(oa, ob, oc, od, J, verbose=False):
+            radial_part = R0**4 * HO_radial(R0, oa.n, oa.l, hw) * HO_radial(R0, ob.n, ob.l, hw) * \
+                    HO_radial(R0, oc.n, oc.l, hw) * HO_radial(R0, od.n, od.l, hw)
+            t1t2_1, t1t2_d = 0, 0
+            if(abs(oa.z + ob.z)==2):
+                t1t2_1 = 1
+                t1t2_d = 1
+            elif(oa.z+ob.z==0 and oa.z==oc.z):
+                t1t2_1 = 1
+                t1t2_d = -1
+            elif(oa.z+ob.z==0 and oa.z!=oc.z):
+                t1t2_1 = 0
+                t1t2_d = 2
+            if(verbose): print(t1t2_1, t1t2_d)
+            term_1, term_s = 0, 0
+            for l in range(max(abs(oa.l-oc.l), abs(ob.l-od.l)), min(oa.l+oc.l, ob.l+od.l)+1):
+                ang = (-1)**((ob.j+oc.j)/2+J) * N(wigner_6j(oa.j*0.5, ob.j*0.5, J, od.j*0.5, oc.j*0.5, l, prec=8))
+                print(oa.j, ob.j, oc.j, od.j, J, l)
+                if(verbose): print('l, ang', l, ang)
+                if(abs(ang)<1.e-8): continue
+                term_1 += ang * Ysigma(oa.l, oa.j*0.5, oc.l, oc.j*0.5, l, 0, l) * Ysigma(ob.l, ob.j*0.5, od.l, od.j*0.5, l, 0, l)
+                for k in range(abs(l-1), l+2):
+                    term_s += ang * Ysigma(oa.l, oa.j*0.5, oc.l, oc.j*0.5, l, 1, k) * Ysigma(ob.l, ob.j*0.5, od.l, od.j*0.5, l, 1, k)
+            return g0 * term_1 * t1t2_1 + g1 * term_s * t1t2_1 + g2 * term_1 * t1t2_d + g3 * term_s * t1t2_d
+        tbs = self.ms.two
+        fac_norm = 1/np.sqrt(2.0)
+        me = 0
+        for tbc in tbs.channels:
+            J = tbc.J
+            for ibra in range(tbc.get_number_states()):
+                for iket in range(ibra+1):
+                    a, b = tbc.get_indices(ibra)
+                    c, d = tbc.get_indices(iket)
+                    oa, ob = tbc.get_orbits(ibra)
+                    oc, od = tbc.get_orbits(iket)
+                    norm = 1
+                    if(a==b): norm *= fac_norm
+                    if(c==d): norm *= fac_norm
+                    me = me_sdi(oa, ob, oc, od, J)
+                    me-= me_sdi(oa, ob, od, oc, J) * (-1)**((oc.j+od.j)/2 + J)
+                    self.set_2bme_from_indices(a, b, c, d, J, J, me*norm)
 
 def main():
     ms = ModelSpace.ModelSpace()

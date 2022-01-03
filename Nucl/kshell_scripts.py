@@ -194,7 +194,7 @@ class kshell_scripts:
     def set_run_args(self, run_args):
         self.run_args = run_args
 
-    def get_wf_index( self, fn_summary, use_logs=False ):
+    def get_wf_index( self, fn_summary="", use_logs=False ):
         jpn_to_idx = {}
         logs = set()
         idxs = {}
@@ -208,7 +208,7 @@ class kshell_scripts:
                     idxs[ fn_log ] = 1
                     logs.add( fn_log )
                 jpn_to_idx[key] = (fn_log, idxs[ fn_log ])
-        else:
+        elif(fn_summary!=""):
             f = open( fn_summary, "r" )
             lines = f.readlines()
             f.close()
@@ -221,30 +221,31 @@ class kshell_scripts:
                     idxs[ dat[-1] ] = 1
                     logs.add( dat[-1] )
                 jpn_to_idx[(dat[1],dat[2],int(dat[3]))] = (dat[-1], idxs[ dat[-1] ])
+        else:
+            raise ValueError()
         return jpn_to_idx
 
-    def get_wf_idx_to_jpn(self):
-        if(len(self.fn_wfs)>1):
-            print("Warning, in get_wf_idx_to_jpn in kshell_scripts.py")
-        n=0
-        wf_idx_to_jpn = []
-        for state in self.fn_wfs.keys():
-            fn_wav = self.fn_wfs[state]
-            fn_log = "log_"+fn_wav.split(".wav")[0]+".txt"
-            jpn_to_idx = self.get_wf_index(self.summary_filename())
-            for key in jpn_to_idx.keys():
-                if(jpn_to_idx[key][0]==fn_log):
-                    n += 1
-                    wf_idx_to_jpn.append(key)
-        return wf_idx_to_jpn
+    #def get_wf_idx_to_jpn(self):
+    #    if(len(self.fn_wfs)>1):
+    #        print("Warning, in get_wf_idx_to_jpn in kshell_scripts.py")
+    #    n=0
+    #    wf_idx_to_jpn = []
+    #    for state in self.fn_wfs.keys():
+    #        fn_wav = self.fn_wfs[state]
+    #        fn_log = "log_"+fn_wav.split(".wav")[0]+".txt"
+    #        jpn_to_idx = self.get_wf_index(self.summary_filename())
+    #        for key in jpn_to_idx.keys():
+    #            if(jpn_to_idx[key][0]==fn_log):
+    #                n += 1
+    #                wf_idx_to_jpn.append(key)
+    #    return wf_idx_to_jpn
 
     def wfname_from_state(self, state):
         """
         return the wave function name of the specified state.
         state: ex: ('0','+',1), ('1/2','+',1), so J is string not doubled
         """
-        #wf_labels = self.get_wf_index(self.summary_filename())
-        wf_labels = self.get_wf_index(self.summary_filename(), use_logs=True)
+        wf_labels = self.get_wf_index(use_logs=True)
         fn_log = wf_labels[state][0]
         fn_wav = fn_log.split("log_")[1].split(".txt")[0]+".wav"
         return fn_wav
@@ -397,8 +398,6 @@ class kshell_scripts:
                                     hw, prob = data[i+1].split(":")
                                     hws[int(hw)] = float(prob)
                                 break
-                    #if(hws!=None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist, hws)
-                    #if(hws==None): e_data[ round(ene,3) ] = (log, mtot, prty, n_eig, tt, plist, nlist)
                     if(hws!=None): e_data[ (J,prty,Njpi[(J,prty)]) ] = (ene, log, tt, plist, nlist, hws)
                     if(hws==None): e_data[ (J,prty,Njpi[(J,prty)]) ] = (ene, log, tt, plist, nlist)
             f.close()
@@ -867,7 +866,6 @@ class kshell_scripts:
         e_data = self.get_occupation()
         H = Operator()
         H.read_operator_file(self.fn_snt)
-        wf_idx_to_jpn = self.get_wf_idx_to_jpn()
         if(states!=None):
             wf_index = self.get_wf_index(self.summary_filename())
             sts = [ (_[0],_[1],wf_index[_][-1]) for _ in states ]
@@ -882,7 +880,7 @@ class kshell_scripts:
             for i in range(1,len(vals[4])+1):
                 oi = H.ms.orbits.get_orbit(i+len(vals[3]))
                 occs[oi.get_nljz()] = vals[4][i-1] / (oi.j+1)
-            espes[wf_idx_to_jpn[key[2]-1]] = H.espe(occs, bare=bare)
+            espes[key] = H.espe(occs, bare=bare)
         return espes
 
     def espe_lowest_filling(self):
@@ -1456,25 +1454,27 @@ class kshell_toolkit:
                     flip = trs.set_filenames(kshl, kshl, states_list=[lr,])
                     fn_density = trs.filenames[lr]
                     n = kshl._number_of_states(ket)
-                    wf_idx_to_jpn = kshl.get_wf_idx_to_jpn()
-                    for i_bra in range(1,min(n,len(wf_idx_to_jpn))+1):
-                        for i_ket in range(1,min(n,len(wf_idx_to_jpn))+1):
-                            Jbra, Pbra, nn_bra = wf_idx_to_jpn[i_bra-1]
-                            Jket, Pket, nn_ket = wf_idx_to_jpn[i_ket-1]
-                            Jfbra = _str_J_to_Jfloat(Jbra)
-                            Jfket = _str_J_to_Jfloat(Jket)
-                            if( not int(abs(Jfbra-Jfket)) <= op_rankJ <= int(Jfbra+Jfket) ): continue
-                            en_bra = kshl.energy_from_summary((Jbra,Pbra,nn_bra))
-                            en_ket = kshl.energy_from_summary((Jket,Pket,nn_ket))
-                            if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=i_ket, Jket=Jfbra, wflabel_ket=i_bra)
-                            if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=i_bra, Jket=Jfket, wflabel_ket=i_ket, verbose=verbose)
-                            if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*Density.eval(op)))
-                            if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = Density.eval(op)
-                            if(type_output=="DataFrame"):
-                                _ = Density.eval(op)
-                                if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl,Jbra,Pbra,nn_bra,en_bra,*_]
-                                if(not flip): _ = [Nucl,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
-                                exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
+                    wf_index = kshl.get_wf_index(use_logs=True)
+                    for state_bra, state_ket in itertools.product(list(wf_index.keys()), repeat=2):
+                        Jbra, Pbra, nn_bra = state_bra
+                        Jket, Pket, nn_ket = state_ket
+                        Jfbra = _str_J_to_Jfloat(Jbra)
+                        Jfket = _str_J_to_Jfloat(Jket)
+                        if( _prty2i(Pbra) * _prty2i(Pket) * op_rankP == -1): continue
+                        if( not int(abs(Jfbra-Jfket)) <= op_rankJ <= int(Jfbra+Jfket) ): continue
+                        en_bra = kshl.energy_from_summary((Jbra,Pbra,nn_bra))
+                        en_ket = kshl.energy_from_summary((Jket,Pket,nn_ket))
+                        if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=wf_index[state_ket][-1], \
+                                Jket=Jfbra, wflabel_ket=wf_index[state_bra][-1])
+                        if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=wf_index[state_bra][-1], \
+                                Jket=Jfket, wflabel_ket=wf_index[state_ket][-1], verbose=verbose)
+                        if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*Density.eval(op)))
+                        if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = Density.eval(op)
+                        if(type_output=="DataFrame"):
+                            _ = Density.eval(op)
+                            if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl,Jbra,Pbra,nn_bra,en_bra,*_]
+                            if(not flip): _ = [Nucl,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
+                            exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
 
             else:
                 kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt_daughter, Nucl=Nucl_daughter, states=bra,
@@ -1496,26 +1496,28 @@ class kshell_toolkit:
                     else:     fn_density = trs.filenames[lr]
                     n_bra = kshl_l._number_of_states(bra)
                     n_ket = kshl_r._number_of_states(ket)
-                    wf_idx_to_jpn_ket = kshl_r.get_wf_idx_to_jpn()
-                    wf_idx_to_jpn_bra = kshl_l.get_wf_idx_to_jpn()
-                    for i_bra in range(1,min(n_bra,len(wf_idx_to_jpn_bra))+1):
-                        for i_ket in range(1,min(n_ket,len(wf_idx_to_jpn_ket))+1):
-                            Jbra, Pbra, nn_bra = wf_idx_to_jpn_bra[i_bra-1]
-                            Jket, Pket, nn_ket = wf_idx_to_jpn_ket[i_ket-1]
-                            Jfbra = _str_J_to_Jfloat(Jbra)
-                            Jfket = _str_J_to_Jfloat(Jket)
-                            if( not int(abs(Jfbra-Jfket)) <= op_rankJ <= int(Jfbra+Jfket) ): continue
-                            en_bra = kshl_l.energy_from_summary((Jbra,Pbra,nn_bra))
-                            en_ket = kshl_r.energy_from_summary((Jket,Pket,nn_ket))
-                            if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=i_ket, Jket=Jfbra, wflabel_ket=i_bra, verbose=verbose)
-                            if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=i_bra, Jket=Jfket, wflabel_ket=i_ket)
-                            _ = Density.eval(op)
-                            if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*_))
-                            if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = _
-                            if(type_output=="DataFrame"):
-                                if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,*_]
-                                if(not flip): _ = [Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
-                                exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
+                    wf_index_bra = kshl_l.get_wf_index(use_logs=True)
+                    wf_index_ket = kshl_r.get_wf_index(use_logs=True)
+                    for state_bra, state_ket in itertools.product(list(wf_index_bra.keys()), list(wf_index_ket.keys())):
+                        Jbra, Pbra, nn_bra = state_bra
+                        Jket, Pket, nn_ket = state_ket
+                        Jfbra = _str_J_to_Jfloat(Jbra)
+                        Jfket = _str_J_to_Jfloat(Jket)
+                        if( _prty2i(Pbra) * _prty2i(Pket) * op_rankP == -1): continue
+                        if( not int(abs(Jfbra-Jfket)) <= op_rankJ <= int(Jfbra+Jfket) ): continue
+                        en_bra = kshl_l.energy_from_summary((Jbra,Pbra,nn_bra))
+                        en_ket = kshl_r.energy_from_summary((Jket,Pket,nn_ket))
+                        if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=wf_index_ket[state_ket][-1], \
+                                Jket=Jfbra, wflabel_ket=wf_index_bra[state_bra][-1], verbose=verbose)
+                        if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=wf_index_bra[state_bra][-1], \
+                                Jket=Jfket, wflabel_ket=wf_index_ket[state_ket][-1])
+                        _ = Density.eval(op)
+                        if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*_))
+                        if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = _
+                        if(type_output=="DataFrame"):
+                            if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,*_]
+                            if(not flip): _ = [Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
+                            exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
         if(mode=="diag" or mode=="density"): return None
         if(type_output=="DataFrame"): exp_vals.columns = ["Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]
         return exp_vals
