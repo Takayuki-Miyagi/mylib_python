@@ -336,7 +336,7 @@ class kshell_scripts:
         return e_data
 
     def get_occupation(self, logs=None, hw_ex=False):
-        fn_summary = self.summary_filename()
+        #fn_summary = self.summary_filename()
         H = Operator()
         H.read_operator_file(self.fn_snt)
         if(logs==None):
@@ -344,7 +344,7 @@ class kshell_scripts:
             states = self.states.split(",")
             for state in states:
                 state_str = self._state_string(state)
-                log = "log_{:s}_{:s}_{:s}.txt".format(self.Nucl, os.path.splitext( os.path.basename(self.fn_snt))[0], state_str)
+                log = "log_{:s}.txt".format(os.path.splitext( os.path.basename(self.fn_wfs[state]))[0])
                 logs.append(log)
         e_data = {}
         Njpi = {}
@@ -626,23 +626,21 @@ class kshell_scripts:
         if(batch_cmd != None): time.sleep(1)
 
     def run_kshell_ias_lsf(self, initial_state=(0,"+",1), target_J2=0, target_prty="+", n_vec=1, \
-            fn_operator=None, mode = "", T2_projection=None, p_core=None, n_core=None, \
+            fn_operator=None, mode = "", T2_projection=None, \
             batch_cmd=None, run_cmd=None, header="", need_converged_vec=False, set_filename=False):
         H = Operator(filename=self.fn_snt)
         if(mode=="p<-n" or mode=="n<-p"):
             Op = Operator(ms=H.ms, rankZ=1)
             if(fn_operator==None):
-                if(p_core == None or n_core == None): raise ValueError("Specify proton and neutron numbers in core!")
                 fn_operator = "Op_IAS_"+os.path.basename(self.fn_snt)
                 Op.set_fermi_op()
-                Op.write_operator_file(fn_operator, p_core=p_core, n_core=n_core)
+                Op.write_operator_file(fn_operator)
         elif(mode=="pp<-nn" or mode=="nn<-pp"):
             Op = Operator(ms=H.ms, rankZ=2)
             if(fn_operator==None):
-                if(p_core == None or n_core == None): raise ValueError("Specify proton and neutron numbers in core!")
                 fn_operator = "Op_DIAS_"+os.path.basename(self.fn_snt)
                 Op.set_double_fermi_op()
-                Op.write_operator_file(fn_operator, p_core=p_core, n_core=n_core)
+                Op.write_operator_file(fn_operator)
         else:
             raise ValueError()
         if(mode=="p<-n"):
@@ -689,6 +687,19 @@ class kshell_scripts:
         if(self.ph_truncation != None): fn_summary += "_ph" + str(self.ph_truncation)
         fn_summary += ".txt"
         return fn_summary
+
+    def lowest_from_logs(self):
+        """
+        output: J, prty, Energy
+            J: string, angular momentum, should be like '0', '1/2', 3/2'
+            prty: string, parity, should be '+' or '-'
+            Energy: lowest energy in the summary file (no need to be the ground-state energy)
+        """
+        edict = self.logs_to_dictionary()
+        if(edict == {}): return None, None, None
+        levels = sorted(edict.items(), key=lambda x:x[1])
+        return levels[0][0][0], levels[0][0][1], levels[0][1]
+
 
     def lowest_from_summary(self):
         """
@@ -873,6 +884,40 @@ class kshell_scripts:
                 occs[oi.get_nljz()] = vals[4][i-1] / (oi.j+1)
             espes[wf_idx_to_jpn[key[2]-1]] = H.espe(occs, bare=bare)
         return espes
+
+    def espe_lowest_filling(self):
+        """
+        ESPE assuming the lowest filling wrt SPEs.
+        """
+        H = Operator()
+        H.read_operator_file(self.fn_snt)
+        spes_p = {}
+        spes_n = {}
+        for i in range(H.ms.orbits.get_num_orbits()):
+            oi = H.ms.orbits.get_orbit(i)
+            if(oi.z == -1): spes_p[(oi.n, oi.l, oi.j)] = H.get_1bme(i,i)
+            if(oi.z ==  1): spes_n[(oi.n, oi.l, oi.j)] = H.get_1bme(i,i)
+        spes_p = sorted(spes_p.items(), key=lambda x: x[1])
+        spes_n = sorted(spes_n.items(), key=lambda x: x[1])
+        occs = {}
+        Z = self.Z - H.p_core
+        for spe in spes_p:
+            n, l, j = spe[0]
+            if(Z<0):
+                occs[(n, l, j, -1)] = 0
+            else:
+                occs[(n, l, j, -1)] = min(Z,j+1)
+            Z -= (j + 1)
+        N = self.N - H.n_core
+        for spe in spes_n:
+            n, l, j = spe[0]
+            if(N<0):
+                occs[(n, l, j, 1)] = 0
+            else:
+                occs[(n, l, j, 1)] = min(N,j+1)
+            N -= (j + 1)
+        espe = H.espe(occs)
+        return espe
 
 class transit_scripts:
     def __init__(self, kshl_dir=None, verbose=False, bin_output=False):

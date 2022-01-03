@@ -27,7 +27,7 @@ def _lj_to_ljidx(l,j):
 
 
 class Operator:
-    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=True, filename=None, verbose=False, comment="!"):
+    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=True, filename=None, verbose=False, comment="!", p_core=None, n_core=None):
         self.ms = ms
         self.rankJ = rankJ
         self.rankP = rankP
@@ -38,17 +38,34 @@ class Operator:
         self.one = None
         self.two = {}
         self.three = {}
+        self.p_core = p_core
+        self.n_core = n_core
         self.kshell_options = []
         if( self.rankJ == 0 and self.rankP==1 and self.rankZ==0): self.reduced = False
         if( ms != None ): self.allocate_operator( ms )
         if( filename != None ): self.read_operator_file( filename, comment=comment )
+
+    def set_options(**kwargs):
+        if('ms' in kwargs): self.ms = kwargs['ms']
+        if('rankJ' in kwargs): self.rankJ = kwargs['rankJ']
+        if('rankP' in kwargs): self.rankP = kwargs['rankP']
+        if('rankZ' in kwargs): self.rankZ = kwargs['rankZ']
+        if('reduced' in kwargs): self.reduced = kwargs['reduced']
+        if('verbose' in kwargs): self.verbose = kwargs['verbose']
+        if('zero' in kwargs): self.zero = kwargs['zero']
+        if('one' in kwargs): self.one = kwargs['one']
+        if('two' in kwargs): self.two = kwargs['two']
+        if('three' in kwargs): self.three = kwargs['three']
+        if('p_core' in kwargs): self.p_core = kwargs['p_core']
+        if('n_core' in kwargs): self.n_core = kwargs['n_core']
+        if('kshell_options' in kwargs): self.kshell_options = kwargs['kshell_options']
 
     def __add__(self, other):
         if(self.rankJ != other.rankJ): raise ValueError
         if(self.rankP != other.rankP): raise ValueError
         if(self.rankZ != other.rankZ): raise ValueError
         if(self.reduced != other.reduced): raise ValueError
-        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core)
         target.zero = self.zero + other.zero
         target.one = self.one + other.one
         for channels in self.two.keys():
@@ -63,7 +80,7 @@ class Operator:
         if(self.rankP != other.rankP): raise ValueError
         if(self.rankZ != other.rankZ): raise ValueError
         if(self.reduced != other.reduced): raise ValueError
-        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core)
         target.zero = self.zero - other.zero
         target.one = self.one - other.one
         for channels in self.two.keys():
@@ -74,7 +91,7 @@ class Operator:
         return target
 
     def __mul__(self, coef):
-        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core)
         target.zero = self.zero * coef
         target.one = self.one * coef
         for channels in self.two.keys():
@@ -98,6 +115,8 @@ class Operator:
         if(self.rankJ!=0): raise "Operator rank should be 0"
         if(self.rankP!=1): raise "Operator parity should be 1"
         if(self.rankZ!=0): raise "Operator pn rank should be 0"
+        mass_dep = 1
+        if(H.kshell_options[0]==1): mass_dep =(float(self.A) / float(H.kshell_options[1]))**float(H.kshell_options[2])
         orbits = self.ms.orbits
         espes = {}
         for a in range(1, orbits.get_num_orbits()+1):
@@ -118,10 +137,10 @@ class Operator:
                     sumV = 0.0
                     for J in range(Jmin,Jmax+1):
                         if(a==b and J%2==1): continue
-                        sumV += self.get_2bme_from_indices(a,b,a,b,J,J) * (2*J+1)
+                        sumV += self.get_2bme_from_indices(a,b,a,b,J,J) * (2*J+1) * mass_dep
                     espe += sumV * occ / (oa.j+1) * norm
                 elif(method=="monopole"):
-                    espe += self.get_2bme_monopole(a,b,a,b) * occ * (ob.j+1)
+                    espe += self.get_2bme_monopole(a,b,a,b) * occ * (ob.j+1) * mass_dep
             if(bare): espes[(oa.n,oa.l,oa.j,oa.z)] = self.get_1bme(a,a)
             else: espes[(oa.n,oa.l,oa.j,oa.z)] = espe + self.get_1bme(a,a)
         return espes
@@ -581,6 +600,8 @@ class Operator:
             b = line.startswith(comment) or line.startswith("#")
         data = line.split()
         norbs = int(data[0]) + int(data[1])
+        self.p_core = int(data[2])
+        self.n_core = int(data[3])
 
         b = True
         while b == True:
@@ -911,9 +932,9 @@ class Operator:
             line = f.readline()
         f.close()
 
-    def write_operator_file(self, filename, p_core=0, n_core=0):
+    def write_operator_file(self, filename):
         if(filename.find(".snt") != -1):
-            self._write_operator_snt( filename, p_core=p_core, n_core=n_core )
+            self._write_operator_snt( filename )
         if(filename.find(".op.me2j") != -1):
             self._write_general_operator( filename )
         if(filename.find(".me2j") != -1):
@@ -1010,7 +1031,8 @@ class Operator:
                                         me_pppp, me_pppn, me_ppnp, me_ppnn, me_pnpn, me_pnnp, me_pnnn, me_npnp, me_npnn, me_nnnn))
         f.close()
 
-    def _write_operator_snt(self, filename, p_core=0, n_core=0):
+    def _write_operator_snt(self, filename):
+        if(self.p_core == None or self_n_core == None): raise ValueError("set p_core and n_core before calling")
         orbits = self.ms.orbits
         p_norbs = 0; n_norbs = 0
         for o in orbits.orbits:
@@ -1020,7 +1042,7 @@ class Operator:
         prt += "! J:{:3d} P:{:3d} Tz:{:3d}\n".format( self.rankJ, self.rankP, self.rankZ )
         prt += "! Zero body term: {:16.8e}\n".format(self.zero)
         prt += "! model space \n"
-        prt += " {0:3d} {1:3d} {2:3d} {3:3d} \n".format( p_norbs, n_norbs, p_core, n_core )
+        prt += " {0:3d} {1:3d} {2:3d} {3:3d} \n".format( p_norbs, n_norbs, self.p_core, self.n_core )
         norbs = orbits.get_num_orbits()+1
         for i in range(1,norbs):
             o = orbits.get_orbit(i)
