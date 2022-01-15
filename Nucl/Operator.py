@@ -116,8 +116,11 @@ class Operator:
         if(self.rankJ!=0): raise "Operator rank should be 0"
         if(self.rankP!=1): raise "Operator parity should be 1"
         if(self.rankZ!=0): raise "Operator pn rank should be 0"
+        A = self.p_core + self.n_core
+        for orb in occs.keys():
+            A += occs[orb] * float(orb[2]+1)
         mass_dep = 1
-        if(H.kshell_options[0]==1): mass_dep =(float(self.A) / float(H.kshell_options[1]))**float(H.kshell_options[2])
+        if(self.kshell_options[0]==1): mass_dep =(float(A) / float(self.kshell_options[1]))**float(self.kshell_options[2])
         orbits = self.ms.orbits
         espes = {}
         for a in range(1, orbits.get_num_orbits()+1):
@@ -858,8 +861,8 @@ class Operator:
                                 if( abs(data[9]) > 1.e-10 ): self.set_2bme_from_indices(ni,nj,nk,nl,Jij,Jkl,data[9])
         f.close()
     def _read_3b_operator_readabletxt(self, filename, comment="!"):
-        if( len( self.ms.three.channels ) == 0 ):
-            ms = ModelSpace()
+        if( self.ms == None ):
+            ms = ModelSpace(rank=3)
             ms.set_modelspace_from_boundaries( emax=6, e2max=6, e3max=6 )
             self.allocate_operator( ms )
         iorbits = self.ms.iorbits
@@ -871,7 +874,10 @@ class Operator:
         while len(line) != 0:
             data = [ int(x) for x in line.split()[:-1] ]
             data.append(float(line.split()[-1]))
-            i, j, k, Jij, Tij, l, m, n, Jlm, Tlm, Jbra, Tbra, Jket, Tket, ME = data
+            if(self.rankJ==0 and self.rankP==1 and self.rankZ==0):
+                i, j, k, Jij, Tij, l, m, n, Jlm, Tlm, Jbra, Tbra, Jket, Tket, ME = data
+            else:
+                i, j, k, Jij, Tij, l, m, n, Jlm, Tlm, Jbra, Tbra, Jket, Tket, ME = data
             if(abs(ME) > 1.e-6): self.set_3bme_from_indices(i,j,k,Jij,Tij,l,m,n,Jlm,Tlm,Jbra,Tbra,Jket,Tket,ME)
             line = f.readline()
         f.close()
@@ -1304,7 +1310,7 @@ class Operator:
         if(len(self.ls_couple_store)==0):
             for oa, ob in itertools.product(orbits.orbits, repeat=2):
                 for Lab, Sab in itertools.product(range( abs(oa.l-ob.l), oa.l+ob.l+1 ),[0,1]):
-                    for J in range(abs(Lab-Sab), (Lab+Sab+1)):
+                    for J in range(max(abs(Lab-Sab),abs(oa.j-ob.j)//2), min(Lab+Sab,(oa.j+ob.j)//2)+1):
                         self.ls_couple_store[(oa,ob,Lab,Sab,J)] = _ls_coupling(oa.l, oa.j*0.5, ob.l, ob.j*0.5, Lab, Sab, J)
         if(len(self.sixj_store)==0):
             lmax=-9999
@@ -1322,14 +1328,15 @@ class Operator:
             J = chket.J
             if(chan_J!=None and chan_J!=J): continue
             for key in self.two[ch_key].keys():
-                a = chbra.orbit1_index[key[0]]
-                b = chbra.orbit2_index[key[0]]
-                c = chket.orbit1_index[key[1]]
-                d = chket.orbit2_index[key[1]]
+                a, b = chbra.get_indices(key[0])
+                c, d = chket.get_indices(key[1])
                 oa = orbits.get_orbit(a)
                 ob = orbits.get_orbit(b)
                 oc = orbits.get_orbit(c)
                 od = orbits.get_orbit(d)
+                norm1 = 1.0
+                if(a==b): norm1 *= np.sqrt(2)
+                if(c==d): norm1 *= np.sqrt(2)
 
                 for rank in [0,1,2]:
                     sum3 = 0.0
@@ -1347,20 +1354,29 @@ class Operator:
                             SixJJ = self.sixj_store[(Lab,Sab,JJ,Scd,Lcd,rank)]
                             if(abs(SixJJ) < 1.e-16): continue
                             sum1 = 0.0
-                            for jaa, jbb, jcc, jdd in itertools.product( [abs(2*oa.l-1), 2*oa.l+1], [abs(2*ob.l-1), 2*ob.l+1], [abs(2*oc.l-1), 2*oc.l+1], [abs(2*od.l-1), 2*od.l+1] ):
+                            for jaa, jbb, jcc, jdd in itertools.product(range(abs(2*oa.l-1),2*oa.l+3,2), range(abs(2*ob.l-1),2*ob.l+3,2), range(abs(2*oc.l-1),2*oc.l+3,2), range(abs(2*od.l-1),2*od.l+3,2)):
+                                if(self._triag(jaa, jbb, 2*JJ)): continue
+                                if(self._triag(jcc, jdd, 2*JJ)): continue
                                 try:
                                     aa = orbits.get_orbit_index(oa.n, oa.l, jaa, oa.z)
                                     bb = orbits.get_orbit_index(ob.n, ob.l, jbb, ob.z)
                                     cc = orbits.get_orbit_index(oc.n, oc.l, jcc, oc.z)
                                     dd = orbits.get_orbit_index(od.n, od.l, jdd, od.z)
+                                    norm2 = 1.0
+                                    if(aa==bb): norm2 *= np.sqrt(2)
+                                    if(cc==dd): norm2 *= np.sqrt(2)
+                                    oaa = orbits.get_orbit(aa)
+                                    obb = orbits.get_orbit(bb)
+                                    occ = orbits.get_orbit(cc)
+                                    odd = orbits.get_orbit(dd)
                                 except:
                                     continue
-                                CCab = self.ls_couple_store[(oa,ob,Lab,Sab,JJ)]
-                                CCcd = self.ls_couple_store[(oc,od,Lcd,Scd,JJ)]
-                                sum1 += self.get_2bme_from_indices(aa,bb,cc,dd,JJ,JJ) * CCab * CCcd
+                                CCab = self.ls_couple_store[(oaa,obb,Lab,Sab,JJ)]
+                                CCcd = self.ls_couple_store[(occ,odd,Lcd,Scd,JJ)]
+                                sum1 += self.get_2bme_from_indices(aa,bb,cc,dd,JJ,JJ) * CCab * CCcd * norm2
                             sum2 += sum1 * SixJJ * (2*JJ+1)*(-1)**JJ
                         sum3 += sum2 * SixJ * Cab * Ccd
-                    ops[rank].set_2bme_from_indices(a,b,c,d,J,J, (-1)**J*(2*rank+1)*sum3)
+                    ops[rank].set_2bme_from_indices(a,b,c,d,J,J, (-1)**J*(2*rank+1)*sum3/norm1)
         return ops
 
     def to_DataFrame(self, rank=None):

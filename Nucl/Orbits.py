@@ -49,6 +49,13 @@ class Orbits:
         self.orbits.append( orb )
         self.emax = max(self.emax, 2*nljz[0]+nljz[1])
         self.lmax = max(self.lmax, nljz[1])
+    def get_orbit_label(self, idx):
+        return get_orbit_label_from_orbit(self.get_orbit(idx))
+    def get_orbit_label_from_orbit(self, o):
+        if(o.z==-1): return f'p{o.n}{self._labels_orbital_angular_momentum[o.l]}{o.j}/2'
+        if(o.z== 1): return f'n{o.n}{self._labels_orbital_angular_momentum[o.l]}{o.j}/2'
+        return
+
     def add_orbit_from_label(self,string):
         """
         string format should be like p0s1 => proton 0s1/2

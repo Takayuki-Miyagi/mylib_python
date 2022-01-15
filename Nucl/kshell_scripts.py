@@ -867,7 +867,8 @@ class kshell_scripts:
         H = Operator()
         H.read_operator_file(self.fn_snt)
         if(states!=None):
-            wf_index = self.get_wf_index(self.summary_filename())
+            #wf_index = self.get_wf_index(self.summary_filename())
+            wf_index = self.get_wf_index(use_logs=True)
             sts = [ (_[0],_[1],wf_index[_][-1]) for _ in states ]
         espes = {}
         for key, vals in e_data.items():
@@ -904,7 +905,7 @@ class kshell_scripts:
             if(Z<0):
                 occs[(n, l, j, -1)] = 0
             else:
-                occs[(n, l, j, -1)] = min(Z,j+1)
+                occs[(n, l, j, -1)] = float(min(Z,j+1)) / float(j+1)
             Z -= (j + 1)
         N = self.N - H.n_core
         for spe in spes_n:
@@ -912,7 +913,7 @@ class kshell_scripts:
             if(N<0):
                 occs[(n, l, j, 1)] = 0
             else:
-                occs[(n, l, j, 1)] = min(N,j+1)
+                occs[(n, l, j, 1)] = float(min(N,j+1)) / float(j+1)
             N -= (j + 1)
         espe = H.espe(occs)
         return espe
@@ -1176,13 +1177,22 @@ class transit_scripts:
                         sum_sf[key] = sum_sf_each[key]
         return espe, sum_sf
 
-    def read_sf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None, type_output="DataFrame"):
+    def read_sf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None, ksh_bra=None, ksh_ket=None, type_output="DataFrame"):
         if(not os.path.exists(fn)):
             print("{:s} is not found!".format(fn))
             return None
         e0_bra, e0_ket = 0.0, 0.0
         if(Hm_bra != None): e0_bra = Hm_bra.get_0bme()
         if(Hm_ket != None): e0_ket = Hm_ket.get_0bme()
+        idx_to_jpn_bra, idx_to_jpn_ket = {}, {}
+        if(ksh_bra != None and ksh_ket != None):
+            jpn_to_idx_bra = ksh_bra.get_wf_index(use_logs=True)
+            jpn_to_idx_ket = ksh_ket.get_wf_index(use_logs=True)
+            idx_to_jpn_bra = {v: k for k, v in jpn_to_idx_bra.items()}
+            idx_to_jpn_ket = {v: k for k, v in jpn_to_idx_ket.items()}
+            if(ksh_bra.A < ksh_ket.A):
+                ksh_bra, ksh_ket = ksh_ket, ksh_bra
+                idx_to_jpn_bra, idx_to_jpn_ket = idx_to_jpn_ket, idx_to_jpn_bra
         f = open(fn,'r')
         lines = f.readlines()
         f.close()
@@ -1190,10 +1200,17 @@ class transit_scripts:
         if(type_output=="DataFrame"): sfs = pd.DataFrame()
         read=False
         for line in lines:
+            if( line.find('fn_load_wave_l')!=-1):
+                fn_wfbra = line.split()[2]
+                fn_logbra = f"log_{os.path.splitext(fn_wfbra)[0]}.txt"
+            if( line.find('fn_load_wave_r')!=-1):
+                fn_wfket = line.split()[2]
+                fn_logket = f"log_{os.path.splitext(fn_wfket)[0]}.txt"
             if( line[:7] == "orbit :" ):
                 data = line.split()
-                n, l, j, pn = int(data[2]), int(data[3]), int(data[4]), int(data[5])
-                label = (n,l,j,pn)
+                n_sp, l_sp, j_sp, pn = int(data[2]), int(data[3]), int(data[4]), int(data[5])
+                if(pn==-1): label = (n_sp,l_sp,f'{j_sp}/2','proton')
+                if(pn== 1): label = (n_sp,l_sp,f'{j_sp}/2','neutron')
             if( line[:51]==" 2xJf      Ef      2xJi     Ei       Ex       C^2*S" ):
                 read=True
             else:
@@ -1212,14 +1229,22 @@ class transit_scripts:
                         if(i_bra > N_states): continue
                         if(i_ket > N_states): continue
                     if(mode=="a^t a"):
-                        CS = float(data[7]) / (label[2]+1)
+                        CS = float(data[7]) / (j_sp+1)
                     elif(mode=="a a^t"):
-                        CS = float(data[7]) / (label[2]+1) * (J2_bra+1)/(J2_ket+1)
-                    if(type_output=="dict"): sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS * (label[2]+1), en_bra, en_ket)
-                    if(type_output=="DataFrame"): sfs = sfs.append(pd.DataFrame([[*label,J2_bra,i_bra,J2_ket,i_ket,CS * (label[2]+1), en_bra, en_ket]]), ignore_index=True)
+                        CS = float(data[7]) / (j_sp+1) * (J2_bra+1)/(J2_ket+1)
+                    if(len(idx_to_jpn_ket)==0):
+                        if(type_output=="dict"): sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS*(j_sp+1), en_bra, en_ket)
+                        if(type_output=="DataFrame"): sfs = sfs.append(pd.DataFrame([[*label,J2_bra,i_bra,J2_ket,i_ket,CS*(j_sp+1), en_bra, en_ket]]), ignore_index=True)
+                    else:
+                        label_bra = idx_to_jpn_bra[(fn_logbra,i_bra)]
+                        label_ket = idx_to_jpn_ket[(fn_logket,i_ket)]
+                        if(type_output=="dict"): sfs[(*label,ksh_bra.Nucl,*label_bra,ksh_ket.Nucl,*label_ket)] = (CS*(j_sp+1), en_bra, en_ket)
+                        if(type_output=="DataFrame"): sfs = sfs.append(pd.DataFrame([[*label,ksh_bra.Nucl,*label_bra,ksh_ket.Nucl,*label_ket,CS*(j_sp+1), en_bra, en_ket]]), ignore_index=True)
+
                 else:
                     continue
-        if(type_output=="DataFrame"): sfs.columns = ["n","l","j2","tz2","J2 bra", "wflabel bra","J2 ket","wflabel ket","CS^2","En bra","En ket"]
+        if(len(idx_to_jpn_ket)==0 and type_output=="DataFrame"): sfs.columns = ["n","l","j","p/n","J2 bra", "wflabel bra","J2 ket","wflabel ket","CS^2","En bra","En ket"]
+        if(len(idx_to_jpn_ket)!=0 and type_output=="DataFrame"): sfs.columns = ["n","l","j","p/n","Nucl. bra", "J bra","Parity bra","n bra","Nucl. ket", "J ket","Parity ket","n ket","CS^2","En bra","En ket"]
         return sfs
 
     def read_tsf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None):
