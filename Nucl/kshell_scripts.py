@@ -225,6 +225,46 @@ class kshell_scripts:
             raise ValueError()
         return jpn_to_idx
 
+    def sort_levels(self, levels, thresh=1.e-4, **kwargs):
+        """
+        Remove the identical states
+        """
+        levels = sorted(levels.items(), key=lambda x:x[1])
+        en = []
+        remap_levels = {}
+        current_i = {}
+        for i, level in enumerate(levels):
+            if(i==0):
+                en.append(level)
+                current_i[(level[0][0], level[0][1])] = 1
+            else:
+                level_prev = en[-1]
+                if(level[0][0]==level_prev[0][0] and level[0][1]==level_prev[0][1] and abs(level[1]-level_prev[1]) < thresh): continue
+                if(not (level[0][0], level[0][1]) in current_i): current_i[(level[0][0], level[0][1])] = 1
+                else: current_i[(level[0][0], level[0][1])] += 1
+                en.append(((level[0][0],level[0][1],current_i[(level[0][0],level[0][1])]), level[1]))
+                remap_levels[level[0]] = (level[0][0],level[0][1],current_i[(level[0][0],level[0][1])])
+        levels = {}
+        for level in en:
+            levels[level[0]] = level[1]
+        if(len(kwargs)==0): return levels
+        res = []
+        res.append(levels)
+        if('jpn_to_idx' in kwargs):
+            tmp = {}
+            for state in kwargs['jpn_to_idx'].keys():
+                if(not state in remap_levels): continue
+                tmp[remap_levels[0]] = kwargs['jpn_to_idx'][state]
+            res.append(tmp)
+        if('occ' in kwargs):
+            tmp = {}
+            for state in kwargs['occ'].keys():
+                if(not state in remap_levels): continue
+                tmp[remap_levels[0]] = kwargs['occ'][state]
+            res.append(tmp)
+        return res
+
+
     #def get_wf_idx_to_jpn(self):
     #    if(len(self.fn_wfs)>1):
     #        print("Warning, in get_wf_idx_to_jpn in kshell_scripts.py")
