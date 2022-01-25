@@ -29,9 +29,11 @@ def get_single_particle_energies(log):
                 jlist.append(j)
                 zlist.append(z)
         if( line[0:29] == "Before doing so, the spes are"):
+        #if( line[0:12] == "The spes are"):
             while True:
                 line = f.readline()
                 if(line[0:12]=="SetReference"): break
+                if(line[0:4]=="Core"): break
                 dat = line.split()
                 idx = int(dat[0])
                 spe = float(dat[2])

@@ -243,7 +243,7 @@ class kshell_scripts:
                 if(not (level[0][0], level[0][1]) in current_i): current_i[(level[0][0], level[0][1])] = 1
                 else: current_i[(level[0][0], level[0][1])] += 1
                 en.append(((level[0][0],level[0][1],current_i[(level[0][0],level[0][1])]), level[1]))
-                remap_levels[level[0]] = (level[0][0],level[0][1],current_i[(level[0][0],level[0][1])])
+            remap_levels[level[0]] = (level[0][0],level[0][1],current_i[(level[0][0],level[0][1])])
         levels = {}
         for level in en:
             levels[level[0]] = level[1]
@@ -254,13 +254,13 @@ class kshell_scripts:
             tmp = {}
             for state in kwargs['jpn_to_idx'].keys():
                 if(not state in remap_levels): continue
-                tmp[remap_levels[0]] = kwargs['jpn_to_idx'][state]
+                tmp[remap_levels[state]] = kwargs['jpn_to_idx'][state]
             res.append(tmp)
         if('occ' in kwargs):
             tmp = {}
             for state in kwargs['occ'].keys():
                 if(not state in remap_levels): continue
-                tmp[remap_levels[0]] = kwargs['occ'][state]
+                tmp[remap_levels[state]] = kwargs['occ'][state]
             res.append(tmp)
         return res
 
