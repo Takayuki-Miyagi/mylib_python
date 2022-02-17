@@ -339,7 +339,7 @@ class kshell_scripts:
 
     def logs_to_dictionary(self, logs=None, isospin=False):
         H = Operator()
-        H.read_operator_file(self.fn_snt)
+        H.read_operator_file(self.fn_snt,A=self.A)
         if(logs==None):
             logs = []
             states = self.states.split(",")
@@ -379,7 +379,7 @@ class kshell_scripts:
     def get_occupation(self, logs=None, hw_ex=False):
         #fn_summary = self.summary_filename()
         H = Operator()
-        H.read_operator_file(self.fn_snt)
+        H.read_operator_file(self.fn_snt,A=self.A)
         if(logs==None):
             logs = []
             states = self.states.split(",")
@@ -668,21 +668,31 @@ class kshell_scripts:
             fn_operator=None, mode = "", T2_projection=None, \
             batch_cmd=None, run_cmd=None, header="", need_converged_vec=False, set_filename=False):
         H = Operator(filename=self.fn_snt)
-        if(mode=="p<-n" or mode=="n<-p"):
-            Op = Operator(ms=H.ms, rankZ=1)
+        if(mode==""):
+            Op = Operator(ms=H.ms, p_core=H.p_core, n_core=H.n_core)
+            if(fn_operator==None):
+                fn_operator = "Op_Num_"+os.path.basename(self.fn_snt)
+                Op.set_number_op(normalization=(self.A-H.p_core-H.n_core))
+                Op.reduce()
+                Op.write_operator_file(fn_operator)
+        elif(mode=="p<-n" or mode=="n<-p"):
+            Op = Operator(ms=H.ms, rankZ=1, p_core=H.p_core, n_core=H.n_core)
             if(fn_operator==None):
                 fn_operator = "Op_IAS_"+os.path.basename(self.fn_snt)
                 Op.set_fermi_op()
                 Op.write_operator_file(fn_operator)
         elif(mode=="pp<-nn" or mode=="nn<-pp"):
-            Op = Operator(ms=H.ms, rankZ=2)
+            Op = Operator(ms=H.ms, rankZ=2, p_core=H.p_core, n_core=H.n_core)
             if(fn_operator==None):
                 fn_operator = "Op_DIAS_"+os.path.basename(self.fn_snt)
                 Op.set_double_fermi_op()
                 Op.write_operator_file(fn_operator)
         else:
             raise ValueError()
-        if(mode=="p<-n"):
+        if(mode==""):
+            op_nbody = 1
+            Nucl_target = PeriodicTable.periodic_table[self.Z]+str(self.A)
+        elif(mode=="p<-n"):
             op_nbody = -14
             Nucl_target = PeriodicTable.periodic_table[self.Z+1]+str(self.A)
         elif(mode=="n<-p"):
@@ -885,7 +895,7 @@ class kshell_scripts:
     def _get_color(self, key, color_mode):
         color_list_p = ['red','salmon','orange','darkgoldenrod','gold','olive', 'lime','forestgreen','turquoise','teal','skyblue']
         color_list_n = ['navy','blue','mediumpurple','blueviolet','mediumorchid','purple','magenta','pink','crimson']
-        if(key[0]=="-1"): return "k"
+        if(key[0]=="-1" or key[0]=='?'): return "k"
         if(self.A%2==0): Jdouble = int(key[0])*2
         if(self.A%2==1): Jdouble = int(key[0][:-2])
         P = key[1]

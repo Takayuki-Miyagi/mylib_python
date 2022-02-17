@@ -3,7 +3,9 @@ import sys, os, subprocess, itertools, math
 import numpy as np
 import copy
 import gzip
-from sympy.physics.wigner import wigner_6j, wigner_9j
+from scipy.constants import physical_constants
+from scipy.special import gamma
+from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j
 import pandas as pd
 if(__package__==None or __package__==""):
     from Orbits import Orbits, OrbitsIsospin
@@ -46,7 +48,7 @@ class Operator:
         if( ms != None ): self.allocate_operator( ms )
         if( filename != None ): self.read_operator_file( filename, comment=comment )
 
-    def set_options(**kwargs):
+    def set_options(self, **kwargs):
         if('ms' in kwargs): self.ms = kwargs['ms']
         if('rankJ' in kwargs): self.rankJ = kwargs['rankJ']
         if('rankP' in kwargs): self.rankP = kwargs['rankP']
@@ -1019,7 +1021,7 @@ class Operator:
         f.close()
 
     def _write_operator_snt(self, filename):
-        if(self.p_core == None or self_n_core == None): raise ValueError("set p_core and n_core before calling")
+        if(self.p_core == None or self.n_core == None): raise ValueError("set p_core and n_core before calling")
         orbits = self.ms.orbits
         p_norbs = 0; n_norbs = 0
         for o in orbits.orbits:
@@ -1445,10 +1447,120 @@ class Operator:
         vmax = max(x+y+[vmax,])
         ax.plot([vmin,vmax],[vmin,vmax],ls=":",lw=0.8,label="y=x",c="k")
 
+    def set_number_op(self, normalization=None):
+        """
+        set < p || Q || q >
+        """
+        self.allocate_operator(self.ms)
+        orbits = self.ms.orbits
+        if(self.rankJ != 0 or self.rankP != 1 or self.rankZ !=0): raise ValueError()
+        for p in range(1,orbits.get_num_orbits()+1):
+            for q in range(p,orbits.get_num_orbits()+1):
+                op = orbits.get_orbit(p)
+                oq = orbits.get_orbit(q)
+                if(op.n != oq.n): continue
+                if(op.l != oq.l): continue
+                if(op.j != oq.j): continue
+                if(op.z != oq.z): continue
+                me = 1.0
+                if(normalization!=None): me /= normalization
+                self.set_1bme(p,q,me)
+        self.reduced=False
+
+    def set_electric_op(self, hw, e_p=1.0, e_n=0.0):
+        """
+        set < p || Q || q >
+        """
+        self.allocate_operator(self.ms)
+        hc = physical_constants['reduced Planck constant times c in MeV fm'][0]
+        m = (physical_constants['proton mass energy equivalent in MeV'][0] + physical_constants['neutron mass energy equivalent in MeV'][0])/2
+        b = np.sqrt(hc**2 / (m*hw))
+        lam = self.rankJ
+        orbits = self.ms.orbits
+        for p in range(1,orbits.get_num_orbits()+1):
+            for q in range(p,orbits.get_num_orbits()+1):
+                op = orbits.get_orbit(p)
+                oq = orbits.get_orbit(q)
+                if(op.z != oq.z): continue
+                if((op.l+oq.l+lam)%2==1): continue
+                if(self._triag(op.j, 2*lam, oq.j)): continue
+                if(op.z == 1): e_ch = e_n
+                if(op.z ==-1): e_ch = e_p
+                I = self._radial_integral(op.n, op.l, oq.n, oq.l, lam) * b**lam
+                me = 1/np.sqrt(4*np.pi) * (-1)**((oq.j-1)//2+lam) * np.sqrt((2*lam+1)*(op.j+1)*(oq.j+1)) * \
+                        float(wigner_3j(op.j*0.5, oq.j*0.5, lam, 0.5, -0.5, 0)) * I * e_ch
+                self.set_1bme(p,q,me)
+        self.reduced=True
+
+    def set_magnetic_op(self, hw, gl_p=1.0, gs_p=None, gl_n=0.0, gs_n=None):
+        """
+        set < p || M || q >
+        """
+        self.allocate_operator(self.ms)
+        hc = physical_constants['reduced Planck constant times c in MeV fm'][0]
+        m = (physical_constants['proton mass energy equivalent in MeV'][0] + physical_constants['neutron mass energy equivalent in MeV'][0])/2
+        b = np.sqrt(hc**2 / (m*hw))
+        if(gs_p==None): gs_p = physical_constants['proton mag. mom. to nuclear magneton ratio'][0]*2
+        if(gs_n==None): gs_n = physical_constants['neutron mag. mom. to nuclear magneton ratio'][0]*2
+        lam = self.rankJ
+        orbits = self.ms.orbits
+        for p in range(1,orbits.get_num_orbits()+1):
+            for q in range(p,orbits.get_num_orbits()+1):
+                op = orbits.get_orbit(p)
+                oq = orbits.get_orbit(q)
+                if(op.z != oq.z): continue
+                if((op.l+oq.l+lam)%2==0): continue
+                if(not abs(op.j-oq.j) <= 2*lam <= op.j+oq.j): continue
+                if(op.z==-1):
+                    gl = gl_p
+                    gs = gs_p
+                if(op.z== 1):
+                    gl = gl_n
+                    gs = gs_n
+                kappa = (-1)**(op.l+(op.j+1)//2)*(op.j+1)*0.5 + (-1)**(oq.l+(oq.j+1)//2)*(oq.j+1)*0.5
+                I = self._radial_integral(op.n, op.l, oq.n, oq.l, lam-1) * b**(lam-1)
+                me = 1/np.sqrt(4*np.pi) * (-1)**((oq.j-1)//2+lam) * np.sqrt((2*lam+1)*(op.j+1)*(oq.j+1)) * \
+                        float(wigner_3j(op.j*0.5, oq.j*0.5, lam, 0.5, -0.5, 0)) * \
+                        (lam-kappa) * (gl * (1 + kappa/(lam+1)) - 0.5*gs) * I
+                self.set_1bme(p,q,me)
+        self.reduced=True
+
+    def _radial_integral(self, na, la, nb, lb, lam):
+        res = 0.0
+        if((la+lb+lam)%2==1): raise ValueError('invalid')
+        tau_a = max((lb-la+lam)//2, 0)
+        tau_b = max((la-lb+lam)//2, 0)
+        for sigma in range(max(0,na-tau_a,nb-tau_b), min(na, nb)+1):
+            res += gamma((la+lb+lam)/2 + sigma + 1.5) / (gamma(sigma+1)*gamma(na-sigma+1)*gamma(nb-sigma+1)*\
+                    gamma(sigma+tau_a-na+1)*gamma(sigma+tau_b-nb+1))
+        res *= (-1)**(na+nb) * np.sqrt(gamma(na+1)*gamma(nb+1) / (gamma(na+la+1.5)*gamma(nb+lb+1.5))) * gamma(tau_a+1) * gamma(tau_b+1)
+        return res
+
+    def set_gamow_teller_op(self):
+        """
+        set < p || sigma || q > < p or n| tau_+/- | n or p > = \sqrt{6 (2jp+1)(2jq+1)} {1/2 1/2 1} \sqrt{2} (-1)**(jp+lp+3/2)
+                                                                                       {jq  jp  l}
+        """
+        self.allocate_operator(self.ms)
+        orbits = self.ms.orbits
+        for p in range(1,orbits.get_num_orbits()+1):
+            for q in range(p,orbits.get_num_orbits()+1):
+                op = orbits.get_orbit(p)
+                oq = orbits.get_orbit(q)
+                if(op.z == oq.z): continue
+                if(op.n != oq.n): continue
+                if(op.l != oq.l): continue
+                if(not abs(op.j-oq.j) <= 2 <= op.j+oq.j): continue
+                me = np.sqrt(12*(op.j+1)*(oq.j+1)) * (-1)**((op.j+3)//2 + op.l) * float(wigner_6j(0.5, 0.5, 1, 0.5*oq.j, 0.5*op.j, op.l))
+                self.set_1bme(p,q,me)
+        self.reduced=True
+
+
     def set_fermi_op(self):
         """
         set < p || 1 || q > < p or n| tau_+/- | n or p > = \sqrt{(2j_p+1)} \sqrt{2}
         """
+        self.allocate_operator(self.ms)
         orbits = self.ms.orbits
         for p in range(1,orbits.get_num_orbits()+1):
             for q in range(p,orbits.get_num_orbits()+1):
@@ -1465,6 +1577,7 @@ class Operator:
         """
         set < pq:J || 1 || rs:J > < pp or nn | (tau tau)_+/- | nn or pp > = \sqrt{(2J+1)} 2
         """
+        self.allocate_operator(self.ms)
         orbits = self.ms.orbits
         for channels in self.two.keys():
             chbra, chket = self.ms.two.get_channel(channels[0]), self.ms.two.get_channel(channels[1])
@@ -1489,6 +1602,47 @@ class Operator:
                     if(r==s): me /= np.sqrt(2)
                     if(abs(me) > 1.e-8): self.set_2bme_from_indices(p, q, r, s, J, J, me)
         self.reduced=True
+
+    def reduce(self):
+        if(self.reduced): return
+        if(self.rankJ != 0): return
+        orb = self.ms.orbits
+        for i, j in itertools.product(list(range(1,orb.get_num_orbits()+1)), repeat=2):
+            if(i>j): continue
+            oi = orb.get_orbit(i)
+            oj = orb.get_orbit(j)
+            me = self.get_1bme(i,j)
+            if(abs(me)<1.e-16): continue
+            self.set_1bme(i,j,np.sqrt(oj.j+1)*me)
+
+        for channel in self.two.keys():
+            tbc_bra = self.ms.two.get_channel(channel[0])
+            tbc_ket = self.ms.two.get_channel(channel[1])
+            Jij = tbc_bra.J
+            Jkl = tbc_ket.J
+            for idx in self.two[channel].keys():
+                me = self.two[channel][idx]
+                self.two[channel][idx] = me * np.sqrt(2*Jij+1)
+
+    def unreduce(self):
+        if(not self.reduced): return
+        if(self.rankJ != 0): return
+        orb = self.ms.orbits
+        for i, j in itertools.product(list(range(1,orb.get_num_orbits()+1)), repeat=2):
+            if(i>j): continue
+            oi = orb.get_orbit(i)
+            oj = orb.get_orbit(j)
+            me = op.get_1bme(i,j)
+            op.set_1bme(i,j,me/np.sqrt(oj.j+1))
+
+        for channel in self.two.keys():
+            tbc_bra = self.ms.two.get_channel(channel[0])
+            tbc_ket = self.ms.two.get_channel(channel[1])
+            Jij = tbc_bra.J
+            Jkl = tbc_ket.J
+            for idx in self.two[channel].keys():
+                me = self.two[channel][idx]
+                self.two[channel][idx] = me / np.sqrt(2*Jij+1)
 
     def surface_delta_interaction(self, R0, hw, g0, g1=0, g2=0, g3=0):
         """

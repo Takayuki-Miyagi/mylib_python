@@ -135,7 +135,7 @@ def draw_single_particle_energies(axs, spe, xcenter, width=0.3, lw=1, jmax=None,
         ls = "-"
         if( not proton and z==-1): continue
         if( not neutron and z==1): continue
-        if( spe[key][1] == 0.0 ): ls = "--"
+        if( spe[key][1] == 0.0 ): ls = ":"
         if(z ==1):
             c = "b"
             xmax = xcenter + float(j) / float(jmax) * width

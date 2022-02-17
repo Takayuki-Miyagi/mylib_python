@@ -69,8 +69,8 @@ def ME_to_inverse_half_life( ME, Jinit, lam, Ediff, EM ):
     """
     if( abs(ME) < 1.e-10 ): return 0
     hc = physical_constants["Planck constant over 2 pi times c in MeV fm"][0]
-    if(EM=="E"): return 5.498e22 * (ediff / hc)**(2*rank+1) * (rank+1) / (rank * factorial2(2*lam+1)**2) * BEM(ME, Jinit)
-    if(EM=="M"): return 6.080e20 * (ediff / hc)**(2*rank+1) * (rank+1) / (rank * factorial2(2*lam+1)**2) * BEM(ME, Jinit)
+    if(EM=="E"): return 5.498e22 * (Ediff / hc)**(2*lam+1) * (lam+1) / (lam * factorial2(2*lam+1)**2) * BEM(ME, Jinit)
+    if(EM=="M"): return 6.080e20 * (Ediff / hc)**(2*lam+1) * (lam+1) / (lam * factorial2(2*lam+1)**2) * BEM(ME, Jinit)
 
 def RME_to_ME( RME, Jbra, lam, Jket, Mbra, mu, Mket):
     return RME * (-1)**(Jbra-Mbra) * N(wigner_3j(Jbra,lam,Jket,-Mbra,mu,Mket))
@@ -80,7 +80,7 @@ def ME_to_RME( ME, Jbra, lam, Jket, Mbra, mu, Mket):
 if(__name__=="__main__"):
     pass
 
-def mu_sp(l,j,tz):
+def mu_sp(l,j,tz,gs=None,gl=None):
     """
     inputs:
         l: orbital angular momentum
@@ -90,11 +90,11 @@ def mu_sp(l,j,tz):
         Single-particle magnetic moment in the unit of mu_N (Schmidt limit)
     """
     if(tz==-1):
-        gl = 1
-        gs = 5.586
+        if(gl==None): gl = 1
+        if(gs==None): gs = 5.586
     if(tz== 1):
-        gl = 0
-        gs = -3.826
+        if(gl==None): gl = 0
+        if(gs==None): gs = -3.826
     if(j == l+0.5): return gl * l + 0.5*(gs-gl)
     elif(j == l-0.5): return gl * j - j*(gs-gl)/(2*j+2)
     else:
@@ -115,6 +115,8 @@ def Q_sp(j,A):
 
 if(__name__=="__main__"):
     #print(mu_sp(2,2.5,-1))
-    #print(mu_sp(2,2.5,1))
-    print(Q_sp(3.5,25))
-    print(np.sqrt(Rp2_to_Rch2(4.3540**2, 50, 82)))
+    print(mu_sp(3,3.5,1))
+    #print(Q_sp(3.5,25))
+    #print(np.sqrt(Rp2_to_Rch2(4.3540**2, 50, 82)))
+    #print(ME_to_inverse_half_life(55.2*(1.5*2+1), 1.5, 2, 0.751, 'E'))
+    #print(1/ME_to_inverse_half_life(14.85934, 1.5, 2, 0.751, 'E')*1.e12)
