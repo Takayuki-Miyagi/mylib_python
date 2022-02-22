@@ -71,10 +71,11 @@ class Operator:
         target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core)
         target.zero = self.zero + other.zero
         target.one = self.one + other.one
-        for channels in self.two.keys():
-            for idxs in self.two[channels].keys():
-                me1 = self.two[channels][idxs]
-                me2 = other.get_2bme_from_mat_indices(*channels,*idxs)
+        target.two = self.two
+        for channels in other.two.keys():
+            for idxs in other.two[channels].keys():
+                me1 = other.two[channels][idxs]
+                me2 = target.get_2bme_from_mat_indices(*channels,*idxs)
                 target.set_2bme_from_mat_indices(*channels,*idxs,me1+me2)
         return target
 
@@ -86,11 +87,12 @@ class Operator:
         target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core)
         target.zero = self.zero - other.zero
         target.one = self.one - other.one
-        for channels in self.two.keys():
-            for idxs in self.two[channels].keys():
-                me1 = self.two[channels][idxs]
-                me2 = other.get_2bme_from_mat_indices(*channels,*idxs)
-                target.set_2bme_from_mat_indices(*channels,*idxs,me1-me2)
+        target.two = self.two
+        for channels in other.two.keys():
+            for idxs in other.two[channels].keys():
+                me1 = other.two[channels][idxs]
+                me2 = target.get_2bme_from_mat_indices(*channels,*idxs)
+                target.set_2bme_from_mat_indices(*channels,*idxs,me2-me1)
         return target
 
     def __mul__(self, coef):

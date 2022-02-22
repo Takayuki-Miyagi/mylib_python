@@ -374,19 +374,19 @@ class TransitionDensity:
             a = key[0]
             b = key[1]
             j = key[2]
-            print("{0:3d}, {1:3d}, {2:3d}, {3:12.6f}".format(a,b,j,self.one[key]))
+            if(abs(self.one[key])>1.e-8): print("{0:3d}, {1:3d}, {2:3d}, {3:12.6f}".format(a,b,j,self.one[key]))
         print(" Two body ")
         two = self.ms.two
         for ichbra in range(two.get_number_channels()):
             chbra = two.get_channel(ichbra)
-            for ichket in range(ichbra+1):
+            for ichket in range(two.get_number_channels()):
                 chket = two.get_channel(ichket)
                 for key in self.two[(ichbra,ichket)].keys():
                     bra, ket, Jr = key
                     a, b = chbra.orbit1_index[bra], chbra.orbit2_index[bra]
                     c, d = chket.orbit1_index[ket], chket.orbit2_index[ket]
                     tbtd = self.two[(ichbra,ichket)][key]
-                    print("{0:3d}, {1:3d}, {2:3d}, {3:3d}, {4:3d}, {5:3d}, {6:3d}, {7:12.6f}".format(a,b,c,d,chbra.J,chket.J,Jr,tbtd))
+                    if(abs(tbtd)>1.e-8): print("{0:3d}, {1:3d}, {2:3d}, {3:3d}, {4:3d}, {5:3d}, {6:3d}, {7:12.6f}".format(a,b,c,d,chbra.J,chket.J,Jr,tbtd))
 
     def _read_td_binary(self, filename, byte_order='little'):
         with open(filename, "rb") as fp:
