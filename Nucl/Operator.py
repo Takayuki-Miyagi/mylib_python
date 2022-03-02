@@ -6,6 +6,7 @@ import gzip
 from scipy.constants import physical_constants
 from scipy.special import gamma
 from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j
+from sympy.physics.quantum.cg import CG
 import pandas as pd
 if(__package__==None or __package__==""):
     from Orbits import Orbits, OrbitsIsospin
@@ -71,11 +72,14 @@ class Operator:
         target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core)
         target.zero = self.zero + other.zero
         target.one = self.one + other.one
-        target.two = self.two
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                me = self.two[channels][idxs]
+                target.set_2bme_from_mat_indices(*channels,*idxs,me)
         for channels in other.two.keys():
             for idxs in other.two[channels].keys():
                 me1 = other.two[channels][idxs]
-                me2 = target.get_2bme_from_mat_indices(*channels,*idxs)
+                me2 = self.get_2bme_from_mat_indices(*channels,*idxs)
                 target.set_2bme_from_mat_indices(*channels,*idxs,me1+me2)
         return target
 
@@ -87,11 +91,14 @@ class Operator:
         target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core)
         target.zero = self.zero - other.zero
         target.one = self.one - other.one
-        target.two = self.two
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                me = self.two[channels][idxs]
+                target.set_2bme_from_mat_indices(*channels,*idxs,me)
         for channels in other.two.keys():
             for idxs in other.two[channels].keys():
                 me1 = other.two[channels][idxs]
-                me2 = target.get_2bme_from_mat_indices(*channels,*idxs)
+                me2 = self.get_2bme_from_mat_indices(*channels,*idxs)
                 target.set_2bme_from_mat_indices(*channels,*idxs,me2-me1)
         return target
 
@@ -226,7 +233,7 @@ class Operator:
             if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
             return
         self.two[(chbra,chket)][(bra,ket)] = me
-        if( chbra == chket ): self.two[(chbra,chket)][ket,bra] = me
+        if( chbra == chket ): self.two[(chbra,chket)][(ket,bra)] = me
     def set_2bme_from_indices( self, a, b, c, d, Jab, Jcd, me ):
         two = self.ms.two
         orbits = two.orbits
@@ -1416,6 +1423,58 @@ class Operator:
         if(rank==1): return one
         if(rank==2): return two
         if(rank==None): return zero, one, two
+
+    def get_2bme_Mscheme(self, p, mdp, q, mdq, r, mdr, s, mds, mud):
+        if(not self.reduced):
+            print('Convert matrix elements to reduced one first')
+            return None
+        orbs = self.ms.orbits
+        o_p, o_q, o_r, o_s = orbs.get_orbit(p), orbs.get_orbit(q), orbs.get_orbit(r), orbs.get_orbit(s)
+        norm = 1
+        if(p==q): norm *= np.sqrt(2.0)
+        if(r==s): norm *= np.sqrt(2.0)
+        me = 0.0
+        for Jpq in range(abs(o_p.j-o_q.j)//2, (o_p.j+o_q.j)//2+1):
+            if(p==q and Jpq%2==1): continue
+            Mpq = (mdp + mdq)//2
+            if(abs(Mpq) > Jpq): continue
+            for Jrs in range(abs(o_r.j-o_s.j)//2, (o_r.j+o_s.j)//2+1):
+                if(r==s and Jrs%2==1): continue
+                Mrs = (mdr + mds)//2
+                if(abs(Mrs) > Jrs): continue
+                if(not abs(Jpq-Jrs) <= self.rankJ <= Jpq+Jrs): continue
+                me += float(CG(o_p.j*0.5, mdp*0.5, o_q.j*0.5, mdq*0.5, Jpq, Mpq).doit()) * \
+                        float(CG(o_r.j*0.5, mdr*0.5, o_s.j*0.5, mds*0.5, Jrs, Mrs).doit()) * \
+                        float(CG(Jrs, Mrs, self.rankJ, mud*0.5, Jpq, Mpq).doit()) / np.sqrt(2*Jpq+1) * \
+                        self.get_2bme_from_indices(p, q, r, s, Jpq, Jrs)
+        me *= norm
+        return me
+
+    def get_2bme_Mscheme_nlms(self, nlmstz1, nlmstz2, nlmstz3, nlmstz4, mud):
+        if(not self.reduced):
+            print('Convert matrix elements to reduced one first')
+            return None
+        orbs = self.ms.orbits
+        n1, l1, ml1, s1d, tz1d = nlmstz1
+        n2, l2, ml2, s2d, tz2d = nlmstz2
+        n3, l3, ml3, s3d, tz3d = nlmstz3
+        n4, l4, ml4, s4d, tz4d = nlmstz4
+        m1d = 2*ml1 + s1d
+        m2d = 2*ml2 + s2d
+        m3d = 2*ml3 + s3d
+        m4d = 2*ml4 + s4d
+        me = 0.0
+        for j1d, j2d, j3d, j4d in itertools.product(range(abs(2*l1-1),2*l1+3,2), range(abs(2*l2-1),2*l2+3,2), range(abs(2*l3-1),2*l3+3,2), range(abs(2*l4-1),2*l4+3,2)):
+            coef = float(CG(l1, ml1, 0.5, s1d*0.5, j1d*0.5, m1d*0.5).doit()) * \
+                    float(CG(l2, ml2, 0.5, s2d*0.5, j2d*0.5, m2d*0.5).doit()) * \
+                    float(CG(l3, ml3, 0.5, s3d*0.5, j3d*0.5, m3d*0.5).doit()) * \
+                    float(CG(l4, ml4, 0.5, s4d*0.5, j4d*0.5, m4d*0.5).doit())
+            i1 = orbs.get_orbit_index(n1, l1, j1d, tz1d)
+            i2 = orbs.get_orbit_index(n2, l2, j2d, tz2d)
+            i3 = orbs.get_orbit_index(n3, l3, j3d, tz3d)
+            i4 = orbs.get_orbit_index(n4, l4, j4d, tz4d)
+            me += self.get_2bme_Mscheme(i1, m1d, i2, m2d, i3, m3d, i4, m4d, mud) * coef
+        return me
 
     def compare_operators(self, op, ax):
         orbs = self.ms.orbits
