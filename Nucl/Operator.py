@@ -189,7 +189,7 @@ class Operator:
         norbs = self.ms.orbits.get_num_orbits()
         for i in range(norbs):
             for j in range(norbs):
-                if( abs( self.one[i,j] ) > 1.e-10 ): counter += 1
+                if( abs( self.one[i,j] ) > 1.e-16 ): counter += 1
         return counter
     def count_nonzero_2bme(self):
         counter = 0
@@ -830,10 +830,10 @@ class Operator:
                 if( (-1)**(oi.l+oj.l) * self.rankP != 1): continue
                 if( self._triag(oi.j, oj.j, 2*self.rankJ ) ): continue
                 data = [ float(x) for x in f.readline().split() ]
-                if( abs(data[0]) > 1.e-10 ): self.set_1bme( pi,pj,data[0] )
-                if( abs(data[1]) > 1.e-10 ): self.set_1bme( ni,nj,data[1] )
-                if( abs(data[2]) > 1.e-10 ): self.set_1bme( ni,pj,data[2] )
-                if( abs(data[3]) > 1.e-10 ): self.set_1bme( pi,nj,data[3] )
+                if( abs(data[0]) > 1.e-16 ): self.set_1bme( pi,pj,data[0] )
+                if( abs(data[1]) > 1.e-16 ): self.set_1bme( ni,nj,data[1] )
+                if( abs(data[2]) > 1.e-16 ): self.set_1bme( ni,pj,data[2] )
+                if( abs(data[3]) > 1.e-16 ): self.set_1bme( pi,nj,data[3] )
 
         norbs = iorbits.get_num_orbits()+1
         for i in range(1,norbs):
@@ -860,16 +860,16 @@ class Operator:
                             for Jkl in range( int(abs( ok.j-ol.j ))//2, (ok.j+ol.j)//2+1 ):
                                 if( self._triag(Jij, Jkl, self.rankJ ) ): continue
                                 data = [ float(x) for x in f.readline().split() ]
-                                if( abs(data[0]) > 1.e-10 ): self.set_2bme_from_indices(pi,pj,pk,pl,Jij,Jkl,data[0])
-                                if( abs(data[1]) > 1.e-10 ): self.set_2bme_from_indices(pi,pj,pk,nl,Jij,Jkl,data[1])
-                                if( abs(data[2]) > 1.e-10 ): self.set_2bme_from_indices(pi,pj,nk,pl,Jij,Jkl,data[2])
-                                if( abs(data[3]) > 1.e-10 ): self.set_2bme_from_indices(pi,pj,nk,nl,Jij,Jkl,data[3])
-                                if( abs(data[4]) > 1.e-10 ): self.set_2bme_from_indices(pi,nj,pk,nl,Jij,Jkl,data[4])
-                                if( abs(data[5]) > 1.e-10 ): self.set_2bme_from_indices(pi,nj,nk,pl,Jij,Jkl,data[5])
-                                if( abs(data[6]) > 1.e-10 ): self.set_2bme_from_indices(pi,nj,nk,nl,Jij,Jkl,data[6])
-                                if( abs(data[7]) > 1.e-10 ): self.set_2bme_from_indices(ni,pj,nk,pl,Jij,Jkl,data[7])
-                                if( abs(data[8]) > 1.e-10 ): self.set_2bme_from_indices(ni,pj,nk,nl,Jij,Jkl,data[8])
-                                if( abs(data[9]) > 1.e-10 ): self.set_2bme_from_indices(ni,nj,nk,nl,Jij,Jkl,data[9])
+                                if( abs(data[0]) > 1.e-16 ): self.set_2bme_from_indices(pi,pj,pk,pl,Jij,Jkl,data[0])
+                                if( abs(data[1]) > 1.e-16 ): self.set_2bme_from_indices(pi,pj,pk,nl,Jij,Jkl,data[1])
+                                if( abs(data[2]) > 1.e-16 ): self.set_2bme_from_indices(pi,pj,nk,pl,Jij,Jkl,data[2])
+                                if( abs(data[3]) > 1.e-16 ): self.set_2bme_from_indices(pi,pj,nk,nl,Jij,Jkl,data[3])
+                                if( abs(data[4]) > 1.e-16 ): self.set_2bme_from_indices(pi,nj,pk,nl,Jij,Jkl,data[4])
+                                if( abs(data[5]) > 1.e-16 ): self.set_2bme_from_indices(pi,nj,nk,pl,Jij,Jkl,data[5])
+                                if( abs(data[6]) > 1.e-16 ): self.set_2bme_from_indices(pi,nj,nk,nl,Jij,Jkl,data[6])
+                                if( abs(data[7]) > 1.e-16 ): self.set_2bme_from_indices(ni,pj,nk,pl,Jij,Jkl,data[7])
+                                if( abs(data[8]) > 1.e-16 ): self.set_2bme_from_indices(ni,pj,nk,nl,Jij,Jkl,data[8])
+                                if( abs(data[9]) > 1.e-16 ): self.set_2bme_from_indices(ni,nj,nk,nl,Jij,Jkl,data[9])
         f.close()
     def _read_3b_operator_readabletxt(self, filename, comment="!"):
         if( self.ms == None ):

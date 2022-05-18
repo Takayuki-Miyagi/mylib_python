@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import os, sys, copy, gzip, subprocess, time, itertools
+import functools
 import numpy as np
 import pandas as pd
+from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j
 if(__package__==None or __package__==""):
     import ModelSpace
 else:
@@ -32,9 +34,12 @@ class TransitionDensity:
         orbs = self.ms.orbits
         norbs = orbs.get_num_orbits()
         for i, j, in itertools.product(list(range(1,norbs+1)), repeat=2):
-            me1 = self.get_1btd(i,j)
-            me2 = other.get_1btd(i,j)
-            self.set_1btd(i,j,me1+me2)
+            oi = orbs.get_orbit(i)
+            oj = orbs.get_orbit(j)
+            for J in range(abs(oi.j-oj.j)//2, (oi.j+oj.j)//2+1):
+                me1 = self.get_1btd(i,j,J)
+                me2 = other.get_1btd(i,j,J)
+                self.set_1btd(i,j,J,me1+me2)
 
         for channels in self.two.keys():
             for idxs in self.two[channels].keys():
@@ -52,9 +57,12 @@ class TransitionDensity:
         orbs = self.ms.orbits
         norbs = orbs.get_num_orbits()
         for i, j, in itertools.product(list(range(1,norbs+1)), repeat=2):
-            me1 = self.get_1btd(i,j)
-            me2 = other.get_1btd(i,j)
-            self.set_1btd(i,j,me1-me2)
+            oi = orbs.get_orbit(i)
+            oj = orbs.get_orbit(j)
+            for J in range(abs(oi.j-oj.j)//2, (oi.j+oj.j)//2+1):
+                me1 = self.get_1btd(i,j,J)
+                me2 = other.get_1btd(i,j,J)
+                self.set_1btd(i,j,J,me1+me2)
 
         for channels in self.two.keys():
             for idxs in self.two[channels].keys():
@@ -68,8 +76,12 @@ class TransitionDensity:
         orbs = self.ms.orbits
         norbs = orbs.get_num_orbits()
         for i, j, in itertools.product(list(range(1,norbs+1)), repeat=2):
-            me1 = self.get_1btd(i,j)
-            self.set_1btd(i,j,me1*coef)
+            oi = orbs.get_orbit(i)
+            oj = orbs.get_orbit(j)
+            for J in range(abs(oi.j-oj.j)//2, (oi.j+oj.j)//2+1):
+                me1 = self.get_1btd(i,j,J)
+                me2 = other.get_1btd(i,j,J)
+                self.set_1btd(i,j,J,me1*coef)
 
         for channels in self.two.keys():
             for idxs in self.two[channels].keys():
@@ -110,12 +122,10 @@ class TransitionDensity:
                 counter += len( self.two[(i,j)] )
         return counter
     def set_1btd( self, a, b, jrank, me):
-        orbits = self.ms.orbits
-        oa = orbits.get_orbit(a)
-        ob = orbits.get_orbit(b)
-        me_rank = {jrank: me}
+        if(abs(me) < 1.e-16): return
         self.one[(a,b,jrank)] = me
     def set_2btd_from_mat_indices( self, chbra, chket, bra, ket, jrank, me ):
+        if(abs(me) < 1.e-16): return
         self.two[(chbra,chket)][(bra,ket,jrank)] = me
     def set_2btd_from_indices( self, a, b, c, d, Jab, Jcd, jrank, me ):
         two = self.ms.two
@@ -413,6 +423,7 @@ class TransitionDensity:
                     J2ket = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
                     wflabel_ket = int.from_bytes(fp.read(4), byteorder=byte_order, signed=True)
                     self.bin_header.append((J2bra,wflabel_bra,J2ket,wflabel_ket))
+                    #print(J2bra, wflabel_bra, J2ket, wflabel_ket)
             else: fp.seek( 4+len(self.bin_header)*4*4, 1 )
 
             try:
@@ -614,9 +625,59 @@ class TransitionDensity:
                     two += op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)
                     #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ,self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
                     #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl)))
-                    #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:16.10f},{:16.10f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl),\
+                    #if(abs(op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ))>1.e-16):
+                    #    print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:16.10f},{:16.10f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl),\
                     #        op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
         return zero,one,two
+    def eval_NME_non_closure(self, that, op):
+        """
+        NME(K) = sum_{i<=j:proton} sum_{k<=l:neutron} (ij|Op|kl) (Jf|ci^t ck|K) (K|cj^t cl|Ji)
+        self => (Jf|c^t c|K)
+        that => (K|c^t c|Ji)
+        """
+        orbits_de = self.ms.orbits
+        orbits_op = op.ms.orbits
+        norbs = orbits_op.get_num_orbits()
+        res = 0
+        if(self.Jket != that.Jbra): raise ValueError()
+        Jf = self.Jbra
+        K = self.Jket
+        Ji = that.Jket
+        #ijlist = list(itertools.combinations_with_replacement(list(range(1,norbs+1)),2))
+        ijlist = list(itertools.product(list(range(1,norbs+1)),repeat=2))
+        for ij, kl in itertools.product(ijlist, repeat=2):
+            i, j = ij
+            k, l = kl
+            norm = 1
+            if(i==j): norm /= np.sqrt(2)
+            if(k==l): norm /= np.sqrt(2)
+            oi = orbits_op.get_orbit(i)
+            oj = orbits_op.get_orbit(j)
+            ok = orbits_op.get_orbit(k)
+            ol = orbits_op.get_orbit(l)
+
+            i_d = orbits_de.get_orbit_index(oi.n, oi.l, oi.j, oi.z)
+            j_d = orbits_de.get_orbit_index(oj.n, oj.l, oj.j, oj.z)
+            k_d = orbits_de.get_orbit_index(ok.n, ok.l, ok.j, ok.z)
+            l_d = orbits_de.get_orbit_index(ol.n, ol.l, ol.j, ol.z)
+            if((-1)**(oi.l+oj.l+ok.l+ol.l) * op.rankP != 1): continue
+            if( abs(oi.z+oj.z-ok.z-ol.z) != 4): continue
+            Jijlist = list(range( int(abs(oi.j-oj.j)/2), int((oi.j+oj.j)/2)+1))
+            Jkllist = list(range( int(abs(ok.j-ol.j)/2), int((ok.j+ol.j)/2)+1))
+            Jiklist = list(range( int(abs(oi.j-ok.j)/2), int((oi.j+ok.j)/2)+1))
+            Jjllist = list(range( int(abs(oj.j-ol.j)/2), int((oj.j+ol.j)/2)+1))
+            for Jij, Jkl in itertools.product(Jijlist, Jkllist):
+                if(i == j and Jij%2 == 1): continue
+                if(k == l and Jkl%2 == 1): continue
+                if( self._triag( Jij, Jkl, op.rankJ )): continue
+                for Jik, Jjl in itertools.product(Jiklist, Jjllist):
+                    if( self._triag( Jik, Jjl, op.rankJ )): continue
+                    res += float(wigner_9j(0.5*oi.j, 0.5*oj.j, Jij, 0.5*ok.j, 0.5*ol.j, Jkl, Jik, Jjl, op.rankJ)) * \
+                            float(wigner_6j(Jik, Jjl, op.rankJ, Ji, Jf, K)) * \
+                            np.sqrt((2*Jij+1)*(2*Jkl+1)*(2*Jik+1)*(2*Jjl+1)) * (-1)**(Ji+Jf+op.rankJ) * \
+                            op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * \
+                            self.get_1btd(i_d,k_d,Jik) * that.get_1btd(j_d,l_d,Jjl) * norm * 0.25
+        return res
 
     def to_DataFrame(self, rank=None):
         if(rank==1 or rank==None):

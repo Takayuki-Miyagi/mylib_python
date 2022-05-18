@@ -119,16 +119,19 @@ class Orbits:
         if(oi.j != oj.j): return False
         if(oi.z != oj.z): return False
         return True
+    def __str__(self):
+        return self.print_orbits()
     def print_orbits(self):
-        print("Orbits list:")
-        print("idx,  n,  l,  j,  z,  e")
+        string = "Orbits list:\n"
+        string += "idx,  n,  l,  j,  z,  e\n"
         for o in self.orbits:
             nljz = o.get_nljz()
             n,l,j,z = o.get_nljz()
             idx = self.get_orbit_index( n,l,j,z )
             idx = self.get_orbit_index_from_tuple( nljz )
             idx = self.get_orbit_index_from_orbit( o )
-            print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d}".format(idx,*nljz,o.e) )
+            string += "{:3d},{:3d},{:3d},{:3d},{:3d},{:3d}\n".format(idx,*nljz,o.e)
+        return string[:-1]
 
 class OrbitsIsospin:
     def __init__(self, emax=None, lmax=None, shell_model_space=None, verbose=False):

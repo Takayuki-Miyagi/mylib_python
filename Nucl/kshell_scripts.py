@@ -25,6 +25,13 @@ def _prty2i(prty):
         print("Error in _prty2i()")
         return None
 
+def _PosNeg2i(prty):
+    if(prty == "p"): return 1
+    elif(prty=="n"): return -1
+    else:
+        print("Error in _PosNeg2i()")
+        return None
+
 def _none_check(var, var_name):
     """
     Just check if the variable is None or not.
@@ -443,7 +450,7 @@ class kshell_scripts:
             f.close()
         return e_data
 
-    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, gen_partition=False, fn_script=None):
+    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, gen_partition=False, fn_script=None, dim_thr=None, python_version='python3'):
         """
         header: string, specifying the resource allocation.
         batch_cmd: string, command submitting jobs (this can be None) ex.) "qsub"
@@ -517,8 +524,8 @@ class kshell_scripts:
         f.write('\n')
         f.write('\n')
         f.close()
-        if(self.verbose): cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in'
-        if(not self.verbose): cmd = 'python2 '+self.kshl_dir+'/kshell_ui.py < ui.in silent'
+        if(self.verbose): cmd = python_version + ' '+self.kshl_dir+'/kshell_ui.py < ui.in'
+        if(not self.verbose): cmd = python_version + ' '+self.kshl_dir+'/kshell_ui.py < ui.in silent'
         subprocess.call(cmd, shell=True)
         subprocess.call("rm ui.in",shell=True)
         if(not self.verbose): subprocess.call("rm save_input_ui.txt",shell=True)
@@ -540,21 +547,27 @@ class kshell_scripts:
         f.close()
 
         if(gen_partition): return
-        if( dim_cnt ):
+        if( dim_cnt or dim_thr!=None):
             res = []
             for fn_ptn in self.fn_ptns.values():
-                cmd = 'python2 ' + self.kshl_dir+'/count_dim.py ' + self.fn_snt + ' ' + fn_ptn
+                cmd = python_version +' ' + self.kshl_dir+'/count_dim.py ' + self.fn_snt + ' ' + fn_ptn
                 #subprocess.call(cmd, shell=True)
                 process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 res.append(process.communicate()[0])
-            return res
-        else:
-            fn_script += ".sh"
-            os.chmod(fn_script, 0o755)
-            if(batch_cmd == None): cmd = "./" + fn_script
-            if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
-            subprocess.call(cmd, shell=True)
-
+            if(dim_cnt): return res
+            if(dim_thr!=None and res!=None):
+                if(res[0].decode('utf-8') != ''):
+                    line = res[0].decode('utf-8').split('\n')[-2]
+                    dimp = float(line.split()[2])
+                    if(dimp > dim_thr):
+                        print(f'I stop because dimension might be too large: {dimp:.2e}')
+                        print(f'Make sure that you are submitting the job with multi nodes and increase dim_thr.')
+                        return
+        fn_script += ".sh"
+        os.chmod(fn_script, 0o755)
+        if(batch_cmd == None): cmd = "./" + fn_script
+        if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
+        subprocess.call(cmd, shell=True)
         if(batch_cmd != None): time.sleep(1)
 
     def run_kshell_lsf(self, fn_ptn_init, fn_ptn, fn_wf, fn_wf_out, J2, \
@@ -1049,6 +1062,98 @@ class transit_scripts:
         else: fn_density += ".txt"
         return fn_density, flip
 
+    def calc_op_expvals(self, ksh_l, ksh_r, fn_op, states_list=None, header="", batch_cmd=None, run_cmd=None, \
+            i_wfs=None, rankJ=0, rankP=1, rankZ=0, op_nbody=2, OpStr="Op"):
+        """
+        calculate < ksh_l | [a^t a] | ksh_r > and < ksh_l | [a^t a^t a a] | ksh_r >
+        input:
+            kshl_l, ksh_r (kshell_scripts class)
+            state_list (list):
+                ex.) [(0+2, 0+2), (0-1, 2-2)] -> <0+1|0+1>, <0+1|0+2>, <0+2|0+1>, <0+2|0+2>, <0-1|2-1>, <0-1|2-2>
+                     [(0.5+1,1.5+1),] -> <0.5+1|1.5+1>
+                     [(+2,+2),] -> <J+1|J+1>, <J+1|J+2>, <J+2|J+1>, <J+2|J+2>
+            header (str): header specifying resource
+            batch_cmd (str): 'sbatch', 'qsub', ...
+            run_cmd (str): 'srun', ...
+            i_fws (list): ex.) [(1,1),(2,2),(3,3),(4,4)]
+        """
+        if(states_list==None):
+            states_list = [(x,y) for x,y in itertools.product( ksh_l.states.split(","), ksh_r.states.split(",") )]
+        bra_side = ksh_l
+        ket_side = ksh_r
+        flip=False
+
+        if( ksh_l.Z < ksh_r.Z ):
+            bra_side = ksh_r
+            ket_side = ksh_l
+            flip=True
+        if( ksh_l.A < ksh_r.A ):
+            bra_side = ksh_r
+            ket_side = ksh_l
+            flip=True
+
+        for states in states_list:
+            state_l = states[0]
+            state_r = states[1]
+            if(flip):
+                state_l = states[1]
+                state_r = states[0]
+            str_l = bra_side._state_string(state_l)
+            str_r = ket_side._state_string(state_r)
+            if(_PosNeg2i(str_l[-1]) * _PosNeg2i(str_r[-1]) * rankP != 1): continue
+            if( _file_exists(bra_side.fn_ptns[state_l]) or  _file_exists(ket_side.fn_ptns[state_r]) or \
+                    _file_exists(bra_side.fn_wfs[state_l]) or  _file_exists(ket_side.fn_wfs[state_r])):
+                continue
+            fn_out = OpStr
+            fn_out += "_{:s}".format(os.path.splitext( os.path.basename( ket_side.fn_snt ) )[0])
+            if(ket_side.hw_truncation!=None): fn_out += "_hw{:d}".format(ket_side.hw_truncation)
+            if(ket_side.ph_truncation!=None): fn_out += "_ph{:s}".format(ket_side.ph_truncation)
+            fn_out += "_{:s}{:s}_{:s}{:s}".format(bra_side.Nucl,str_l,ket_side.Nucl,str_r)
+            fn_out += ".txt"
+
+            fn_script = os.path.splitext(fn_out)[0] + ".sh"
+            fn_input = os.path.splitext(fn_out)[0] + ".input"
+            cmd = "cp " + self.kshl_dir + "/transit.exe ./"
+            subprocess.call(cmd,shell=True)
+            prt = header + '\n'
+            prt += 'cat >' + fn_input + ' <<EOF\n'
+            prt += '&input\n'
+            prt += '  fn_int   = "' + ket_side.fn_snt + '"\n'
+            prt += '  fn_ptn_l = "' + bra_side.fn_ptns[state_l]+ '"\n'
+            prt += '  fn_ptn_r = "' + ket_side.fn_ptns[state_r]+ '"\n'
+            prt += '  fn_load_wave_l = "' + bra_side.fn_wfs[state_l] + '"\n'
+            prt += '  fn_load_wave_r = "' + ket_side.fn_wfs[state_r] + '"\n'
+            prt += '  fn_op = "' + fn_op + '"\n'
+            prt += '  irank_op = ' + str(rankJ) + '\n'
+            prt += '  nbody_op = ' + str(op_nbody) + '\n'
+            if(i_wfs!=None):
+                prt += '  n_eig_lr_pair = '
+                for lr in i_wfs:
+                    if(flip):
+                        prt += str(lr[1]) + ', ' + str(lr[0]) + ', '
+                    else:
+                        prt += str(lr[0]) + ', ' + str(lr[1]) + ', '
+                prt += '\n'
+            prt += '  hw_type = 2\n'
+            prt += '  eff_charge = 1.5, 0.5\n'
+            prt += '  gl = 1.0, 0.0\n'
+            prt += '  gs = 3.91, -2.678\n'
+            prt += '&end\n'
+            prt += 'EOF\n'
+            if(run_cmd == None):
+                prt += './transit.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
+            if(run_cmd != None):
+                prt += run_cmd + ' ./transit.exe ' + fn_input + ' > ' + fn_out + ' 2>&1\n'
+            prt += 'rm ' + fn_input + '\n'
+            f = open(fn_script,'w')
+            f.write(prt)
+            f.close()
+            os.chmod(fn_script, 0o755)
+            if(batch_cmd == None): cmd = "./" + fn_script
+            if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
+            subprocess.call(cmd, shell=True)
+            if(batch_cmd != None): time.sleep(1)
+
     def calc_density(self, ksh_l, ksh_r, states_list=None, header="", batch_cmd=None, run_cmd=None, \
             i_wfs=None, calc_SF=False, parity_mix=True):
         """
@@ -1284,12 +1389,12 @@ class transit_scripts:
                         CS = float(data[7]) / (j_sp+1) * (J2_bra+1)/(J2_ket+1)
                     if(len(idx_to_jpn_ket)==0):
                         if(type_output=="dict"): sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS*(j_sp+1), en_bra, en_ket)
-                        if(type_output=="DataFrame"): sfs = sfs.append(pd.DataFrame([[*label,J2_bra,i_bra,J2_ket,i_ket,CS*(j_sp+1), en_bra, en_ket]]), ignore_index=True)
+                        if(type_output=="DataFrame"): sfs = pd.concat([sfs,pd.DataFrame([[*label,J2_bra,i_bra,J2_ket,i_ket,CS*(j_sp+1), en_bra, en_ket]])], ignore_index=True)
                     else:
                         label_bra = idx_to_jpn_bra[(fn_logbra,i_bra)]
                         label_ket = idx_to_jpn_ket[(fn_logket,i_ket)]
                         if(type_output=="dict"): sfs[(*label,ksh_bra.Nucl,*label_bra,ksh_ket.Nucl,*label_ket)] = (CS*(j_sp+1), en_bra, en_ket)
-                        if(type_output=="DataFrame"): sfs = sfs.append(pd.DataFrame([[*label,ksh_bra.Nucl,*label_bra,ksh_ket.Nucl,*label_ket,CS*(j_sp+1), en_bra, en_ket]]), ignore_index=True)
+                        if(type_output=="DataFrame"): sfs = pd.concat([sfs,pd.DataFrame([[*label,ksh_bra.Nucl,*label_bra,ksh_ket.Nucl,*label_ket,CS*(j_sp+1), en_bra, en_ket]])], ignore_index=True)
 
                 else:
                     continue
@@ -1339,7 +1444,7 @@ class transit_scripts:
                         CS = float(data[7])**2 / (2*label[2]+1) * (J2_bra+1)/(J2_ket+1)
                     sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS * (2*label[2]+1), en_bra, en_ket)
                     if(type_output=="dict"): sfs[(*label,J2_bra,i_bra,J2_ket,i_ket)] = (CS * (2*label[2]+1), en_bra, en_ket)
-                    if(type_output=="DataFrame"): sfs = sfs.append(pd.DataFrame([[*label,J2_bra,i_bra,J2_ket,i_ket,CS * (2*label[2]+1), en_bra, en_ket]]), ignore_index=True)
+                    if(type_output=="DataFrame"): sfs = pd.concat([sfs,pd.DataFrame([[*label,J2_bra,i_bra,J2_ket,i_ket,CS * (2*label[2]+1), en_bra, en_ket]])], ignore_index=True)
                 else:
                     continue
         if(type_output=="DataFrame"): sfs.columns = ["p","q","Jpq", "J2 bra", "wflabel bra","J2 ket","wflabel ket","TNA","En bra","En ket"]
@@ -1553,7 +1658,7 @@ class kshell_toolkit:
                             _ = Density.eval(op)
                             if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl,Jbra,Pbra,nn_bra,en_bra,*_]
                             if(not flip): _ = [Nucl,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
-                            exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
+                            exp_vals = pd.concat([exp_vals,pd.DataFrame([_])],ignore_index=True)
 
             else:
                 kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt_daughter, Nucl=Nucl_daughter, states=bra,
@@ -1596,7 +1701,7 @@ class kshell_toolkit:
                         if(type_output=="DataFrame"):
                             if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,*_]
                             if(not flip): _ = [Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
-                            exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
+                            exp_vals = pd.concat([exp_vals,pd.DataFrame([_])],ignore_index=True)
         if(mode=="diag" or mode=="density"): return None
         if(type_output=="DataFrame"): exp_vals.columns = ["Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]
         return exp_vals
@@ -1688,7 +1793,7 @@ class kshell_toolkit:
                             _ = Density.eval(op)
                             if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl,Jbra,Pbra,nn_bra,en_bra,*_]
                             if(not flip): _ = [Nucl,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
-                            exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
+                            exp_vals = pd.concat([exp_vals,pd.DataFrame([_])],ignore_index=True)
 
             else:
                 kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt_daughter, Nucl=Nucl_daughter, states=bra,
@@ -1731,7 +1836,7 @@ class kshell_toolkit:
                         if(type_output=="DataFrame"):
                             if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,*_]
                             if(not flip): _ = [Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
-                            exp_vals = exp_vals.append(pd.DataFrame([_]),ignore_index=True)
+                            exp_vals = pd.concat([exp_vals,pd.DataFrame([_])],ignore_index=True)
         if(mode=="diag" or mode=="density"): return None
         if(type_output=="DataFrame"): exp_vals.columns = ["Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]
         return exp_vals
@@ -1885,7 +1990,7 @@ class kshell_toolkit:
                     cntr = op_l * Ex**en_power * op_r / (2*JInit+1)
                     sum_rule += cntr
                     _ = [JFinal,ParityFinal,NFinal,J,prty,i,JInit,ParityInit,NInit,Ex,op_l,op_r]
-                    df = df.append(pd.DataFrame([_]), ignore_index=True)
+                    df = pd.concat([df,pd.DataFrame([_])], ignore_index=True)
                     if(verbose):
                         line = f"{JFinal:4.1f},{ParityFinal:>3s},{NFinal:3d},"
                         line+= f"{J:5.1f},{prty:>5s},{i:5d},"
@@ -2013,7 +2118,7 @@ class kshell_toolkit:
                     cntr = op_l * Ex**en_power * op_r / (2*JInit+1)
                     sum_rule += cntr
                     _ = [JFinal,ParityFinal,NFinal,J,prty,i,JInit,ParityInit,NInit,Ex,op_l,op_r]
-                    df = df.append(pd.DataFrame([_]), ignore_index=True)
+                    df = pd.concat([df,pd.DataFrame([_])], ignore_index=True)
                     if(verbose):
                         line = f"{JFinal:4.1f},{ParityFinal:>3s},{NFinal:3d},"
                         line+= f"{J:5.1f},{prty:>5s},{i:5d},"
