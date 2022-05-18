@@ -573,7 +573,7 @@ class kshell_scripts:
     def run_kshell_lsf(self, fn_ptn_init, fn_ptn, fn_wf, fn_wf_out, J2, \
             op=None, fn_input=None, n_vec=100, header="", batch_cmd=None, run_cmd=None, \
             fn_operator=None, operator_irank=0, operator_nbody=1, operator_iprty=1, neig_load_wave=1, \
-            need_converged_vec=False, T2_projection=None):
+            need_converged_vec=False, T2_projection=None, maxiter=None):
         """
         This is for Lanczos strength function method. |v1> = Op |v0> and do Lanczos starting from |v1>
 
@@ -593,6 +593,7 @@ class kshell_scripts:
         operator_irank: int, angular momentum rank of Op
         operator_iprty: int, parity of Op
         operator_nbody: int, a KSHELL intrinsic number.
+        maxiter: number of iterations
             from KSHELL operator_jscheme.f90
             !  nbody =  0   copy
             !           1   one-body int. cp+ cp,   cn+ cn
@@ -646,7 +647,8 @@ class kshell_scripts:
         if(not need_converged_vec):
             prt += '  max_lanc_vec = '+str(n_vec)+'\n'
             prt += '  n_restart_vec = '+str(min(n_vec,200))+'\n'
-            prt += '  maxiter = 1\n'
+            if(maxiter == None): prt += '  maxiter = 1\n'
+            if(maxiter != None): prt += '  maxiter = '+str(maxiter)+'\n' # put 0 if you want to calculate only |v> = Op|vn>
         if(T2_projection!=None): prt += '  tt_proj = '+str(T2_projection)+'\n'
         if(op!=None): prt += '  op_type_init = "'+str(op)+'"\n'
         if(fn_operator!=None):

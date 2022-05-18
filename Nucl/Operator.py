@@ -1532,6 +1532,8 @@ class Operator:
         """
         set < p || Q || q >
         """
+        if(self.rankP != (-1)**(self.rankJ+1)): raise ValueError
+        if(self.rankZ != 0): raise ValueError
         self.allocate_operator(self.ms)
         hc = physical_constants['reduced Planck constant times c in MeV fm'][0]
         m = (physical_constants['proton mass energy equivalent in MeV'][0] + physical_constants['neutron mass energy equivalent in MeV'][0])/2
@@ -1557,6 +1559,8 @@ class Operator:
         """
         set < p || M || q >
         """
+        if(self.rankP != (-1)**(self.rankJ+1)): raise ValueError
+        if(self.rankZ != 0): raise ValueError
         self.allocate_operator(self.ms)
         hc = physical_constants['reduced Planck constant times c in MeV fm'][0]
         m = (physical_constants['proton mass energy equivalent in MeV'][0] + physical_constants['neutron mass energy equivalent in MeV'][0])/2
@@ -1602,6 +1606,9 @@ class Operator:
         set < p || sigma || q > < p or n| tau_+/- | n or p > = \sqrt{6 (2jp+1)(2jq+1)} {1/2 1/2 1} \sqrt{2} (-1)**(jp+lp+3/2)
                                                                                        {jq  jp  l}
         """
+        if(self.rankJ != 1): raise ValueError
+        if(self.rankP != 1): raise ValueError
+        if(self.rankZ != 1): raise ValueError
         self.allocate_operator(self.ms)
         orbits = self.ms.orbits
         for p in range(1,orbits.get_num_orbits()+1):
@@ -1621,6 +1628,9 @@ class Operator:
         """
         set < p || 1 || q > < p or n| tau_+/- | n or p > = \sqrt{(2j_p+1)} \sqrt{2}
         """
+        if(self.rankJ != 0): raise ValueError
+        if(self.rankP != 1): raise ValueError
+        if(self.rankZ != 1): raise ValueError
         self.allocate_operator(self.ms)
         orbits = self.ms.orbits
         for p in range(1,orbits.get_num_orbits()+1):
@@ -1638,6 +1648,9 @@ class Operator:
         """
         set < pq:J || 1 || rs:J > < pp or nn | (tau tau)_+/- | nn or pp > = \sqrt{(2J+1)} 2
         """
+        if(self.rankJ != 0): raise ValueError
+        if(self.rankP != 1): raise ValueError
+        if(self.rankZ != 2): raise ValueError
         self.allocate_operator(self.ms)
         orbits = self.ms.orbits
         for channels in self.two.keys():
