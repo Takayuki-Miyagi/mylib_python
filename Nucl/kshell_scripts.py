@@ -450,7 +450,7 @@ class kshell_scripts:
             f.close()
         return e_data
 
-    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, gen_partition=False, fn_script=None, dim_thr=None, python_version='python3'):
+    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, gen_partition=False, fn_script=None, dim_thr=None, python_version='python2'):
         """
         header: string, specifying the resource allocation.
         batch_cmd: string, command submitting jobs (this can be None) ex.) "qsub"
@@ -468,6 +468,9 @@ class kshell_scripts:
         if(not os.path.isfile(self.fn_snt)):
             print(self.fn_snt, "not found")
             return
+        if(python_version=='python2'):
+            print('The current default python version is python2. Although the calculations will be done properly, this is not cool. In the future, the defalut version will be switched to python3.')
+            print('If you do not want to see this warning, change python_version="python3" at line 453 in kshell_scripts.py')
         unnatural=False
         if( self.states.find("-") != -1 and self.states.find("+")!=-1 ): unnatural=True
         f = open('ui.in','w')
