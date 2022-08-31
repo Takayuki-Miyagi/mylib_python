@@ -115,7 +115,7 @@ def Q_sp(j,A):
 
 if(__name__=="__main__"):
     #print(mu_sp(2,2.5,-1))
-    print(mu_sp(3,3.5,1))
+    print(mu_sp(2,1.5,-1))
     #print(Q_sp(3.5,25))
     #print(np.sqrt(Rp2_to_Rch2(4.3540**2, 50, 82)))
     #print(ME_to_inverse_half_life(55.2*(1.5*2+1), 1.5, 2, 0.751, 'E'))

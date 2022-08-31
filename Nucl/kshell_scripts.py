@@ -1334,7 +1334,7 @@ class transit_scripts:
                         sum_sf[key] = sum_sf_each[key]
         return espe, sum_sf
 
-    def read_sf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None, ksh_bra=None, ksh_ket=None, type_output="DataFrame"):
+    def read_sf_file(self, fn, mode="a^t a", N_states=None, Hm_bra=None, Hm_ket=None, ksh_bra=None, ksh_ket=None, type_output="DataFrame"):
         if(not os.path.exists(fn)):
             print("{:s} is not found!".format(fn))
             return None
@@ -1400,11 +1400,10 @@ class transit_scripts:
 
                 else:
                     continue
-        if(len(idx_to_jpn_ket)==0 and type_output=="DataFrame"): sfs.columns = ["n","l","j","p/n","J2 bra", "wflabel bra","J2 ket","wflabel ket","CS^2","En bra","En ket"]
         if(len(idx_to_jpn_ket)!=0 and type_output=="DataFrame"): sfs.columns = ["n","l","j","p/n","Nucl. bra", "J bra","Parity bra","n bra","Nucl. ket", "J ket","Parity ket","n ket","CS^2","En bra","En ket"]
         return sfs
 
-    def read_tsf_file(self, fn, mode, N_states=None, Hm_bra=None, Hm_ket=None):
+    def read_tsf_file(self, fn, mode="a^ta^t aa", N_states=None, Hm_bra=None, Hm_ket=None):
         if(not os.path.exists(fn)):
             print("{:s} is not found!".format(fn))
             return None
@@ -1462,20 +1461,20 @@ class transit_scripts:
         if(mode=="a^ta^t aa"): print("Number of occupied pairs in the model-space:   {:.2f}".format(n))
         if(mode=="aa a^ta^t"): print("Number of unoccupied pairs in the model-space: {:.2f}".format(n))
 
-    def read_sfactors(self, fn, mode, N_states=None, Jinfo=True):
-        """
-        return spectroscopic factor in dictionary
-            key: (n, l, j, pn, J_bra, J_ket); j, J_bra, J_ket are double
-            val: spectroscopic factor; normalized such that the summation agrees with hole/particle numbers
-        """
-        full_results = self.read_sf_file(fn, mode, N_states)
-        sfactors = {}
-        for key in full_results.keys():
-            if(Jinfo): label = (*key[:4], key[4], key[6])
-            if(not Jinfo): label = key[:4]
-            if(label in sfactors): sfactors[label] += full_results[key][0]
-            else: sfactors[label] = full_results[key][0]
-        return sfactors
+    #def read_sfactors(self, fn, mode, N_states=None, Jinfo=True):
+    #    """
+    #    return spectroscopic factor in dictionary
+    #        key: (n, l, j, pn, J_bra, J_ket); j, J_bra, J_ket are double
+    #        val: spectroscopic factor; normalized such that the summation agrees with hole/particle numbers
+    #    """
+    #    full_results = self.read_sf_file(fn, mode, N_states)
+    #    sfactors = {}
+    #    for key in full_results.keys():
+    #        if(Jinfo): label = (*key[:4], key[4], key[6])
+    #        if(not Jinfo): label = key[:4]
+    #        if(label in sfactors): sfactors[label] += full_results[key][0]
+    #        else: sfactors[label] = full_results[key][0]
+    #    return sfactors
 
     def espe_sf_file(self, fn, Hm_bra, Hm_ket, mode, N_states=None):
         if(not os.path.exists(fn)):

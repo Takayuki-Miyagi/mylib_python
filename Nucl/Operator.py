@@ -1328,7 +1328,7 @@ class Operator:
             for oa in orbits.orbits:
                 lmax = max(lmax, oa.l)
             for Lab, Lcd, Sab, Scd in itertools.product(range(2*lmax+1),range(2*lmax+1),[0,1],[0,1]):
-                for J, JJ in itertools.product(range(max(abs(Lab-Sab), abs(Lcd-Scd)), min(Lab+Sab,Lcd+Scd)+1), range(max(abs(Lab-Lcd),abs(Sab-Scd)), min(Lab+Lcd,Sab+Scd)+1)):
+                for J, JJ in itertools.product(range(max(abs(Lab-Sab), abs(Lcd-Scd)), min(Lab+Sab,Lcd+Scd)+1), [0,1,2]):
                     self.sixj_store[(Lab,Sab,J,Scd,Lcd,JJ)] = np.float(wigner_6j(Lab,Sab,J,Scd,Lcd,JJ))
 
         for ch_key in self.two.keys():
@@ -1385,9 +1385,9 @@ class Operator:
                                 CCab = self.ls_couple_store[(oaa,obb,Lab,Sab,JJ)]
                                 CCcd = self.ls_couple_store[(occ,odd,Lcd,Scd,JJ)]
                                 sum1 += self.get_2bme_from_indices(aa,bb,cc,dd,JJ,JJ) * CCab * CCcd * norm2
-                            sum2 += sum1 * SixJJ * (2*JJ+1)*(-1)**JJ
+                            sum2 += sum1 * SixJJ * (2*JJ+1)*(-1)**(JJ+J)
                         sum3 += sum2 * SixJ * Cab * Ccd
-                    ops[rank].set_2bme_from_indices(a,b,c,d,J,J, (-1)**J*(2*rank+1)*sum3/norm1)
+                    ops[rank].set_2bme_from_indices(a,b,c,d,J,J, (2*rank+1)*sum3/norm1)
         return ops
 
     def to_DataFrame(self, rank=None):
@@ -1555,7 +1555,7 @@ class Operator:
                 self.set_1bme(p,q,me)
         self.reduced=True
 
-    def set_magnetic_op(self, hw, gl_p=1.0, gs_p=None, gl_n=0.0, gs_n=None):
+    def set_magnetic_op(self, hw, gl_p=1.0, gs_p=None, gl_n=0.0, gs_n=None, rankT=None):
         """
         set < p || M || q >
         """
@@ -1582,6 +1582,12 @@ class Operator:
                 if(op.z== 1):
                     gl = gl_n
                     gs = gs_n
+                if(rankT==0):
+                    gl = (gl_p + gl_n)*0.5
+                    gs = (gs_p + gs_n)*0.5
+                if(rankT==1):
+                    gl = (gl_p - gl_n)*0.5*(-op.z)
+                    gs = (gs_p - gs_n)*0.5*(-op.z)
                 kappa = (-1)**(op.l+(op.j+1)//2)*(op.j+1)*0.5 + (-1)**(oq.l+(oq.j+1)//2)*(oq.j+1)*0.5
                 I = self._radial_integral(op.n, op.l, oq.n, oq.l, lam-1) * b**(lam-1)
                 me = 1/np.sqrt(4*np.pi) * (-1)**((oq.j-1)//2+lam) * np.sqrt((2*lam+1)*(op.j+1)*(oq.j+1)) * \
@@ -1603,7 +1609,7 @@ class Operator:
 
     def set_gamow_teller_op(self):
         """
-        set < p || sigma || q > < p or n| tau_+/- | n or p > = \sqrt{6 (2jp+1)(2jq+1)} {1/2 1/2 1} \sqrt{2} (-1)**(jp+lp+3/2)
+        set < p || sigma || q > < p or n| tau_+/- | n or p > = \sqrt{6 (2jp+1)(2jq+1)} {1/2 1/2 1} (-1)**(jp+lp+3/2)
                                                                                        {jq  jp  l}
         """
         if(self.rankJ != 1): raise ValueError
@@ -1619,14 +1625,14 @@ class Operator:
                 if(op.n != oq.n): continue
                 if(op.l != oq.l): continue
                 if(not abs(op.j-oq.j) <= 2 <= op.j+oq.j): continue
-                me = np.sqrt(12*(op.j+1)*(oq.j+1)) * (-1)**((op.j+3)//2 + op.l) * float(wigner_6j(0.5, 0.5, 1, 0.5*oq.j, 0.5*op.j, op.l))
+                me = np.sqrt(6*(op.j+1)*(oq.j+1)) * (-1)**((op.j+3)//2 + op.l) * float(wigner_6j(0.5, 0.5, 1, 0.5*oq.j, 0.5*op.j, op.l))
                 self.set_1bme(p,q,me)
         self.reduced=True
 
 
     def set_fermi_op(self):
         """
-        set < p || 1 || q > < p or n| tau_+/- | n or p > = \sqrt{(2j_p+1)} \sqrt{2}
+        set < p || 1 || q > < p or n| tau_+/- | n or p > = \sqrt{(2j_p+1)} 
         """
         if(self.rankJ != 0): raise ValueError
         if(self.rankP != 1): raise ValueError
@@ -1641,7 +1647,7 @@ class Operator:
                 if(op.n != oq.n): continue
                 if(op.l != oq.l): continue
                 if(op.j != oq.j): continue
-                self.set_1bme(p,q,np.sqrt((op.j+1) * 2))
+                self.set_1bme(p,q,np.sqrt((op.j+1)))
         self.reduced=True
 
     def set_double_fermi_op(self):
