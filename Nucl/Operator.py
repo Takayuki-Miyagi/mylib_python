@@ -930,9 +930,11 @@ class Operator:
             line = f.readline()
         f.close()
 
-    def write_operator_file(self, filename):
+    def write_operator_file(self, filename, **kwargs):
         if(filename.find(".snt") != -1):
             self._write_operator_snt( filename )
+        if(filename.find("FCIDUMP") != -1):
+            self._write_operator_fcidump(filename, **kwargs)
         if(filename.find(".op.me2j") != -1):
             self._write_general_operator( filename )
         if(filename.find(".me2j") != -1):
@@ -1089,6 +1091,114 @@ class Operator:
                         prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d} {6:16.8e}\n".format( a, b, c, d, chbra.J, chket.J, self.two[(ichbra,ichket)][(bra,ket)])
         f = open(filename, "w")
         f.write(prt)
+        f.close()
+
+    def _write_operator_fcidump(self, filename, **kwargs):
+        header = 'symmetry="U1",\n'
+        header+= 'v_sym=4,\n'
+        norbs_m = 0
+        orbits = self.ms.orbits
+        for oi in orbits.orbits:
+            norbs_m += oi.j + 1
+        header+= f'norb={norbs_m},\n'
+        header+= f'E_REF= ,\n'
+        header+= f'n_proton_tot= {kwargs["n_proton"]},\n'
+        header+= f'n_neutron_tot= {kwargs["n_neutron"]},\n'
+        header+= f'n_cutoff= 14,\n'
+        orbm_2_idx = {}
+        m_orbits = []
+        header+= 'twojz_i='
+        i = 0
+        for oi in orbits.orbits:
+            for jz in range(-oi.j, oi.j+2, 2):
+                header+= f' {jz},'
+                m_orbits.append((oi, jz))
+                i += 1
+                orbm_2_idx[(oi,jz)] = i
+
+        header+= '\n'
+        header+= 'par_i='
+        for oi in orbits.orbits:
+            for jz in range(-oi.j, oi.j+2, 2):
+                header+= f' {(-1)**oi.l},'
+        header+= '\n'
+        header+= 'l_i='
+        for oi in orbits.orbits:
+            for jz in range(-oi.j, oi.j+2, 2):
+                header+= f' {oi.l},'
+        header+= '\n'
+        header+= 'n_proton_i='
+        for oi in orbits.orbits:
+            for jz in range(-oi.j, oi.j+2, 2):
+                if(oi.z==-1): header+= f' 1,'
+                if(oi.z== 1): header+= f' 0,'
+        header+= '\n'
+        header+= 'n_neutron_i='
+        for oi in orbits.orbits:
+            for jz in range(-oi.j, oi.j+2, 2):
+                if(oi.z==-1): header+= f' 0,'
+                if(oi.z== 1): header+= f' 1,'
+        header+= '\n'
+        self.to_reduced()
+        v1b = {}
+        v2b = {}
+        for i, bra in enumerate(m_orbits):
+            for j, ket in enumerate(m_orbits):
+                if(i<j): continue
+                o_bra, m_bra = bra
+                o_ket, m_ket = ket
+                ii = orbm_2_idx[(o_bra,m_bra)]
+                jj = orbm_2_idx[(o_ket,m_ket)]
+                if((-1)**(o_bra.l+o_ket.l) * self.rankP != 1): continue
+                if(abs(o_bra.z - o_ket.z)//2 != self.rankZ): continue
+                if(not abs(o_bra.j - o_ket.j)//2 <= self.rankJ <= (o_bra.j + o_ket.j)//2): continue
+                if(abs(m_bra-m_ket)//2 > self.rankJ): continue
+                me = (-1)**((o_bra.j - m_bra)//2) * \
+                        float(wigner_3j(o_bra.j*0.5, self.rankJ, o_ket.j*0.5, -m_bra*0.5, (m_bra-m_ket)*0.5, m_ket*0.5)) * \
+                        self.get_1bme(orbits.get_orbit_index_from_orbit(o_bra), orbits.get_orbit_index_from_orbit(o_ket))
+                if(abs(me) < 1.e-16): continue
+                v1b[(ii,jj)] = me
+
+        for i, a in enumerate(m_orbits):
+            for j, b in enumerate(m_orbits):
+                if(i<j): continue
+                for k, c in enumerate(m_orbits):
+                    for l, d in enumerate(m_orbits):
+                        if(k>i): continue
+                        if(i==k and l>j): continue
+                        if(i!=k and l>k): continue
+                        if(k<l): continue
+                        oa, ma = a
+                        ob, mb = b
+                        oc, mc = c
+                        od, md = d
+
+                        ii = orbm_2_idx[(oa,ma)]
+                        jj = orbm_2_idx[(ob,mb)]
+                        kk = orbm_2_idx[(oc,mc)]
+                        ll = orbm_2_idx[(od,md)]
+                        if((-1)**(oa.l+ob.l+oc.l+od.l) * self.rankP != 1): continue
+                        if(abs(oa.z+ob.z - oc.z-od.z)//2 != self.rankZ): continue
+                        if(abs(ma+mb-mc-md)//2 > self.rankJ): continue
+                        aa = orbits.get_orbit_index_from_orbit(oa)
+                        bb = orbits.get_orbit_index_from_orbit(ob)
+                        cc = orbits.get_orbit_index_from_orbit(oc)
+                        dd = orbits.get_orbit_index_from_orbit(od)
+                        me = self.get_2bme_Mscheme(aa,ma,bb,mb,cc,mc,dd,md,ma+mb-mc-md)
+                        if(abs(me) < 1.e-6): continue
+                        v2b[(ii,jj,kk,ll)] = me
+        header+= f'size_one_body={len(v1b)},\n'
+        header+= f'size_two_body={len(v2b)},\n'
+        header+= f'!END\n'
+        prtme = 'v_ijkl = \n'
+        for key, val in v2b.items():
+            prtme += f'{val:14.6e} {key[0]:3d} {key[1]:3d} {key[2]:3d} {key[3]:3d} {0:3d}\n'
+        for key, val in v1b.items():
+            prtme += f'{val:14.6e} {key[0]:3d} {key[1]:3d} {0:3d} {0:3d} {0:3d}\n'
+        prtme += f'{self.get_0bme():14.6e} {0:3d} {0:3d} {0:3d} {0:3d} {0:3d}'
+        f = open(filename, 'w')
+        f.write(header)
+        f.write(prtme)
         f.close()
 
     def _write_operator_lotta(self, filename):
@@ -1778,6 +1888,7 @@ class Operator:
                     me = me_sdi(oa, ob, oc, od, J)
                     me-= me_sdi(oa, ob, od, oc, J) * (-1)**((oc.j+od.j)/2 + J)
                     self.set_2bme_from_indices(a, b, c, d, J, J, me*norm)
+        
 
 def main():
     ms = ModelSpace.ModelSpace()
