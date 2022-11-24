@@ -450,7 +450,7 @@ class kshell_scripts:
             f.close()
         return e_data
 
-    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, gen_partition=False, fn_script=None, dim_thr=None, python_version='python2'):
+    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, gen_partition=False, fn_script=None, dim_thr=None, python_version='python2', run_script=True):
         """
         header: string, specifying the resource allocation.
         batch_cmd: string, command submitting jobs (this can be None) ex.) "qsub"
@@ -568,10 +568,12 @@ class kshell_scripts:
                         return
         fn_script += ".sh"
         os.chmod(fn_script, 0o755)
-        if(batch_cmd == None): cmd = "./" + fn_script
-        if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
-        subprocess.call(cmd, shell=True)
-        if(batch_cmd != None): time.sleep(1)
+        if run_script:
+            if(batch_cmd == None): cmd = "./" + fn_script
+            if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
+            subprocess.call(cmd, shell=True)
+            if(batch_cmd != None): time.sleep(1)
+        return fn_script
 
     def run_kshell_lsf(self, fn_ptn_init, fn_ptn, fn_wf, fn_wf_out, J2, \
             op=None, fn_input=None, n_vec=100, header="", batch_cmd=None, run_cmd=None, \
@@ -1160,7 +1162,7 @@ class transit_scripts:
             if(batch_cmd != None): time.sleep(1)
 
     def calc_density(self, ksh_l, ksh_r, states_list=None, header="", batch_cmd=None, run_cmd=None, \
-            i_wfs=None, calc_SF=False, parity_mix=True):
+            i_wfs=None, calc_SF=False, parity_mix=True, run_script=True):
         """
         calculate < ksh_l | [a^t a] | ksh_r > and < ksh_l | [a^t a^t a a] | ksh_r >
         input:
@@ -1205,10 +1207,11 @@ class transit_scripts:
             str_l = bra_side._state_string(state_l)
             str_r = ket_side._state_string(state_r)
             if(not parity_mix and str_l[-1] != str_r[-1]): continue
-            if( _file_exists(bra_side.fn_ptns[state_l]) or  _file_exists(ket_side.fn_ptns[state_r]) or \
-                    _file_exists(bra_side.fn_wfs[state_l]) or  _file_exists(ket_side.fn_wfs[state_r])):
-                density_files.append(None)
-                continue
+            if run_script:
+                if((_file_exists(bra_side.fn_ptns[state_l]) or  _file_exists(ket_side.fn_ptns[state_r]) or \
+                        _file_exists(bra_side.fn_wfs[state_l]) or  _file_exists(ket_side.fn_wfs[state_r]))):
+                    density_files.append(None)
+                    continue
             fn_density_output = "none"
             fn_density = "density"
             if(calc_SF): fn_density = "SF"
@@ -1259,11 +1262,14 @@ class transit_scripts:
             f.write(prt)
             f.close()
             os.chmod(fn_script, 0o755)
-            if(batch_cmd == None): cmd = "./" + fn_script
-            if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
-            subprocess.call(cmd, shell=True)
-            if(batch_cmd != None): time.sleep(1)
-        return density_files, flip
+            if run_script:
+                if(batch_cmd == None): cmd = "./" + fn_script
+                if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
+                subprocess.call(cmd, shell=True)
+                if(batch_cmd != None): time.sleep(1)
+                return density_files, flip
+            else:
+                return fn_script
 
     def calc_espe(self, kshl, snts=None, states_dest="+20,-20", header="", batch_cmd=None, run_cmd=None, step="full", mode="hole", N_states=None):
         """
@@ -1714,7 +1720,7 @@ class kshell_toolkit:
             run_args=None, Nucl_daughter=None, fn_snt_daughter=None,
             op_rankJ=0, op_rankP=1, op_rankZ=0, verbose=False, mode="all",
             header="", batch_cmd=None, run_cmd=None, type_output="list", comment_sntfile="!",
-            bin_density=False, op=None, fn_op=''):
+            bin_density=False, op=None, fn_op='', output_file=None):
         """
         inputs:
             kshel_dir (str)    : path to kshell exe files
@@ -1738,7 +1744,7 @@ class kshell_toolkit:
             verbose (bool)     : for debug
             return value is the normal matrix element for scalar operator (op_rankJ=0, op_rankP=1, op_rankZ=0), otherwise, it is reduced matrix element.
         """
-        if(mode=="all" and batch_cmd!=None):
+        if(mode=="all" and batch_cmd=="qsub"):
             print("mode='all' is only for a run on local machine. Please select mode from the following:")
             print("mode='diag':    Diagonalization with KSHELL")
             print("mode='density': Calculation of transition density")
@@ -1748,6 +1754,7 @@ class kshell_toolkit:
         if(op_rankP==-1): parity_mixing=True
         if(Nucl_daughter==None): Nucl_daughter=Nucl
         if(fn_snt_daughter==None): fn_snt_daughter=fn_snt
+        final_eq_intitial = (bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter)
 
         if(fn_op!="" and fn_op!=None and op==None): op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ, verbose=verbose, comment=comment_sntfile)
         if(op==None): raise ValueError()
@@ -1756,94 +1763,122 @@ class kshell_toolkit:
         op_rankZ = op.rankZ
 
         if(type_output=="list"): exp_vals = []
-        if(type_output=="dict"): exp_vals = {}
-        if(type_output=="DataFrame"): exp_vals = pd.DataFrame()
+        elif(type_output=="dict"): exp_vals = {}
+        elif(type_output=="DataFrame"): exp_vals = pd.DataFrame()
+
+        run_script = True
+        if (mode=="all" and batch_cmd=="sbatch"):
+            run_script=False
+            if(not output_file):
+                print("output_file is required to run with mode all on slurm system")
+                return None
         for lr in states_list:
             bra = lr[0]
             ket = lr[1]
-            if(bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter):
-                kshl = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=bra,
-                        hw_truncation=hw_truncation, ph_truncation=ph_truncation, run_args=run_args,
-                        verbose=verbose)
-                if(mode=="diag" or mode=="all"):
-                    kshl.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
-                    if(mode=="diag"): continue
-                trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
-                if(mode=="density" or mode=="all"):
-                    fn_den, flip = trs.calc_density(kshl, kshl, states_list=[lr,],
-                            header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, parity_mix=parity_mixing)
-                    if(mode=="density"): continue
-                if(mode=="eval" or mode=="all"):
-                    flip = trs.set_filenames(kshl, kshl, states_list=[lr,])
-                    fn_density = trs.filenames[lr]
-                    n = kshl._number_of_states(ket)
-                    wf_index = kshl.get_wf_index(use_logs=True)
-                    for state_bra, state_ket in itertools.product(list(wf_index.keys()), repeat=2):
-                        Jbra, Pbra, nn_bra = state_bra
-                        Jket, Pket, nn_ket = state_ket
-                        Jfbra = _str_J_to_Jfloat(Jbra)
-                        Jfket = _str_J_to_Jfloat(Jket)
-                        if( _prty2i(Pbra) * _prty2i(Pket) * op_rankP == -1): continue
-                        if( not int(abs(Jfbra-Jfket)) <= op_rankJ <= int(Jfbra+Jfket) ): continue
-                        en_bra = kshl.energy_from_summary((Jbra,Pbra,nn_bra))
-                        en_ket = kshl.energy_from_summary((Jket,Pket,nn_ket))
-                        if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=wf_index[state_ket][-1], \
-                                Jket=Jfbra, wflabel_ket=wf_index[state_bra][-1])
-                        if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=wf_index[state_bra][-1], \
-                                Jket=Jfket, wflabel_ket=wf_index[state_ket][-1], verbose=verbose)
-                        if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*Density.eval(op)))
-                        if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = Density.eval(op)
-                        if(type_output=="DataFrame"):
-                            _ = Density.eval(op)
-                            if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl,Jbra,Pbra,nn_bra,en_bra,*_]
-                            if(not flip): _ = [Nucl,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
-                            exp_vals = pd.concat([exp_vals,pd.DataFrame([_])],ignore_index=True)
-
+            kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket,
+                        hw_truncation=hw_truncation, run_args=run_args, ph_truncation=ph_truncation, verbose=verbose)
+            if final_eq_initial:
+                kshl_l = kshl_r
             else:
                 kshl_l = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt_daughter, Nucl=Nucl_daughter, states=bra,
                         hw_truncation=hw_truncation, run_args=run_args, ph_truncation=ph_truncation, verbose=verbose)
-                kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket,
-                        hw_truncation=hw_truncation, run_args=run_args, ph_truncation=ph_truncation, verbose=verbose)
-                if(mode=="diag" or mode=="all"):
-                    kshl_l.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
-                    kshl_r.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd)
-                    if(mode=="diag"): continue
-                trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
-                if(mode=="density" or mode=="all"):
-                    fn_den, flip = trs.calc_density(kshl_l, kshl_r, states_list=[lr,],
-                            header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, parity_mix=parity_mixing)
-                    if(mode=="density"): continue
-                if(mode=="eval" or mode=="all"):
-                    flip = trs.set_filenames(kshl_l, kshl_r, states_list=[lr,])
-                    if(flip): fn_density = trs.filenames[lr[::-1]]
-                    else:     fn_density = trs.filenames[lr]
-                    n_bra = kshl_l._number_of_states(bra)
-                    n_ket = kshl_r._number_of_states(ket)
-                    wf_index_bra = kshl_l.get_wf_index(use_logs=True)
-                    wf_index_ket = kshl_r.get_wf_index(use_logs=True)
-                    for state_bra, state_ket in itertools.product(list(wf_index_bra.keys()), list(wf_index_ket.keys())):
-                        Jbra, Pbra, nn_bra = state_bra
-                        Jket, Pket, nn_ket = state_ket
-                        Jfbra = _str_J_to_Jfloat(Jbra)
-                        Jfket = _str_J_to_Jfloat(Jket)
-                        if( _prty2i(Pbra) * _prty2i(Pket) * op_rankP == -1): continue
-                        if( not int(abs(Jfbra-Jfket)) <= op_rankJ <= int(Jfbra+Jfket) ): continue
-                        en_bra = kshl_l.energy_from_summary((Jbra,Pbra,nn_bra))
-                        en_ket = kshl_r.energy_from_summary((Jket,Pket,nn_ket))
-                        if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=wf_index_ket[state_ket][-1], \
-                                Jket=Jfbra, wflabel_ket=wf_index_bra[state_bra][-1], verbose=verbose)
-                        if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=wf_index_bra[state_bra][-1], \
-                                Jket=Jfket, wflabel_ket=wf_index_ket[state_ket][-1])
-                        _ = Density.eval(op)
-                        if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*_))
-                        if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = _
-                        if(type_output=="DataFrame"):
-                            if(flip): _ = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,*_]
-                            if(not flip): _ = [Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
-                            exp_vals = pd.concat([exp_vals,pd.DataFrame([_])],ignore_index=True)
+            if(mode=="diag" or mode=="all"):
+                fn_diag_l = kshl_l.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, run_script=run_script)
+                if final_eq_intial:
+                    fn_diag_r = fn_diag_l
+                else: 
+                    fn_diag_r = kshl_r.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, run_script=run_script)
+                if(mode=="diag"): continue
+            trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)
+            if(mode=="density" or mode=="all"):
+                fn_job_den = trs.calc_density(kshl_l, kshl_r, states_list=[lr,],
+                        header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, parity_mix=parity_mixing, run_script=run_script)
+                if(mode=="density"): continue
+            if((mode=="eval" or mode=="all") and run_script):
+                flip = trs.set_filenames(kshl_l, kshl_r, states_list=[lr,])
+                if(flip): fn_density = trs.filenames[lr[::-1]]
+                else:     fn_density = trs.filenames[lr]
+                n_bra = kshl_l._number_of_states(bra)
+                n_ket = kshl_r._number_of_states(ket)
+                wf_index_bra = kshl_l.get_wf_index(use_logs=True)
+                wf_index_ket = kshl_r.get_wf_index(use_logs=True)
+                for state_bra, state_ket in itertools.product(list(wf_index_bra.keys()), list(wf_index_ket.keys())):
+                    Jbra, Pbra, nn_bra = state_bra
+                    Jket, Pket, nn_ket = state_ket
+                    Jfbra = _str_J_to_Jfloat(Jbra)
+                    Jfket = _str_J_to_Jfloat(Jket)
+                    if( _prty2i(Pbra) * _prty2i(Pket) * op_rankP == -1): continue
+                    if( not int(abs(Jfbra-Jfket)) <= op_rankJ <= int(Jfbra+Jfket) ): continue
+                    en_bra = kshl_l.energy_from_summary((Jbra,Pbra,nn_bra))
+                    en_ket = kshl_r.energy_from_summary((Jket,Pket,nn_ket))
+                    if(flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfket, wflabel_bra=wf_index_ket[state_ket][-1], \
+                            Jket=Jfbra, wflabel_ket=wf_index_bra[state_bra][-1], verbose=verbose)
+                    if(not flip): Density = TransitionDensity(filename=fn_density, Jbra=Jfbra, wflabel_bra=wf_index_bra[state_bra][-1], \
+                            Jket=Jfket, wflabel_ket=wf_index_ket[state_ket][-1])
+                    _ = Density.eval(op)
+                    if(type_output=="list"): exp_vals.append((Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket,*_))
+                    if(type_output=="dict"): exp_vals[(Jbra,Pbra,nn_bra,en_bra,Jket,Pket,nn_ket,en_ket)] = _
+                    if(type_output=="DataFrame"):
+                        if(flip): vals = [Nucl,Jket,Pket,nn_ket,en_ket,Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,*_]
+                        if(not flip): vals = [Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
+                        exp_vals = pd.concat([exp_vals,pd.DataFrame([vals])],ignore_index=True)
+                    if output_file:
+                        exp_values = pd.DataFrame()
+                        if(flip): vals = [fn_op,Nucl,Jket,Pket,nn_ket,en_ket,Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,*_]
+                        if(not flip): vals = [fn_op,Nucl_daughter,Jbra,Pbra,nn_bra,en_bra,Nucl,Jket,Pket,nn_ket,en_ket,*_]
+                        exp_values = pd.DataFrame([vals], columns=["op_file","Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]).set_index('op_file')
+                        if(not os.path.isfile(output_file)):
+                            exp_values.to_csv(output_file)
+                        else:
+                            exp_values.to_csv(output_file, mode='a', header=False)
+        if(not run_script):
+            #Write the python script to do the job for eval step:
+            fn_eval = f"{os.path.basename(fn_op)}_eval.py"
+            eval_script = "#!/usr/bin/env python3\n"
+            eval_script += "import os\n"
+            eval_script += "import sys\n"
+            eval_script += "HOME = os.path.expanduser(\"~\")\n"
+            eval_script += "sys.path.append(HOME)\n"
+            eval_script += "from mylib_python.Nucl import kshell_toolkit\n"
+            eval_script += f"kshell_toolkit.calc_op_exp_vals(('{kshl_dir}', '{fn_snt}', '{Nucl}', {states_list}, hw_truncation={hw_truncation}, ph_truncation={ph_truncation},"
+            eval_script += f"Nucl_daughter='{Nucl_daughter}', fn_snt_daughter='{fn_snt_daughter}',"
+            eval_script += f"op_rankJ={op_rankJ}, op_rankP={op_rankP}, op_rankZ={op_rankZ}, mode='eval',"
+            eval_script += f"fn_op='{fn_op}', output_file='{output_file}'))"
+            f = open(fn_eval, "w")
+            f.write(eval_script)
+            f.close()
+            os.chmod(fn_eval, 0o755)
+            #Bash script to call the job for this step
+            eval_script = "#!/usr/bin/bash\n"
+            eval_script += f"{run_cmd} python {fn_eval}"
+            fn_eval = f"{os.path.basename(fn_op)}_eval.sh"
+            f = open(fn_eval, "w")
+            f.write(eval_script)
+            f.close()
+            os.chmod(fn_eval, 0o755)
+            os.chmod(fn_job_den, 0o755)
+            #Script the submit all the jobs sequentially
+            fn_script = f"calc_expval_{os.path.basename(fn_op)}.sh"
+            submit_script ="#!/usr/bin/bash\n"
+            submit_script += f"diagNucl_ID=$(sbatch --parsable {fn_diag_r})\n"
+            if(bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter):
+                submit_script += f"density_ID=$(sbatch --parsable --dependency=afterok:${{diagNucl_ID}} {fn_job_den})\n"
+            else:
+                submit_script += f"diagNuclDaughter_ID=$(sbatch --parsable {fn_diag_l})\n"
+                submit_script += f"density_ID=$(sbatch --parsable --dependency=afterok:${{diagNucl_ID}},${{diagNuclDaughter_ID}} {fn_job_den})\n"
+            submit_script += f"sbatch --dependency=afterok:${{density_ID}} {fn_eval}"
+            f = open(fn_script, "w")
+            f.write(submit_script)
+            f.close()
+            os.chmod(fn_script, 0o755)
+            cmd = f"./{fn_script}"
+            subprocess.call(cmd, shell=True)
+            return None
+
         if(mode=="diag" or mode=="density"): return None
         if(type_output=="DataFrame"): exp_vals.columns = ["Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]
         return exp_vals
+
 
     def calc_sum_rule_Tz00(kshl_dir, Nucl, fn_snt, fn_op_l, fn_op_r, initial_state, inter_states,\
             hw_truncation=None, ph_truncation=None, run_args=None, op_type=2, op_rankJ_l=0, op_rankP_l=1, op_rankZ_l=0, \
