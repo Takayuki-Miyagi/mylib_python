@@ -1754,7 +1754,7 @@ class kshell_toolkit:
         if(op_rankP==-1): parity_mixing=True
         if(Nucl_daughter==None): Nucl_daughter=Nucl
         if(fn_snt_daughter==None): fn_snt_daughter=fn_snt
-        final_eq_intitial = (bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter)
+        
 
         if(fn_op!="" and fn_op!=None and op==None): op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ, verbose=verbose, comment=comment_sntfile)
         if(op==None): raise ValueError()
@@ -1775,6 +1775,7 @@ class kshell_toolkit:
         for lr in states_list:
             bra = lr[0]
             ket = lr[1]
+            final_eq_initial = (bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter)
             kshl_r = kshell_scripts(kshl_dir=kshl_dir, fn_snt=fn_snt, Nucl=Nucl, states=ket,
                         hw_truncation=hw_truncation, run_args=run_args, ph_truncation=ph_truncation, verbose=verbose)
             if final_eq_initial:
@@ -1784,7 +1785,7 @@ class kshell_toolkit:
                         hw_truncation=hw_truncation, run_args=run_args, ph_truncation=ph_truncation, verbose=verbose)
             if(mode=="diag" or mode=="all"):
                 fn_diag_l = kshl_l.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, run_script=run_script)
-                if final_eq_intial:
+                if final_eq_initial:
                     fn_diag_r = fn_diag_l
                 else: 
                     fn_diag_r = kshl_r.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, run_script=run_script)
@@ -1831,52 +1832,52 @@ class kshell_toolkit:
                             exp_values.to_csv(output_file)
                         else:
                             exp_values.to_csv(output_file, mode='a', header=False)
-        if(not run_script):
-            #Write the python script to do the job for eval step:
-            fn_eval = f"{os.path.basename(fn_op)}_eval.py"
-            eval_script = "#!/usr/bin/env python3\n"
-            eval_script += "import os\n"
-            eval_script += "import sys\n"
-            eval_script += "HOME = os.path.expanduser(\"~\")\n"
-            eval_script += "sys.path.append(HOME)\n"
-            eval_script += "from mylib_python.Nucl import kshell_toolkit\n"
-            eval_script += f"kshell_toolkit.calc_op_exp_vals(('{kshl_dir}', '{fn_snt}', '{Nucl}', {states_list}, hw_truncation={hw_truncation}, ph_truncation={ph_truncation},"
-            eval_script += f"Nucl_daughter='{Nucl_daughter}', fn_snt_daughter='{fn_snt_daughter}',"
-            eval_script += f"op_rankJ={op_rankJ}, op_rankP={op_rankP}, op_rankZ={op_rankZ}, mode='eval',"
-            eval_script += f"fn_op='{fn_op}', output_file='{output_file}'))"
-            f = open(fn_eval, "w")
-            f.write(eval_script)
-            f.close()
-            os.chmod(fn_eval, 0o755)
-            #Bash script to call the job for this step
-            eval_script = "#!/usr/bin/bash\n"
-            eval_script += f"{run_cmd} python {fn_eval}"
-            fn_eval = f"{os.path.basename(fn_op)}_eval.sh"
-            f = open(fn_eval, "w")
-            f.write(eval_script)
-            f.close()
-            os.chmod(fn_eval, 0o755)
-            os.chmod(fn_job_den, 0o755)
-            #Script the submit all the jobs sequentially
-            fn_script = f"calc_expval_{os.path.basename(fn_op)}.sh"
-            submit_script ="#!/usr/bin/bash\n"
-            submit_script += f"diagNucl_ID=$(sbatch --parsable {fn_diag_r})\n"
-            if(bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter):
-                submit_script += f"density_ID=$(sbatch --parsable --dependency=afterok:${{diagNucl_ID}} {fn_job_den})\n"
-            else:
-                submit_script += f"diagNuclDaughter_ID=$(sbatch --parsable {fn_diag_l})\n"
-                submit_script += f"density_ID=$(sbatch --parsable --dependency=afterok:${{diagNucl_ID}},${{diagNuclDaughter_ID}} {fn_job_den})\n"
-            submit_script += f"sbatch --dependency=afterok:${{density_ID}} {fn_eval}"
-            f = open(fn_script, "w")
-            f.write(submit_script)
-            f.close()
-            os.chmod(fn_script, 0o755)
-            cmd = f"./{fn_script}"
-            subprocess.call(cmd, shell=True)
-            return None
+            if(not run_script):
+                #Write the python script to do the job for eval step:
+                fn_eval = f"{os.path.basename(fn_op)}_eval.py"
+                eval_script = "#!/usr/bin/env python3\n"
+                eval_script += "import os\n"
+                eval_script += "import sys\n"
+                eval_script += "HOME = os.path.expanduser(\"~\")\n"
+                eval_script += "sys.path.append(HOME)\n"
+                eval_script += "from mylib_python.Nucl import kshell_toolkit\n"
+                eval_script += f"kshell_toolkit.calc_op_exp_vals('{kshl_dir}', '{fn_snt}', '{Nucl}', {states_list}, hw_truncation={hw_truncation}, ph_truncation={ph_truncation},"
+                eval_script += f"Nucl_daughter='{Nucl_daughter}', fn_snt_daughter='{fn_snt_daughter}',"
+                eval_script += f"op_rankJ={op_rankJ}, op_rankP={op_rankP}, op_rankZ={op_rankZ}, mode='eval',"
+                eval_script += f"fn_op='{fn_op}', output_file='{output_file}')"
+                f = open(fn_eval, "w")
+                f.write(eval_script)
+                f.close()
+                os.chmod(fn_eval, 0o755)
+                #Bash script to call the job for this step
+                eval_script = "#!/usr/bin/bash\n"
+                eval_script += f"{run_cmd} python {fn_eval}"
+                fn_eval = f"{os.path.basename(fn_op)}_eval.sh"
+                f = open(fn_eval, "w")
+                f.write(eval_script)
+                f.close()
+                os.chmod(fn_eval, 0o755)
+                os.chmod(fn_job_den, 0o755)
+                #Script the submit all the jobs sequentially
+                fn_script = f"calc_expval_{os.path.basename(fn_op)}.sh"
+                submit_script ="#!/usr/bin/bash\n"
+                submit_script += f"diagNucl_ID=$(sbatch --parsable {fn_diag_r})\n"
+                if(bra == ket and Nucl==Nucl_daughter and fn_snt==fn_snt_daughter):
+                    submit_script += f"density_ID=$(sbatch --parsable --dependency=afterok:${{diagNucl_ID}} {fn_job_den})\n"
+                else:
+                    submit_script += f"diagNuclDaughter_ID=$(sbatch --parsable {fn_diag_l})\n"
+                    submit_script += f"density_ID=$(sbatch --parsable --dependency=afterok:${{diagNucl_ID}},${{diagNuclDaughter_ID}} {fn_job_den})\n"
+                submit_script += f"sbatch --dependency=afterok:${{density_ID}} {fn_eval}"
+                f = open(fn_script, "w")
+                f.write(submit_script)
+                f.close()
+                os.chmod(fn_script, 0o755)
+                cmd = f"./{fn_script}"
+                subprocess.call(cmd, shell=True)
+                return None
 
-        if(mode=="diag" or mode=="density"): return None
-        if(type_output=="DataFrame"): exp_vals.columns = ["Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]
+            if(mode=="diag" or mode=="density"): return None
+            if(type_output=="DataFrame"): exp_vals.columns = ["Nucl bra","J bra","P bra","n bra","Energy bra","Nucl ket","J ket","P ket","n ket","Energy ket","Zero","One","Two"]
         return exp_vals
 
 
