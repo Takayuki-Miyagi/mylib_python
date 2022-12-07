@@ -163,7 +163,7 @@ class Operator:
     def allocate_operator(self, ms):
         self.ms = copy.deepcopy(ms)
         self.zero = 0.0
-        self.one = np.zeros( (ms.orbits.get_num_orbits(), ms.orbits.get_num_orbits() ))
+        if(ms.orbits.get_num_orbits()>0): self.one = np.zeros( (ms.orbits.get_num_orbits(), ms.orbits.get_num_orbits() ))
         if(self.ms.rank==1): return
         two = ms.two
         for ichbra in range(ms.two.get_number_channels()):
@@ -1642,7 +1642,7 @@ class Operator:
         """
         set < p || Q || q >
         """
-        if(self.rankP != (-1)**(self.rankJ+1)): raise ValueError
+        if(self.rankP != (-1)**(self.rankJ)): raise ValueError
         if(self.rankZ != 0): raise ValueError
         self.allocate_operator(self.ms)
         hc = physical_constants['reduced Planck constant times c in MeV fm'][0]
@@ -1873,7 +1873,6 @@ class Operator:
             return g0 * term_1 * t1t2_1 + g1 * term_s * t1t2_1 + g2 * term_1 * t1t2_d + g3 * term_s * t1t2_d
         tbs = self.ms.two
         fac_norm = 1/np.sqrt(2.0)
-        me = 0
         for tbc in tbs.channels:
             J = tbc.J
             for ibra in range(tbc.get_number_states()):
@@ -1889,6 +1888,25 @@ class Operator:
                     me-= me_sdi(oa, ob, od, oc, J) * (-1)**((oc.j+od.j)/2 + J)
                     self.set_2bme_from_indices(a, b, c, d, J, J, me*norm)
         
+    def set_pairing(self, G):
+        """
+        Eq. (12.11) from J. Suhonen, From Nucleons to Nucleus, Vol. 23 (Springer Berlin Heidelberg, Berlin, Heidelberg, 2007).
+        <pp:0 | V | qq:0 > = -G sqrt([jp][jq]) / 2
+        """
+        tbs = self.ms.two
+        for tbc in tbs.channels:
+            J = tbc.J
+            if(J!=0): continue
+            for ibra in range(tbc.get_number_states()):
+                for iket in range(ibra+1):
+                    a, b = tbc.get_indices(ibra)
+                    c, d = tbc.get_indices(iket)
+                    if(a != b): continue
+                    if(c != d): continue
+                    oa, ob = tbc.get_orbits(ibra)
+                    oc, od = tbc.get_orbits(iket)
+                    me = -G * np.sqrt((oa.j+1)*(oc.j+1)) * 0.5
+                    self.set_2bme_from_indices(a, b, c, d, J, J, me)
 
 def main():
     ms = ModelSpace.ModelSpace()

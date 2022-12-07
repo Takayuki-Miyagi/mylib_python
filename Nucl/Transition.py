@@ -95,8 +95,8 @@ def mu_sp(l,j,tz,gs=None,gl=None):
     if(tz== 1):
         if(gl==None): gl = 0
         if(gs==None): gs = -3.826
-    if(j == l+0.5): return gl * l + 0.5*(gs-gl)
-    elif(j == l-0.5): return gl * j - j*(gs-gl)/(2*j+2)
+    if(j == l+0.5): return gl*l + 0.5*gs
+    elif(j == l-0.5): return (gl*(l+1) - 0.5*gs)*j/(j+1)
     else:
         print("Error: j has to be l-1/2 or l+1/2")
         return None
@@ -114,8 +114,8 @@ def Q_sp(j,A):
     return (3-4*j*(j+1))/(2*(j+1)*(2*j+3)) * 3 * R**2 / 5
 
 if(__name__=="__main__"):
-    #print(mu_sp(2,2.5,-1))
-    print(mu_sp(2,1.5,-1))
+    print(mu_sp(4,4.5,-1))
+    #print(mu_sp(1,1.5,1))
     #print(Q_sp(3.5,25))
     #print(np.sqrt(Rp2_to_Rch2(4.3540**2, 50, 82)))
     #print(ME_to_inverse_half_life(55.2*(1.5*2+1), 1.5, 2, 0.751, 'E'))
