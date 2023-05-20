@@ -484,7 +484,7 @@ class TransitionDensity:
             fn_out = "density_" + os.path.splitext(basename)[0] + ".txt"
         if(fn_density!=None): fn_out = fn_density
         fn_density_out = "none"
-        if(biary_output): fn_density_out = os.path.splitext(fn_out)[0]+".bin"
+        if(binary_output): fn_density_out = os.path.splitext(fn_out)[0]+".bin"
         fn_script = os.path.splitext(fn_out)[0] + ".sh"
         cmd = "cp " + kshl_dir + "/transit.exe ./"
         subprocess.call(cmd,shell=True)
