@@ -634,6 +634,12 @@ class kshell_scripts:
         if(not os.path.isfile(self.fn_snt)):
             print(self.fn_snt, "not found")
             return
+        if(header==""):
+            header = "#!/bin/sh\n"
+            header+= "export OMP_STACKSIZE=1g\n"
+            header+= "export GFORTRAN_UNBUFFERED_PRECONNECTED=y\n"
+            header+= "# ulimit -s unlimited\n"
+
         cmd = "cp " + self.kshl_dir + "/kshell.exe ./"
         subprocess.call(cmd,shell=True)
         prt = header + '\n'
