@@ -1184,6 +1184,11 @@ class transit_scripts:
             calc_SF (bool): switch for calculation of spectroscopic factor
             parity_mix (bool)
         """
+        if(header==""):
+            header = "#!/bin/sh\n"
+            header+= "export OMP_STACKSIZE=1g\n"
+            header+= "export GFORTRAN_UNBUFFERED_PRECONNECTED=y\n"
+            header+= "# ulimit -s unlimited\n"
         if(states_list==None):
             states_list = [(x,y) for x,y in itertools.product( ksh_l.states.split(","), ksh_r.states.split(",") )]
         bra_side = ksh_l
