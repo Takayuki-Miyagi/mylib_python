@@ -1273,14 +1273,14 @@ class transit_scripts:
             f.write(prt)
             f.close()
             os.chmod(fn_script, 0o755)
-            if run_script:
+            if(run_script):
                 if(batch_cmd == None): cmd = "./" + fn_script
                 if(batch_cmd != None): cmd = batch_cmd + " " + fn_script
                 subprocess.call(cmd, shell=True)
                 if(batch_cmd != None): time.sleep(1)
-                return density_files, flip
             else:
                 return fn_script
+        if(run_sript): return density_files, flip
 
     def calc_espe(self, kshl, snts=None, states_dest="+20,-20", header="", batch_cmd=None, run_cmd=None, step="full", mode="hole", N_states=None):
         """
