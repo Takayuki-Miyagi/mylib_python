@@ -1280,7 +1280,7 @@ class transit_scripts:
                 if(batch_cmd != None): time.sleep(1)
             else:
                 return fn_script
-        if(run_sript): return density_files, flip
+        if(run_script): return density_files, flip
 
     def calc_espe(self, kshl, snts=None, states_dest="+20,-20", header="", batch_cmd=None, run_cmd=None, step="full", mode="hole", N_states=None):
         """
