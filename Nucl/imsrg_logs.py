@@ -34,6 +34,7 @@ def get_single_particle_energies(log):
                 line = f.readline()
                 if(line[0:12]=="SetReference"): break
                 if(line[0:4]=="Core"): break
+                if(line[0:4]=="Doin"): break
                 dat = line.split()
                 idx = int(dat[0])
                 spe = float(dat[2])

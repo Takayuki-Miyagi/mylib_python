@@ -635,7 +635,7 @@ class TransitionDensity:
                     #print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:12.6f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl)))
                     #if(abs(op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ))>1.e-16):
                     #    print("{:3d},{:3d},{:3d},{:3d},{:3d},{:3d},{:16.10f},{:16.10f}".format(i,j,k,l,Jij,Jkl,op.get_2bme_from_indices(i,j,k,l,Jij,Jkl),\
-                    #        op.get_2bme_from_indices(i,j,k,l,Jij,Jkl) * self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
+                    #        self.get_2btd_from_indices(i_d,j_d,k_d,l_d,Jij,Jkl,op.rankJ)))
         return zero,one,two
 #    def eval_NME_non_closure(self, that, op):
 #        """

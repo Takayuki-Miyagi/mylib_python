@@ -1765,7 +1765,7 @@ class kshell_toolkit:
         if(op_rankP==-1): parity_mixing=True
         if(Nucl_daughter==None): Nucl_daughter=Nucl
         if(fn_snt_daughter==None): fn_snt_daughter=fn_snt
-        
+
 
         if(fn_op!="" and fn_op!=None and op==None): op = Operator(filename=fn_op, rankJ=op_rankJ, rankP=op_rankP, rankZ=op_rankZ, verbose=verbose, comment=comment_sntfile)
         if(op==None): raise ValueError()
@@ -1798,7 +1798,7 @@ class kshell_toolkit:
                 fn_diag_l = kshl_l.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, run_script=run_script)
                 if final_eq_initial:
                     fn_diag_r = fn_diag_l
-                else: 
+                else:
                     fn_diag_r = kshl_r.run_kshell(header=header, batch_cmd=batch_cmd, run_cmd=run_cmd, run_script=run_script)
                 if(mode=="diag"): continue
             trs = transit_scripts(kshl_dir=kshl_dir,bin_output=bin_density)

@@ -6,6 +6,10 @@ from scipy.constants import physical_constants
 from sympy import N
 from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j
 
+hc = physical_constants['reduced Planck constant times c in MeV fm'][0]
+m_n = physical_constants['neutron mass energy equivalent in MeV'][0]
+m_p = physical_constants['proton mass energy equivalent in MeV'][0]
+m_nucl = (m_p + m_n)*0.5
 def HO_radial(r, n, l, hw):
     hc = physical_constants['reduced Planck constant times c in MeV fm'][0]
     m_n = physical_constants['neutron mass energy equivalent in MeV'][0]
@@ -15,6 +19,10 @@ def HO_radial(r, n, l, hw):
     x = r / b
     return np.sqrt( (2.0/b) * (gamma(n+1) / gamma(n+l+1.5)) ) * (1.0/b) * (x**l) * \
             np.exp(-0.5*x*x) * assoc_laguerre(x*x, n, l+0.5)
+
+def RadialInt(n1, l1, n2, l2, hw, power):
+    res = integrate.quad(lambda r: r**(power+2) * HO_radial(r, n1, l1, hw) * HO_radial(r, n2, l2, hw), 0, np.inf)
+    return res[0]
 
 def Yl_red(l1, l2, l):
     """

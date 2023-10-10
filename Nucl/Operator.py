@@ -12,10 +12,12 @@ if(__package__==None or __package__==""):
     from Orbits import Orbits, OrbitsIsospin
     import ModelSpace
     import nushell2snt
+    import BasicFunctions
 else:
     from . import Orbits, OrbitsIsospin
     from . import ModelSpace
     from . import nushell2snt
+    from . import BasicFunctions
 
 def _ls_coupling(la, ja, lb, jb, Lab, Sab, J):
     return np.sqrt( (2*ja+1)*(2*jb+1)*(2*Lab+1)*(2*Sab+1) ) * \
@@ -1742,7 +1744,7 @@ class Operator:
 
     def set_fermi_op(self):
         """
-        set < p || 1 || q > < p or n| tau_+/- | n or p > = \sqrt{(2j_p+1)} 
+        set < p || 1 || q > < p or n| tau_+/- | n or p > = \sqrt{(2j_p+1)}
         """
         if(self.rankJ != 0): raise ValueError
         if(self.rankP != 1): raise ValueError
@@ -1759,6 +1761,24 @@ class Operator:
                 if(op.j != oq.j): continue
                 self.set_1bme(p,q,np.sqrt((op.j+1)))
         self.reduced=True
+
+    def set_rp4(self, hw):
+        if(self.rankJ != 0): raise ValueError
+        if(self.rankP != 1): raise ValueError
+        if(self.rankZ != 0): raise ValueError
+        self.allocate_operator(self.ms)
+        orbits = self.ms.orbits
+        for p in range(1,orbits.get_num_orbits()+1):
+            for q in range(p,orbits.get_num_orbits()+1):
+                op = orbits.get_orbit(p)
+                oq = orbits.get_orbit(q)
+                if(op.z != oq.z): continue
+                if(op.l != oq.l): continue
+                if(op.j != oq.j): continue
+                me = BasicFunctions.RadialInt(op.n, op.l, oq.n, oq.l, hw, 4)
+                self.set_1bme(p,q,me)
+        self.reduced=False
+
 
     def set_double_fermi_op(self):
         """
@@ -1887,11 +1907,11 @@ class Operator:
                     me = me_sdi(oa, ob, oc, od, J)
                     me-= me_sdi(oa, ob, od, oc, J) * (-1)**((oc.j+od.j)/2 + J)
                     self.set_2bme_from_indices(a, b, c, d, J, J, me*norm)
-        
+
     def set_pairing(self, G):
         """
         Eq. (12.11) from J. Suhonen, From Nucleons to Nucleus, Vol. 23 (Springer Berlin Heidelberg, Berlin, Heidelberg, 2007).
-        <pp:0 | V | qq:0 > = -G sqrt([jp][jq]) / 2
+        <pp:0 | V | qq:0 > = G sqrt([jp][jq]) / 2
         """
         tbs = self.ms.two
         for tbc in tbs.channels:
@@ -1905,8 +1925,75 @@ class Operator:
                     if(c != d): continue
                     oa, ob = tbc.get_orbits(ibra)
                     oc, od = tbc.get_orbits(iket)
-                    me = -G * np.sqrt((oa.j+1)*(oc.j+1)) * 0.5
+                    me = G * np.sqrt((oa.j+1)*(oc.j+1)) * 0.5
                     self.set_2bme_from_indices(a, b, c, d, J, J, me)
+
+    def set_QQforce(self, H, hw):
+        """
+        Eq. (8.55) from J. Suhonen, From Nucleons to Nucleus, Vol. 23 (Springer Berlin Heidelberg, Berlin, Heidelberg, 2007).
+        """
+        E2 = Operator(rankJ=2, ms=self.ms)
+        E2.set_electric_op(hw, e_p=1.0, e_n=1.0)
+        orbits = self.ms.orbits
+        def me_NA(a,b,c,d,J):
+            oa, ob, oc, od = orbits.get_orbit(a), orbits.get_orbit(b), orbits.get_orbit(c), orbits.get_orbit(d)
+            me = (-1)**((oa.j + ob.j)/2+J) * float(wigner_6j(oa.j*0.5, ob.j*0.5, J, od.j*0.5, oc.j*0.5, 2)) * E2.get_1bme(c,a) * E2.get_1bme(b,d)
+            return me
+
+        tbs = self.ms.two
+        for tbc in tbs.channels:
+            J = tbc.J
+            for ibra in range(tbc.get_number_states()):
+                for iket in range(ibra+1):
+                    a, b = tbc.get_indices(ibra)
+                    c, d = tbc.get_indices(iket)
+                    oa, ob = tbc.get_orbits(ibra)
+                    oc, od = tbc.get_orbits(iket)
+                    norm = 1.0
+                    if(a==b): norm /= np.sqrt(2.0)
+                    if(c==d): norm /= np.sqrt(2.0)
+                    me = me_NA(a,b,c,d,J)
+                    me -= me_NA(a,b,d,c,J) * (-1.0)**((oc.j+od.j)/2+J)
+                    me *= norm * H
+                    self.set_2bme_from_indices(a, b, c, d, J, J, me)
+
+    def set_pairing_QQ(self, hw, g_p=0, g_QQ=0):
+        Hp, HQQ = Operator(ms=self.ms), Operator(ms=self.ms)
+        Hp.set_pairing(g_p)
+        HQQ.set_QQforce(g_QQ, hw)
+        tmp = Hp + HQQ
+        self.two = tmp.two
+
+    def operator_ovlap(op1, op2):
+        def full_matrix_2body(self):
+            n = 0
+            ms2 = self.ms.two
+            for channel in self.channels:
+                n += channel.get_number_states()
+            mat = np.zeros((n,n))
+            nbra = 0
+            for chb in self.channels:
+                Jb = chb.J
+                for ibra in range(chb.get_number_states()):
+                    nbra += 1
+                    a, b = chb.get_indices(ibra)
+                    nket = 0
+                    for chk in self.channels:
+                        Jk = chk.J
+                        for iket in range(chk.get_number_states()):
+                            nket += 1
+                            c, d = chk.get_indices(ibra)
+                            mat[nbra,nket] = self.get_2bme_from_indices(a,b,c,d,Jb,Jk)
+            return mat
+        if(op1.rankJ != op2.rankJ): raise ValueError
+        if(op1.rankP != op2.rankP): raise ValueError
+        if(op1.rankZ != op2.rankZ): raise ValueError
+        op = op2.trucate(op1.ms)
+        ovlp1 = np.trance(np.matmul(op1.one, op.one)) / np.sqrt(np.trace(np.matmul(op1.one, op1.one)) * np.trance(np.matmul(op.one, op.one)))
+        mat1 = op1.full_matrix_2body()
+        mat2 = op.full_matrix_2body()
+        ovlp2 = np.trance(np.matmul(mat1, mat2)) / np.sqrt(np.trace(np.matmul(mat1, mat1)) * np.trance(np.matmul(mat2, mat2)))
+        return ovlp1, ovlp2
 
 def main():
     ms = ModelSpace.ModelSpace()
