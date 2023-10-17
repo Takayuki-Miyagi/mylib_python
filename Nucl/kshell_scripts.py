@@ -450,7 +450,7 @@ class kshell_scripts:
             f.close()
         return e_data
 
-    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, gen_partition=False, fn_script=None, dim_thr=None, python_version='python2', run_script=True):
+    def run_kshell(self, header="", batch_cmd=None, run_cmd=None, dim_cnt=False, gen_partition=False, fn_script=None, dim_thr=None, python_version='python3', run_script=True):
         """
         header: string, specifying the resource allocation.
         batch_cmd: string, command submitting jobs (this can be None) ex.) "qsub"

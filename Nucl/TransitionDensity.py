@@ -3,7 +3,8 @@ import os, sys, copy, gzip, subprocess, time, itertools
 import functools
 import numpy as np
 import pandas as pd
-from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j
+from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j, clebsch_gordan
+from sympy.physics.quantum.cg import CG
 import functools
 if(__package__==None or __package__==""):
     import ModelSpace
@@ -16,7 +17,11 @@ def _sixj(j1, j2, j3, j4, j5, j6):
     return float(wigner_6j(j1, j2, j3, j4, j5, j6))
 @functools.lru_cache(maxsize=None)
 def _ninej(j1, j2, j3, j4, j5, j6, j7, j8, j9):
-  return float(wigner_9j(j1, j2, j3, j4, j5, j6, j7, j8, j9))
+    return float(wigner_9j(j1, j2, j3, j4, j5, j6, j7, j8, j9))
+@functools.lru_cache(maxsize=None)
+def _clebsch_gordan(j1, j2, j3, m1, m2, m3):
+    return float(clebsch_gordan(j1, j2, j3, m1, m2, m3))
+
 
 class TransitionDensity:
     def __init__(self, Jbra=None, Jket=None, wflabel_bra=None, wflabel_ket=None, ms=None, filename=None, file_format="kshell", verbose=False):
@@ -162,11 +167,24 @@ class TransitionDensity:
         c = orbits.orbit_index_from_orbit( oc )
         d = orbits.orbit_index_from_orbit( od )
         self.set_2btd_from_indices( a, b, c, d, Jab, Jcd, jrank, me )
+
     def get_1btd(self,*args):
         try:
             return self.one[args]
         except:
             return 0
+    def get_1btd_Mscheme(self, p, mp2, q, mq2, Mbra, Mket):
+        orbs = self.ms.orbits
+        op = orbs.get_orbit(p)
+        oq = orbs.get_orbit(q)
+        v = 0.0
+        for lam in range(max(abs(self.Jbra-self.Jket), abs(op.j-oq.j)//2), min((op.j+oq.j)//2, self.Jbra+self.Jket)+1):
+            v += (-1)**(self.Jket-Mket+(oq.j-mq2)//2) * \
+                    _clebsch_gordan(self.Jket, self.Jbra, lam, Mket, -Mbra, Mket-Mbra) * \
+                    _clebsch_gordan(op.j*0.5, oq.j*0.5, lam, mp2*0.5, -mq2*0.5, Mket-Mbra) * \
+                    self.get_1btd(p, q, lam)
+        return v
+
     def get_2btd_from_mat_indices(self, chbra, chket, bra, ket, jrank):
         try:
             return self.two[(chbra,chket)][(bra,ket,jrank)]
@@ -212,6 +230,76 @@ class TransitionDensity:
         c = orbits.get_orbit_index_from_orbit( oc )
         d = orbits.get_orbit_index_from_orbit( od )
         return self.get_2btd_from_indices( a, b, c, d, Jab, Jcd, jrank )
+
+    def get_2btd_Mscheme(self, p, mdp, q, mdq, r, mdr, s, mds, Mbra, Mket, add_cg=True):
+        orbs = self.ms.orbits
+        o_p, o_q, o_r, o_s = orbs.get_orbit(p), orbs.get_orbit(q), orbs.get_orbit(r), orbs.get_orbit(s)
+        norm = 1
+        if(p==q): norm *= np.sqrt(2.0)
+        if(r==s): norm *= np.sqrt(2.0)
+        me = 0.0
+        for Jpq in range(abs(o_p.j-o_q.j)//2, (o_p.j+o_q.j)//2+1):
+            if(p==q and Jpq%2==1): continue
+            Mpq = (mdp + mdq)//2
+            if(abs(Mpq) > Jpq): continue
+            for Jrs in range(abs(o_r.j-o_s.j)//2, (o_r.j+o_s.j)//2+1):
+                if(r==s and Jrs%2==1): continue
+                Mrs = (mdr + mds)//2
+                if(abs(Mrs) > Jrs): continue
+                if(Mpq-Mrs != Mket-Mbra): continue
+                for lam in range(max(abs(Jpq-Jrs), abs(self.Jbra-self.Jket)), min(Jpq+Jrs, self.Jbra+self.Jket)+1):
+                    if(add_cg):
+                        me += (-1)**(self.Jket+Jrs-Mket-Mrs) * \
+                                _clebsch_gordan(self.Jket, self.Jbra, lam, Mket, -Mbra, Mket-Mbra) * \
+                                _clebsch_gordan(Jpq, Jrs, lam, Mpq, -Mrs, Mket-Mbra) * \
+                                _clebsch_gordan(o_p.j*0.5, o_q.j*0.5, Jpq, mdp*0.5, mdq*0.5, Mpq) * \
+                                _clebsch_gordan(o_r.j*0.5, o_s.j*0.5, Jrs, mdr*0.5, mds*0.5, Mrs) * \
+                                self.get_2btd_from_indices(p, q, r, s, Jpq, Jrs, lam)
+                    else:
+                        me += (-1)**(self.Jket+Jrs-Mket-Mrs) * \
+                                _clebsch_gordan(Jpq, Jrs, lam, Mpq, -Mrs, Mket-Mbra) * \
+                                _clebsch_gordan(o_p.j*0.5, o_q.j*0.5, Jpq, mdp*0.5, mdq*0.5, Mpq) * \
+                                _clebsch_gordan(o_r.j*0.5, o_s.j*0.5, Jrs, mdr*0.5, mds*0.5, Mrs) * \
+                                self.get_2btd_from_indices(p, q, r, s, Jpq, Jrs, lam)
+        me *= norm
+        return me
+
+    def get_2btd_from_Mscheme(self, p, q, r, s, Jpq, Jrs, jrank, Mbra, Mket):
+        orbs = self.ms.orbits
+        o_p, o_q, o_r, o_s = orbs.get_orbit(p), orbs.get_orbit(q), orbs.get_orbit(r), orbs.get_orbit(s)
+        norm = 1
+        if(p==q): norm /= np.sqrt(2.0)
+        if(r==s): norm /= np.sqrt(2.0)
+        cg = _clebsch_gordan(self.Jket, self.Jbra, jrank, Mket, -Mbra, Mket-Mbra)
+        add_cg = True
+        if(abs(cg) < 1.e-16):
+            add_cg = False
+        else:
+            fact = 1 / cg
+        me = 0.0
+        for mdp in range(-o_p.j, o_p.j+2, 2):
+            for mdq in range(-o_q.j, o_q.j+2, 2):
+                Mpq = (mdp + mdq)//2
+                if(abs(Mpq) > Jpq): continue
+
+                for mdr in range(-o_r.j, o_r.j+2, 2):
+                    for mds in range(-o_s.j, o_s.j+2, 2):
+                        Mrs = (mdr + mds)//2
+                        if(abs(Mrs) > Jrs): continue
+                        if(Mpq-Mrs != Mket-Mbra): continue
+                        if(add_cg):
+                            me += (-1)**(self.Jket+Jrs-Mket-Mrs) * fact * \
+                                _clebsch_gordan(Jpq, Jrs, jrank, Mpq, -Mrs, Mket-Mbra) * \
+                                _clebsch_gordan(o_p.j*0.5, o_q.j*0.5, Jpq, mdp*0.5, mdq*0.5, Mpq) * \
+                                _clebsch_gordan(o_r.j*0.5, o_s.j*0.5, Jrs, mdr*0.5, mds*0.5, Mrs) * \
+                                self.get_2btd_Mscheme(p, mdp, q, mdq, r, mdr, s, mds, Mbra, Mket)
+                        else:
+                            me += (-1)**(self.Jket+Jrs-Mket-Mrs) * \
+                                _clebsch_gordan(Jpq, Jrs, jrank, Mpq, -Mrs, Mket-Mbra) * \
+                                _clebsch_gordan(o_p.j*0.5, o_q.j*0.5, Jpq, mdp*0.5, mdq*0.5, Mpq) * \
+                                _clebsch_gordan(o_r.j*0.5, o_s.j*0.5, Jrs, mdr*0.5, mds*0.5, Mrs) * \
+                                self.get_2btd_Mscheme(p, mdp, q, mdq, r, mdr, s, mds, Mbra, Mket, add_cg=False)
+        return me * norm
 
     def _triag(self,J1,J2,J3):
         b = True
@@ -753,6 +841,69 @@ class TransitionDensity:
         vmin = min(x+y+[vmin,])
         vmax = max(x+y+[vmax,])
         ax.plot([vmin,vmax],[vmin,vmax],ls=":",lw=0.8,label="y=x",c="k")
+
+    def get_sp_entropy(self, i, m2, Mbra, Mket):
+        if(self.Jbra != self.Jket): raise "bra and ket wave functions need to be the same"
+        if(self.wflabel_bra != self.wflabel_ket): raise "bra and ket wave functions need to be the same"
+        oi = self.ms.orbits.get_orbit(i)
+        nprob = self.get_1btd_Mscheme(i, m2, i, m2, Mbra, Mket)
+        if(nprob<1.e-16): nprob=1.e-16
+        if(nprob>1.0): nprob=1-1.e-16
+        s = - nprob * np.log(nprob) - (1-nprob) * np.log((1-nprob))
+        return s
+
+    def get_sp_entropy_from_orbit(self, oi, m2, Mbra, Mket):
+        return self.get_sp_entropy(self.ms.orbits.get_orbit_index_from_orbit(oi), m2, Mbra, Mket)
+
+    def get_sp_entropy_from_qns(self, n, l, j, z, m2, Mbra, Mket):
+        return self.get_sp_entropy(self.ms.orbits.get_orbit_index_from_tuple((n, l, j, z)), m2, Mbra, Mket)
+
+    def get_2b_Mscheme_entropy(self, i1, m1, i2, m2, Mbra, Mket):
+        orbits = self.ms.orbits
+        o1 = orbits.get_orbit(i1)
+        o2 = orbits.get_orbit(i2)
+        return self.get_2b_Mscheme_entropy_from_qns(o1.n, o1.l, o1.j, o1.z, m1, o2.n, o2.l, o2.j, o2.z, m2, Mbra, Mket)
+
+    def get_2b_Mscheme_entropy_from_qns(self, n1, l1, j1, z1, m1, n2, l2, j2, z2, m2, Mbra, Mket):
+        if(self.Jbra != self.Jket): raise "bra and ket wave functions need to be the same"
+        if(self.wflabel_bra != self.wflabel_ket): raise "bra and ket wave functions need to be the same"
+        orbits = self.ms.orbits
+        i1 = orbits.get_orbit_index(n1, l1, j1, z1)
+        i2 = orbits.get_orbit_index(n2, l2, j2, z2)
+        o1 = orbits.get_orbit(i1)
+        o2 = orbits.get_orbit(i2)
+        rho = np.zeros((4,4))
+        tbtd = self.get_2btd_Mscheme(i1, m1, i2, m2, i1, m1, i2, m2, Mbra, Mket)
+        rho[0,0] = 1 - self.get_1btd_Mscheme(i1,m1,i1,m1,Mbra,Mket) - self.get_1btd_Mscheme(i2,m2,i2,m2,Mbra,Mket) + tbtd
+        rho[1,1] = self.get_1btd_Mscheme(i2,m2,i2,m2,Mbra,Mket) - tbtd
+        rho[2,2] = self.get_1btd_Mscheme(i1,m1,i1,m1,Mbra,Mket) - tbtd
+        rho[3,3] = tbtd
+        rho[1,2] = self.get_1btd_Mscheme(i1,m1,i2,m2,Mbra,Mket)
+        rho[2,1] = self.get_1btd_Mscheme(i2,m2,i1,m1,Mbra,Mket)
+        e_val, e_vec = np.linalg.eigh(rho)
+        s = 0
+        for e in e_val:
+            if(e<1.e-16): e=1.e-16
+            if(e>1.0): e=1-1.e-16
+            s -= e * np.log(e)
+        return s
+
+    def get_2b_Mscheme_mutual_info_from_qns(self, n1, l1, j1, z1, m1, n2, l2, j2, z2, m2, Mbra, Mket):
+        if(self.Jbra != self.Jket): raise "bra and ket wave functions need to be the same"
+        if(self.wflabel_bra != self.wflabel_ket): raise "bra and ket wave functions need to be the same"
+        if(n1==n2 and l1==l2 and j1==j2 and z1==z2 and m1==m2): return 0
+        return self.get_sp_entropy_from_qns(n1, l1, j1, z1, m1, Mbra, Mket) + \
+                self.get_sp_entropy_from_qns(n2, l2, j2, z2, m2, Mbra, Mket) - \
+                self.get_2b_Mscheme_entropy_from_qns(n1, l1, j1, z1, m1, n2, l2, j2, z2, m2, Mbra, Mket)
+
+    def get_2b_Mscheme_mutual_info(self, i1, m1, i2, m2, Mbra, Mket):
+        if(self.Jbra != self.Jket): raise "bra and ket wave functions need to be the same"
+        if(self.wflabel_bra != self.wflabel_ket): raise "bra and ket wave functions need to be the same"
+        if(i1==i2 and m1==m2): return 0
+        return self.get_sp_entropy(i1, m1, Mbra, Mket) + \
+                self.get_sp_entropy(i2, m2, Mbra, Mket) - \
+                self.get_2b_Mscheme_entropy(i1, m1, i2, m2, Mbra, Mket)
+
 
 def main():
     file_td="transition-density-file-name"

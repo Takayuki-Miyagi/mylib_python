@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import sys, os, subprocess, itertools, math
 import numpy as np
+import functools
 import copy
 import gzip
 from scipy.constants import physical_constants
 from scipy.special import gamma
-from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j
-from sympy.physics.quantum.cg import CG
+from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j, clebsch_gordan
 import pandas as pd
 if(__package__==None or __package__==""):
     from Orbits import Orbits, OrbitsIsospin
@@ -19,6 +19,15 @@ else:
     from . import nushell2snt
     from . import BasicFunctions
 
+@functools.lru_cache(maxsize=None)
+def _sixj(j1, j2, j3, j4, j5, j6):
+    return float(wigner_6j(j1, j2, j3, j4, j5, j6))
+@functools.lru_cache(maxsize=None)
+def _ninej(j1, j2, j3, j4, j5, j6, j7, j8, j9):
+    return float(wigner_9j(j1, j2, j3, j4, j5, j6, j7, j8, j9))
+@functools.lru_cache(maxsize=None)
+def _clebsch_gordan(j1, j2, j3, m1, m2, m3):
+    return float(clebsch_gordan(j1, j2, j3, m1, m2, m3))
 def _ls_coupling(la, ja, lb, jb, Lab, Sab, J):
     return np.sqrt( (2*ja+1)*(2*jb+1)*(2*Lab+1)*(2*Sab+1) ) * \
             np.float( wigner_9j( la, 0.5, ja, lb, 0.5, jb, Lab, Sab, J) )
@@ -1555,9 +1564,13 @@ class Operator:
                 Mrs = (mdr + mds)//2
                 if(abs(Mrs) > Jrs): continue
                 if(not abs(Jpq-Jrs) <= self.rankJ <= Jpq+Jrs): continue
-                me += float(CG(o_p.j*0.5, mdp*0.5, o_q.j*0.5, mdq*0.5, Jpq, Mpq).doit()) * \
-                        float(CG(o_r.j*0.5, mdr*0.5, o_s.j*0.5, mds*0.5, Jrs, Mrs).doit()) * \
-                        float(CG(Jrs, Mrs, self.rankJ, mud*0.5, Jpq, Mpq).doit()) / np.sqrt(2*Jpq+1) * \
+                #me += float(CG(o_p.j*0.5, mdp*0.5, o_q.j*0.5, mdq*0.5, Jpq, Mpq).doit()) * \
+                #        float(CG(o_r.j*0.5, mdr*0.5, o_s.j*0.5, mds*0.5, Jrs, Mrs).doit()) * \
+                #        float(CG(Jrs, Mrs, self.rankJ, mud*0.5, Jpq, Mpq).doit()) / np.sqrt(2*Jpq+1) * \
+                #        self.get_2bme_from_indices(p, q, r, s, Jpq, Jrs)
+                me += _clebsch_gordan(o_p.j*0.5, o_q.j*0.5, Jpq, mdp*0.5, mdq*0.5, Mpq) * \
+                        _clebsch_gordan(o_r.j*0.5, o_s.j*0.5, Jrs, mdr*0.5, mds*0.5, Mrs) * \
+                        _clebsch_gordan(Jrs, self.rankJ, Jpq, Mrs, mud*0.5, Mpq) / np.sqrt(2*Jpq+1) * \
                         self.get_2bme_from_indices(p, q, r, s, Jpq, Jrs)
         me *= norm
         return me
@@ -1577,10 +1590,14 @@ class Operator:
         m4d = 2*ml4 + s4d
         me = 0.0
         for j1d, j2d, j3d, j4d in itertools.product(range(abs(2*l1-1),2*l1+3,2), range(abs(2*l2-1),2*l2+3,2), range(abs(2*l3-1),2*l3+3,2), range(abs(2*l4-1),2*l4+3,2)):
-            coef = float(CG(l1, ml1, 0.5, s1d*0.5, j1d*0.5, m1d*0.5).doit()) * \
-                    float(CG(l2, ml2, 0.5, s2d*0.5, j2d*0.5, m2d*0.5).doit()) * \
-                    float(CG(l3, ml3, 0.5, s3d*0.5, j3d*0.5, m3d*0.5).doit()) * \
-                    float(CG(l4, ml4, 0.5, s4d*0.5, j4d*0.5, m4d*0.5).doit())
+            #coef = float(CG(l1, ml1, 0.5, s1d*0.5, j1d*0.5, m1d*0.5).doit()) * \
+            #        float(CG(l2, ml2, 0.5, s2d*0.5, j2d*0.5, m2d*0.5).doit()) * \
+            #        float(CG(l3, ml3, 0.5, s3d*0.5, j3d*0.5, m3d*0.5).doit()) * \
+            #        float(CG(l4, ml4, 0.5, s4d*0.5, j4d*0.5, m4d*0.5).doit())
+            coef = _clebsch_gordan(l1, 0.5, j1d*0.5, ml1, s1d*0.5, m1d*0.5) * \
+                    _clebsch_gordan(l2, 0.5, j2d*0.5, ml2, s2d*0.5, m2d*0.5) * \
+                    _clebsch_gordan(l3, 0.5, j3d*0.5, ml3, s3d*0.5, m3d*0.5) * \
+                    _clebsch_gordan(l4, 0.5, j4d*0.5, ml4, s4d*0.5, m4d*0.5)
             i1 = orbs.get_orbit_index(n1, l1, j1d, tz1d)
             i2 = orbs.get_orbit_index(n2, l2, j2d, tz2d)
             i3 = orbs.get_orbit_index(n3, l3, j3d, tz3d)
@@ -1965,34 +1982,34 @@ class Operator:
         self.two = tmp.two
 
     def operator_ovlap(op1, op2):
-        def full_matrix_2body(self):
+        def full_matrix_2body(op):
+            ms2 = op.ms.two
             n = 0
-            ms2 = self.ms.two
-            for channel in self.channels:
+            for channel in ms2.channels:
                 n += channel.get_number_states()
             mat = np.zeros((n,n))
             nbra = 0
-            for chb in self.channels:
+            for chb in ms2.channels:
                 Jb = chb.J
                 for ibra in range(chb.get_number_states()):
-                    nbra += 1
                     a, b = chb.get_indices(ibra)
                     nket = 0
-                    for chk in self.channels:
+                    for chk in ms2.channels:
                         Jk = chk.J
                         for iket in range(chk.get_number_states()):
+                            c, d = chk.get_indices(iket)
+                            mat[nbra,nket] = op.get_2bme_from_indices(a,b,c,d,Jb,Jk)
                             nket += 1
-                            c, d = chk.get_indices(ibra)
-                            mat[nbra,nket] = self.get_2bme_from_indices(a,b,c,d,Jb,Jk)
+                    nbra += 1
             return mat
         if(op1.rankJ != op2.rankJ): raise ValueError
         if(op1.rankP != op2.rankP): raise ValueError
         if(op1.rankZ != op2.rankZ): raise ValueError
-        op = op2.trucate(op1.ms)
-        ovlp1 = np.trance(np.matmul(op1.one, op.one)) / np.sqrt(np.trace(np.matmul(op1.one, op1.one)) * np.trance(np.matmul(op.one, op.one)))
-        mat1 = op1.full_matrix_2body()
-        mat2 = op.full_matrix_2body()
-        ovlp2 = np.trance(np.matmul(mat1, mat2)) / np.sqrt(np.trace(np.matmul(mat1, mat1)) * np.trance(np.matmul(mat2, mat2)))
+        op = op2.truncate(op1.ms)
+        ovlp1 = np.trace(np.matmul(op1.one, op.one)) / np.sqrt(np.trace(np.matmul(op1.one, op1.one)) * np.trace(np.matmul(op.one, op.one)))
+        mat1 = full_matrix_2body(op1)
+        mat2 = full_matrix_2body(op)
+        ovlp2 = np.trace(np.matmul(mat1, mat2)) / np.sqrt(np.trace(np.matmul(mat1, mat1)) * np.trace(np.matmul(mat2, mat2)))
         return ovlp1, ovlp2
 
 def main():
