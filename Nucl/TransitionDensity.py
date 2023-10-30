@@ -178,7 +178,7 @@ class TransitionDensity:
         op = orbs.get_orbit(p)
         oq = orbs.get_orbit(q)
         v = 0.0
-        for lam in range(max(abs(self.Jbra-self.Jket), abs(op.j-oq.j)//2), min((op.j+oq.j)//2, self.Jbra+self.Jket)+1):
+        for lam in range(max(int(abs(self.Jbra-self.Jket)), abs(op.j-oq.j)//2), min((op.j+oq.j)//2, int(self.Jbra+self.Jket))+1):
             v += (-1)**(self.Jket-Mket+(oq.j-mq2)//2) * \
                     _clebsch_gordan(self.Jket, self.Jbra, lam, Mket, -Mbra, Mket-Mbra) * \
                     _clebsch_gordan(op.j*0.5, oq.j*0.5, lam, mp2*0.5, -mq2*0.5, Mket-Mbra) * \
@@ -247,7 +247,7 @@ class TransitionDensity:
                 Mrs = (mdr + mds)//2
                 if(abs(Mrs) > Jrs): continue
                 if(Mpq-Mrs != Mket-Mbra): continue
-                for lam in range(max(abs(Jpq-Jrs), abs(self.Jbra-self.Jket)), min(Jpq+Jrs, self.Jbra+self.Jket)+1):
+                for lam in range(max(abs(Jpq-Jrs), int(abs(self.Jbra-self.Jket))), min(Jpq+Jrs, int(self.Jbra+self.Jket))+1):
                     if(add_cg):
                         me += (-1)**(self.Jket+Jrs-Mket-Mrs) * \
                                 _clebsch_gordan(self.Jket, self.Jbra, lam, Mket, -Mbra, Mket-Mbra) * \

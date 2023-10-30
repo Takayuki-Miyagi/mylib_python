@@ -19,6 +19,9 @@ else:
     from . import nushell2snt
     from . import BasicFunctions
 
+_paulix = np.array([[0,1],[1,0]])
+_pauliy = np.array([[0,-1j],[1j,0]])
+_pauliz = np.array([[1,0],[0,-1]])
 @functools.lru_cache(maxsize=None)
 def _sixj(j1, j2, j3, j4, j5, j6):
     return float(wigner_6j(j1, j2, j3, j4, j5, j6))
@@ -1420,10 +1423,10 @@ class Operator:
             if(a==b): me /= np.sqrt(2.0)
             if(c==d): me /= np.sqrt(2.0)
             return me
-        if(b==d): me += self.get_1bme(a,c) * (-1.0)**( (oa.j+ob.j)//2 + Jcd     ) * N( wigner_6j(Jab,Jcd,lam,oc.j*0.5,oa.j*0.5,ob.j*0.5) )
-        if(a==c): me += self.get_1bme(b,d) * (-1.0)**( (oc.j+od.j)//2 - Jab     ) * N( wigner_6j(Jab,Jcd,lam,od.j*0.5,ob.j*0.5,oa.j*0.5) )
-        if(b==c): me -= self.get_1bme(a,d) * (-1.0)**( (oa.j+ob.j+oc.j+od.j)//2 ) * N( wigner_6j(Jab,Jcd,lam,od.j*0.5,oa.j*0.5,ob.j*0.5) )
-        if(a==d): me -= self.get_1bme(b,c) * (-1.0)**( Jcd - Jab                ) * N( wigner_6j(Jab,Jcd,lam,oc.j*0.5,ob.j*0.5,oa.j*0.5) )
+        if(b==d): me += self.get_1bme(a,c) * (-1.0)**( (oa.j+ob.j)//2 + Jcd     ) * _sixj(Jab,Jcd,lam,oc.j*0.5,oa.j*0.5,ob.j*0.5)
+        if(a==c): me += self.get_1bme(b,d) * (-1.0)**( (oc.j+od.j)//2 - Jab     ) * _sixj(Jab,Jcd,lam,od.j*0.5,ob.j*0.5,oa.j*0.5)
+        if(b==c): me -= self.get_1bme(a,d) * (-1.0)**( (oa.j+ob.j+oc.j+od.j)//2 ) * _sixj(Jab,Jcd,lam,od.j*0.5,oa.j*0.5,ob.j*0.5)
+        if(a==d): me -= self.get_1bme(b,c) * (-1.0)**( Jcd - Jab                ) * _sixj(Jab,Jcd,lam,oc.j*0.5,ob.j*0.5,oa.j*0.5)
         me *= np.sqrt( (2*Jab+1)*(2*Jcd+1) ) * (-1.0)**lam
         if(a==b): me /= np.sqrt(2.0)
         if(c==d): me /= np.sqrt(2.0)
@@ -1564,10 +1567,6 @@ class Operator:
                 Mrs = (mdr + mds)//2
                 if(abs(Mrs) > Jrs): continue
                 if(not abs(Jpq-Jrs) <= self.rankJ <= Jpq+Jrs): continue
-                #me += float(CG(o_p.j*0.5, mdp*0.5, o_q.j*0.5, mdq*0.5, Jpq, Mpq).doit()) * \
-                #        float(CG(o_r.j*0.5, mdr*0.5, o_s.j*0.5, mds*0.5, Jrs, Mrs).doit()) * \
-                #        float(CG(Jrs, Mrs, self.rankJ, mud*0.5, Jpq, Mpq).doit()) / np.sqrt(2*Jpq+1) * \
-                #        self.get_2bme_from_indices(p, q, r, s, Jpq, Jrs)
                 me += _clebsch_gordan(o_p.j*0.5, o_q.j*0.5, Jpq, mdp*0.5, mdq*0.5, Mpq) * \
                         _clebsch_gordan(o_r.j*0.5, o_s.j*0.5, Jrs, mdr*0.5, mds*0.5, Mrs) * \
                         _clebsch_gordan(Jrs, self.rankJ, Jpq, Mrs, mud*0.5, Mpq) / np.sqrt(2*Jpq+1) * \
@@ -1590,10 +1589,6 @@ class Operator:
         m4d = 2*ml4 + s4d
         me = 0.0
         for j1d, j2d, j3d, j4d in itertools.product(range(abs(2*l1-1),2*l1+3,2), range(abs(2*l2-1),2*l2+3,2), range(abs(2*l3-1),2*l3+3,2), range(abs(2*l4-1),2*l4+3,2)):
-            #coef = float(CG(l1, ml1, 0.5, s1d*0.5, j1d*0.5, m1d*0.5).doit()) * \
-            #        float(CG(l2, ml2, 0.5, s2d*0.5, j2d*0.5, m2d*0.5).doit()) * \
-            #        float(CG(l3, ml3, 0.5, s3d*0.5, j3d*0.5, m3d*0.5).doit()) * \
-            #        float(CG(l4, ml4, 0.5, s4d*0.5, j4d*0.5, m4d*0.5).doit())
             coef = _clebsch_gordan(l1, 0.5, j1d*0.5, ml1, s1d*0.5, m1d*0.5) * \
                     _clebsch_gordan(l2, 0.5, j2d*0.5, ml2, s2d*0.5, m2d*0.5) * \
                     _clebsch_gordan(l3, 0.5, j3d*0.5, ml3, s3d*0.5, m3d*0.5) * \
@@ -1974,6 +1969,48 @@ class Operator:
                     me *= norm * H
                     self.set_2bme_from_indices(a, b, c, d, J, J, me)
 
+    def set_QdotQ(self, hw, e_p=1, e_n=0):
+        """
+        Similar to QQ force but it is O = [\sum_i Q_i x \sum_j Q_j]_0
+        """
+        E2 = Operator(rankJ=2, ms=self.ms)
+        E2.set_electric_op(hw, e_p=e_p, e_n=e_n)
+        orbits = self.ms.orbits
+        for op in orbits.orbits:
+            p = orbits.get_orbit_index_from_orbit(op)
+            for oq in orbits.orbits:
+                q = orbits.get_orbit_index_from_orbit(oq)
+                if(op.z != oq.z): continue
+                if(op.l != oq.l): continue
+                if(op.j != oq.j): continue
+                e = 0
+                if(op.z == -1): e = e_p
+                if(op.z ==  1): e = e_n
+                me = BasicFunctions.RadialInt(op.n, op.l, oq.n, oq.l, hw, 4) * np.sqrt(5) / (4*np.pi) * e
+                self.set_1bme(p,q,me)
+
+        def me_NA(a,b,c,d,J):
+            oa, ob, oc, od = orbits.get_orbit(a), orbits.get_orbit(b), orbits.get_orbit(c), orbits.get_orbit(d)
+            me = (-1)**((ob.j + oc.j)/2+J) * float(wigner_6j(oa.j*0.5, ob.j*0.5, J, od.j*0.5, oc.j*0.5, 2)) * E2.get_1bme(a,c) * E2.get_1bme(b,d)
+            return me
+
+        tbs = self.ms.two
+        for tbc in tbs.channels:
+            J = tbc.J
+            for ibra in range(tbc.get_number_states()):
+                for iket in range(ibra+1):
+                    a, b = tbc.get_indices(ibra)
+                    c, d = tbc.get_indices(iket)
+                    oa, ob = tbc.get_orbits(ibra)
+                    oc, od = tbc.get_orbits(iket)
+                    norm = 1.0
+                    if(a==b): norm /= np.sqrt(2.0)
+                    if(c==d): norm /= np.sqrt(2.0)
+                    me = me_NA(a,b,c,d,J)
+                    me -= me_NA(a,b,d,c,J) * (-1.0)**((oc.j+od.j)/2+J)
+                    me *= norm * 2 /np.sqrt(5)
+                    self.set_2bme_from_indices(a, b, c, d, J, J, me)
+
     def set_pairing_QQ(self, hw, g_p=0, g_QQ=0):
         Hp, HQQ = Operator(ms=self.ms), Operator(ms=self.ms)
         Hp.set_pairing(g_p)
@@ -1981,36 +2018,105 @@ class Operator:
         tmp = Hp + HQQ
         self.two = tmp.two
 
-    def operator_ovlap(op1, op2):
+    def mass_dependent_tbme(self, A):
+        mass_dep = 1
+        if(self.kshell_options[0]==1): mass_dep =(float(A) / float(self.kshell_options[1]))**float(self.kshell_options[2])
+        for channels in self.two:
+            ichbra, ichket = channels
+            chbra, chket = self.ms.two.get_channel(ichbra), self.ms.two.get_channel(ichket)
+            for ibra in range(chbra.get_number_states()):
+                for iket in range(chket.get_number_states()):
+                    try:
+                        self.two[channels][(ibra,iket)] *= mass_dep
+                    except:
+                        pass
+
+    def operator_ovlap(op1, op2, normalize=False):
         def full_matrix_2body(op):
             ms2 = op.ms.two
-            n = 0
-            for channel in ms2.channels:
-                n += channel.get_number_states()
-            mat = np.zeros((n,n))
-            nbra = 0
-            for chb in ms2.channels:
-                Jb = chb.J
-                for ibra in range(chb.get_number_states()):
-                    a, b = chb.get_indices(ibra)
-                    nket = 0
-                    for chk in ms2.channels:
-                        Jk = chk.J
-                        for iket in range(chk.get_number_states()):
-                            c, d = chk.get_indices(iket)
-                            mat[nbra,nket] = op.get_2bme_from_indices(a,b,c,d,Jb,Jk)
-                            nket += 1
-                    nbra += 1
+            orbs = ms2.orbits
+            idxm_to_idx_m = {}
+            idx = 0
+            for o in orbs.orbits:
+                for m in range(-o.j, o.j+2, 2):
+                    idxm_to_idx_m[idx] = (orbs.get_orbit_index_from_orbit(o),m)
+                    idx += 1
+            ijlist = list(itertools.combinations_with_replacement(list(range(len(idxm_to_idx_m))),2))
+            mat = np.zeros((len(ijlist),len(ijlist)))
+            for ibra, ij in enumerate(ijlist):
+                for iket, kl in enumerate(ijlist):
+                    i, j = ij
+                    k, l = kl
+                    i_i, m_i = idxm_to_idx_m[i]
+                    i_j, m_j = idxm_to_idx_m[j]
+                    i_k, m_k = idxm_to_idx_m[k]
+                    i_l, m_l = idxm_to_idx_m[l]
+                    mat[ibra,iket] = op.get_2bme_Mscheme(i_i, m_i, i_j, m_j, i_k, m_k, i_l, m_l, m_i+m_j-m_k-m_l)
             return mat
+
         if(op1.rankJ != op2.rankJ): raise ValueError
         if(op1.rankP != op2.rankP): raise ValueError
         if(op1.rankZ != op2.rankZ): raise ValueError
         op = op2.truncate(op1.ms)
-        ovlp1 = np.trace(np.matmul(op1.one, op.one)) / np.sqrt(np.trace(np.matmul(op1.one, op1.one)) * np.trace(np.matmul(op.one, op.one)))
+        if(not op.reduced): op.to_reduced()
+        if(not op1.reduced): op1.to_reduced()
+        if(normalize):
+            ovlp1 = np.trace(np.matmul(op1.one, op.one)) / np.sqrt(np.trace(np.matmul(op1.one, op1.one)) * np.trace(np.matmul(op.one, op.one)))
+        else:
+            ovlp1 = np.trace(np.matmul(op1.one, op.one))
         mat1 = full_matrix_2body(op1)
         mat2 = full_matrix_2body(op)
-        ovlp2 = np.trace(np.matmul(mat1, mat2)) / np.sqrt(np.trace(np.matmul(mat1, mat1)) * np.trace(np.matmul(mat2, mat2)))
+        if(normalize):
+            ovlp2 = np.trace(np.matmul(mat1, mat2)) / np.sqrt(np.trace(np.matmul(mat1, mat1)) * np.trace(np.matmul(mat2, mat2)))
+        else:
+            ovlp2 = np.trace(np.matmul(mat1, mat2))
+        op.to_nonreduced()
+        op1.to_nonreduced()
         return ovlp1, ovlp2
+
+    def set_tau1_x_tau2(self):
+        """
+        (tau1 x tau2) (sigma1 x sigma2) = - i(tau1 x tau2) i(sigma1 x sigma2)
+        """
+        tbs = self.ms.two
+        op2 = self.two
+        orbits = self.ms.orbits
+        def me_NA(a,b,c,d,Jab,Jcd):
+            oa, ob, oc, od = orbits.get_orbit(a), orbits.get_orbit(b), orbits.get_orbit(c), orbits.get_orbit(d)
+            if(oa.n != oc.n or oa.l != oc.l): return 0
+            if(ob.n != od.n or ob.l != od.l): return 0
+            i_a, i_b, i_c, i_d = (1-oa.z)//2, (1-ob.z)//2, (1-oc.z)//2, (1-od.z)//2
+            if(oa.z + ob.z - oc.z - od.z == 0):
+                me = _paulix[i_a,i_c] * _pauliy[i_b,i_d] - _pauliy[i_a,i_c] * _paulix[i_b,i_d]
+            if(oa.z + ob.z - oc.z - od.z == 2):
+                me = (_pauliy[i_a,i_c] * _pauliz[i_b,i_d] - _pauliz[i_a,i_c] * _pauliy[i_b,i_d]) + 1j * (_pauliz[i_a,i_c] * _paulix[i_b,i_d] - _paulix[i_a,i_c] * _pauliz[i_b,i_d])
+            if(oa.z + ob.z - oc.z - od.z ==-2):
+                me = (_pauliy[i_a,i_c] * _pauliz[i_b,i_d] - _pauliz[i_a,i_c] * _pauliy[i_b,i_d]) - 1j * (_pauliz[i_a,i_c] * _paulix[i_b,i_d] - _paulix[i_a,i_c] * _pauliz[i_b,i_d])
+            me *= 1j
+            me *= np.sqrt((2*Jab+1)*(2*Jcd+1)*6) * _ninej(0.5*oa.j, 0.5*ob.j, Jab, 0.5*oc.j, 0.5*od.j, Jcd, 1, 1, 1) * \
+                    np.sqrt(6*(oa.j+1)*(oc.j+1)) * (-1)**((oa.j+3)//2 + oa.l) * _sixj(0.5, 0.5, 1, 0.5*oc.j, 0.5*oa.j, oa.l) * \
+                    np.sqrt(6*(ob.j+1)*(od.j+1)) * (-1)**((ob.j+3)//2 + ob.l) * _sixj(0.5, 0.5, 1, 0.5*od.j, 0.5*ob.j, ob.l)
+            me *= -1
+            return me.real
+        def _me(a,b,c,d,Jab,Jcd):
+            norm = 1.0
+            if(a==b): norm /= np.sqrt(2.0)
+            if(c==d): norm /= np.sqrt(2.0)
+            oa, ob, oc, od = orbits.get_orbit(a), orbits.get_orbit(b), orbits.get_orbit(c), orbits.get_orbit(d)
+            me = me_NA(a,b,c,d,Jab,Jcd)
+            me -= me_NA(a,b,d,c,Jab,Jcd) * (-1.0)**((oc.j+od.j)//2+Jcd)
+            me *= norm
+            return me
+
+        for channels in op2.keys():
+            chbra = tbs.get_channel(channels[0])
+            chket = tbs.get_channel(channels[1])
+            for ibra in range(chbra.get_number_states()):
+                for iket in range(chket.get_number_states()):
+                    a, b = chbra.get_indices(ibra)
+                    c, d = chket.get_indices(iket)
+                    me = _me(a, b, c, d, chbra.J, chket.J)
+                    self.set_2bme_from_indices(a, b, c, d, chbra.J, chket.J, me)
 
 def main():
     ms = ModelSpace.ModelSpace()

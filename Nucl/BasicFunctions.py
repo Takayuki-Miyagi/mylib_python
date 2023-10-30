@@ -4,12 +4,16 @@ from scipy.special import gamma, assoc_laguerre, eval_gegenbauer, eval_genlaguer
 from scipy import integrate
 from scipy.constants import physical_constants
 from sympy import N
-from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j
+from scipy.special import sph_harm
+from sympy.physics.wigner import wigner_3j, wigner_6j, wigner_9j, clebsch_gordan
 
 hc = physical_constants['reduced Planck constant times c in MeV fm'][0]
 m_n = physical_constants['neutron mass energy equivalent in MeV'][0]
 m_p = physical_constants['proton mass energy equivalent in MeV'][0]
 m_nucl = (m_p + m_n)*0.5
+paulix = np.array([[0,1],[1,0]])
+pauliy = np.array([[0,-1j],[1j,0]])
+pauliz = np.array([[1,0],[0,-1]])
 def HO_radial(r, n, l, hw):
     hc = physical_constants['reduced Planck constant times c in MeV fm'][0]
     m_n = physical_constants['neutron mass energy equivalent in MeV'][0]
@@ -39,6 +43,56 @@ def Ysigma(l1, j1, l2, j2, l, s, k):
     sfact = np.sqrt(2.0)
     if(s==1): sfact = np.sqrt(6.0)
     return np.sqrt(float((2*j1+1)*(2*j2+1)*(2*k+1))) * N(wigner_9j(l1, 0.5, j1, l2, 0.5, j2, l, s, k, prec=8)) * Yl_red(l1, l2, l) * sfact
+
+def get_spherical(Q):
+    Ql = np.sqrt(np.dot(Q,Q))
+    theta = np.arccos(Q[2]/Ql)
+    phi = np.arccos(Q[0]/np.sqrt(np.dot(Q[:2],Q[:2])))
+    if(Q[1]<0): phi*=-1
+    return Ql, theta, phi
+
+def e_sph(m):
+    if(m==0): return np.array([0,0,1])
+    if(m==-1): return np.array([1/np.sqrt(2),-1j/np.sqrt(2),0])
+    if(m== 1): return np.array([-1/np.sqrt(2),-1j/np.sqrt(2),0])
+
+def sigma(m):
+    if(m==0): return pauliz
+    if(m==-1): return (paulix - pauliy * 1j)/np.sqrt(2)
+    if(m== 1): return -(paulix + pauliy * 1j)/np.sqrt(2)
+
+def VecYLM(Q,L,M):
+    """
+    \vec{Y}_{LM}(\hat{\vec{Q}})
+    """
+    Ql, theta_Q, phi_Q = get_spherical(Q)
+    return sph_harm(M,L,phi_Q,theta_Q) * Q / Ql
+
+def VecPsi(Q,L,M):
+    """
+    \vec{\Psi}_{LM}(\hat{\vec{Q}})
+    """
+    Ql, theta_Q, phi_Q = get_spherical(Q)
+    Psi = np.zeros(3,dtype=np.complex)
+    for lam in [-1,0,1]:
+        if(abs(M-lam)>L-1): continue
+        Psi += np.float(clebsch_gordan(L-1,1,L,M-lam,lam,M).evalf()) * sph_harm(M-lam,L-1,phi_Q,theta_Q) * e_sph(lam) * np.sqrt(L+1)
+    for lam in [-1,0,1]:
+        if(abs(M-lam)>L+1): continue
+        Psi += np.float(clebsch_gordan(L+1,1,L,M-lam,lam,M).evalf()) * sph_harm(M-lam,L+1,phi_Q,theta_Q) * e_sph(lam) * np.sqrt(L)
+    Psi *= np.sqrt(1/(2*L+1))
+    return Psi
+
+def VecPhi(Q,L,M):
+    """
+    \vec{\Phi}_{LM}(\hat{\vec{Q}})
+    """
+    Ql, theta_Q, phi_Q = get_spherical(Q)
+    Phi = np.zeros(3,dtype=np.complex)
+    for lam in [-1,0,1]:
+        if(abs(M-lam)>L): continue
+        Phi += np.float(clebsch_gordan(L,1,L,M-lam,lam,M).evalf()) * sph_harm(M-lam,L,phi_Q,theta_Q) * e_sph(lam)
+    return Phi
 
 if(__name__=="__main__"):
     print(HO_radial(0, 0, 0, 20))
