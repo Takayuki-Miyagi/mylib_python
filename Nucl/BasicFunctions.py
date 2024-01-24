@@ -44,10 +44,31 @@ def Ysigma(l1, j1, l2, j2, l, s, k):
     if(s==1): sfact = np.sqrt(6.0)
     return np.sqrt(float((2*j1+1)*(2*j2+1)*(2*k+1))) * N(wigner_9j(l1, 0.5, j1, l2, 0.5, j2, l, s, k, prec=8)) * Yl_red(l1, l2, l) * sfact
 
+def QdotQ(hw, n1, l1, n2, l2):
+    if(abs(n1 - n2) > 2): return 0
+    if(l1 != l2): return 0
+    me = 0.0
+    for n in range(12):
+        for l in range(abs(l1-2), l1+3):
+            me += wigner_6j(2, 2, 0, l2, l1, l) * multipole_me(hw, 2, n1, l1, n, l) * multipole_me(hw, 2, n, l, n2, l2)
+    return me / np.sqrt(5)
+
+
+def multipole_me(hw, lam, n1, l1, n2, l2):
+    """
+    set < p || Q || q >
+    """
+    me = RadialInt(n1, l1, n2, l2, hw, lam) * \
+            (-1.0)**l1 * np.sqrt((2*lam+1)*(2*l1+1)*(2*l2+1)/ (4*np.pi)) * float(wigner_3j(l1, lam, l2, 0, 0, 0))
+    return me
+
 def get_spherical(Q):
     Ql = np.sqrt(np.dot(Q,Q))
     theta = np.arccos(Q[2]/Ql)
-    phi = np.arccos(Q[0]/np.sqrt(np.dot(Q[:2],Q[:2])))
+    if(Q[0]**2 > 1.e-8 and np.dot(Q[:2], Q[:2]) > 1.e-8):
+        phi = np.arccos(Q[0]/np.sqrt(np.dot(Q[:2],Q[:2])))
+    else:
+        phi = 0
     if(Q[1]<0): phi*=-1
     return Ql, theta, phi
 
@@ -61,12 +82,16 @@ def sigma(m):
     if(m==-1): return (paulix - pauliy * 1j)/np.sqrt(2)
     if(m== 1): return -(paulix + pauliy * 1j)/np.sqrt(2)
 
+def Ylm(l, m, theta, phi):
+    return sph_harm(m, l, phi, theta)
+
 def VecYLM(Q,L,M):
     """
     \vec{Y}_{LM}(\hat{\vec{Q}})
     """
     Ql, theta_Q, phi_Q = get_spherical(Q)
-    return sph_harm(M,L,phi_Q,theta_Q) * Q / Ql
+    if(M > L): return np.zeros(3,dtype=np.complex)
+    return Ylm(L,M,theta_Q,phi_Q) * Q / Ql
 
 def VecPsi(Q,L,M):
     """
@@ -76,10 +101,10 @@ def VecPsi(Q,L,M):
     Psi = np.zeros(3,dtype=np.complex)
     for lam in [-1,0,1]:
         if(abs(M-lam)>L-1): continue
-        Psi += np.float(clebsch_gordan(L-1,1,L,M-lam,lam,M).evalf()) * sph_harm(M-lam,L-1,phi_Q,theta_Q) * e_sph(lam) * np.sqrt(L+1)
+        Psi += np.float(clebsch_gordan(L-1,1,L,M-lam,lam,M).evalf()) * Ylm(L-1,M-lam,theta_Q,phi_Q) * e_sph(lam) * np.sqrt(L+1)
     for lam in [-1,0,1]:
         if(abs(M-lam)>L+1): continue
-        Psi += np.float(clebsch_gordan(L+1,1,L,M-lam,lam,M).evalf()) * sph_harm(M-lam,L+1,phi_Q,theta_Q) * e_sph(lam) * np.sqrt(L)
+        Psi += np.float(clebsch_gordan(L+1,1,L,M-lam,lam,M).evalf()) * Ylm(L+1,M-lam,theta_Q,phi_Q) * e_sph(lam) * np.sqrt(L)
     Psi *= np.sqrt(1/(2*L+1))
     return Psi
 
@@ -91,7 +116,7 @@ def VecPhi(Q,L,M):
     Phi = np.zeros(3,dtype=np.complex)
     for lam in [-1,0,1]:
         if(abs(M-lam)>L): continue
-        Phi += np.float(clebsch_gordan(L,1,L,M-lam,lam,M).evalf()) * sph_harm(M-lam,L,phi_Q,theta_Q) * e_sph(lam)
+        Phi += np.float(clebsch_gordan(L,1,L,M-lam,lam,M).evalf()) * Ylm(L,M-lam,theta_Q,phi_Q) * e_sph(lam)
     return Phi
 
 if(__name__=="__main__"):

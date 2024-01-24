@@ -41,9 +41,8 @@ def _ljidx_to_lj(lj):
 def _lj_to_ljidx(l,j):
     return math.floor(l+j/2-1/2)
 
-
 class Operator:
-    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=True, filename=None, verbose=False, comment="!", p_core=None, n_core=None):
+    def __init__(self, rankJ=0, rankP=1, rankZ=0, ms=None, reduced=True, filename=None, verbose=False, comment="!", p_core=None, n_core=None, skew=False):
         self.ms = ms
         self.rankJ = rankJ
         self.rankP = rankP
@@ -59,6 +58,7 @@ class Operator:
         self.kshell_options = []
         self.ls_couple_store = {}
         self.sixj_store = {}
+        self.skew = skew
         if( self.rankJ == 0 and self.rankP==1 and self.rankZ==0): self.reduced = False
         if( ms != None ): self.allocate_operator( ms )
         if( filename != None ): self.read_operator_file( filename, comment=comment )
@@ -83,7 +83,9 @@ class Operator:
         if(self.rankP != other.rankP): raise ValueError
         if(self.rankZ != other.rankZ): raise ValueError
         if(self.reduced != other.reduced): raise ValueError
-        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core)
+        if(self.skew != other.skew): raise ValueError
+        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, \
+                p_core=self.p_core, n_core=self.n_core, skew=self.skew)
         target.zero = self.zero + other.zero
         target.one = self.one + other.one
         for channels in self.two.keys():
@@ -102,7 +104,9 @@ class Operator:
         if(self.rankP != other.rankP): raise ValueError
         if(self.rankZ != other.rankZ): raise ValueError
         if(self.reduced != other.reduced): raise ValueError
-        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core)
+        if(self.skew != other.skew): raise ValueError
+        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, \
+                p_core=self.p_core, n_core=self.n_core, skew=self.skew)
         target.zero = self.zero - other.zero
         target.one = self.one - other.one
         for channels in self.two.keys():
@@ -117,7 +121,8 @@ class Operator:
         return target
 
     def __mul__(self, coef):
-        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core)
+        target = Operator(ms=self.ms, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, \
+                p_core=self.p_core, n_core=self.n_core, skew=self.skew)
         target.zero = self.zero * coef
         target.one = self.one * coef
         for channels in self.two.keys():
@@ -198,6 +203,7 @@ class Operator:
                 if( chbra.P * chket.P * self.rankP != 1): continue
                 if( self._triag( chbra.T, chket.T, 2*self.rankZ )): continue
                 self.three[(ichbra,ichket)] = {}
+
     def count_nonzero_1bme(self):
         counter = 0
         norbs = self.ms.orbits.get_num_orbits()
@@ -205,6 +211,7 @@ class Operator:
             for j in range(norbs):
                 if( abs( self.one[i,j] ) > 1.e-16 ): counter += 1
         return counter
+
     def count_nonzero_2bme(self):
         counter = 0
         two = self.ms.two
@@ -218,6 +225,7 @@ class Operator:
                 if( abs(chbra.Z-chket.Z) != self.rankZ): continue
                 counter += len( self.two[(i,j)] )
         return counter
+
     def count_nonzero_3bme(self):
         counter = 0
         three = self.ms.three
@@ -231,8 +239,10 @@ class Operator:
                 if( chbra.P * chket.P * self.rankP != 1): continue
                 counter += len( self.three[(i,j)] )
         return counter
+
     def set_0bme( self, me ):
         self.zero = me
+
     def set_1bme( self, a, b, me):
         orbits = self.ms.orbits
         oa = orbits.get_orbit(a)
@@ -240,14 +250,20 @@ class Operator:
         if( self._triag(oa.j, ob.j, 2*self.rankJ)): raise ValueError("Operator rank mismatch")
         if( (-1)**(oa.l+ob.l) * self.rankP != 1): raise ValueError("Operator parity mismatch")
         if( abs(oa.z-ob.z) != 2*self.rankZ): raise ValueError("Operator pn mismatch")
+        if(self.skew and a==b and abs(me) > 1.e-16): raise ValueError("Diagonal matrix element has to be 0")
         self.one[a-1,b-1] = me
         self.one[b-1,a-1] = me * (-1)**( (ob.j-oa.j)//2 )
+        if(self.skew): self.one[b-1,a-1] *= -1
+
     def set_2bme_from_mat_indices( self, chbra, chket, bra, ket, me ):
+        if(self.skew and chbra==chket and bra==ket and abs(me) > 1.e-16): raise ValueError("Diagonal matrix element has to be 0")
         if( chbra < chket ):
             if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
             return
         self.two[(chbra,chket)][(bra,ket)] = me
-        if( chbra == chket ): self.two[(chbra,chket)][(ket,bra)] = me
+        if( chbra == chket and self.skew): self.two[(chbra,chket)][(ket,bra)] = -me
+        if( chbra == chket and not self.skew): self.two[(chbra,chket)][(ket,bra)] = me
+
     def set_2bme_from_indices( self, a, b, c, d, Jab, Jcd, me ):
         two = self.ms.two
         orbits = two.orbits
@@ -262,17 +278,15 @@ class Operator:
         if( self._triag( Jab, Jcd, self.rankJ )): raise ValueError("Operator rank mismatch")
         if( Pab * Pcd * self.rankP != 1): raise ValueError("Operator parity mismatch")
         if( abs(Zab-Zcd) != self.rankZ): raise ValueError("Operator pn mismatch")
-        ichbra_tmp = two.get_index(Jab,Pab,Zab)
-        ichket_tmp = two.get_index(Jcd,Pcd,Zcd)
+        ichbra = two.get_index(Jab,Pab,Zab)
+        ichket = two.get_index(Jcd,Pcd,Zcd)
         phase = 1
-        if( ichbra_tmp >= ichket_tmp ):
-            ichbra = ichbra_tmp
-            ichket = ichket_tmp
+        if( ichbra >= ichket ):
             aa, bb, cc, dd, = a, b, c, d
         else:
-            ichbra = ichket_tmp
-            ichket = ichbra_tmp
+            ichbra, ichket = ichket, ichbra
             phase *=  (-1)**(Jcd-Jab)
+            if(self.skew): phase *= -1
             aa, bb, cc, dd, = c, d, a, b
         chbra = two.get_channel(ichbra)
         chket = two.get_channel(ichket)
@@ -280,6 +294,7 @@ class Operator:
         ket = chket.index_from_indices[(cc,dd)]
         phase *= chbra.phase_from_indices[(aa,bb)] * chket.phase_from_indices[(cc,dd)]
         self.set_2bme_from_mat_indices(ichbra,ichket,bra,ket,me*phase)
+
     def set_2bme_from_orbits( self, oa, ob, oc, od, Jab, Jcd, me ):
         orbits = self.ms.orbits
         a = orbits.orbit_index_from_orbit( oa )
@@ -287,12 +302,16 @@ class Operator:
         c = orbits.orbit_index_from_orbit( oc )
         d = orbits.orbit_index_from_orbit( od )
         self.set_2bme_from_indices( a, b, c, d, Jab, Jcd, me )
+
     def set_3bme_from_mat_indices( self, chbra, chket, bra, ket, me ):
+        if(self.skew and chbra==chket and bra==ket and abs(me) > 1.e-16): raise ValueError("Diagonal matrix element has to be 0")
         if( chbra < chket ):
             if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
             return
         self.three[(chbra,chket)][(bra,ket)] = me
-        if( chbra == chket ): self.three[(chbra,chket)][ket,bra] = me
+        if(chbra == chket and self.skew): self.three[(chbra,chket)][ket,bra] = -me
+        if(chbra == chket and not self.skew): self.three[(chbra,chket)][ket,bra] = me
+
     def set_3bme_from_indices( self, a, b, c, Jab, Tab, d, e, f, Jde, Tde, Jbra, Tbra, Jket, Tket, me ):
         three = self.ms.three
         iorbits = three.orbits
@@ -339,17 +358,14 @@ class Operator:
         if( self._triag( Tbra, Tket, 2*self.rankZ) ):
             if(self.verbose): print("Warning: Z, " + sys._getframe().f_code.co_name )
             return
-        ichbra_tmp = three.get_index(Jbra,Pbra,Tbra)
-        ichket_tmp = three.get_index(Jket,Pket,Tket)
+        ichbra = three.get_index(Jbra,Pbra,Tbra)
+        ichket = three.get_index(Jket,Pket,Tket)
         phase = 1
-        if( ichbra_tmp >= ichket_tmp ):
-            ichbra = ichbra_tmp
-            ichket = ichket_tmp
+        if( ichbra >= ichket ):
             i, j, k, l, m, n = a, b, c, d, e, f
             Jij, Tij, Jlm, Tlm = Jab, Tab, Jde, Tde
         else:
-            ichbra = ichket_tmp
-            ichket = ichbra_tmp
+            ichbra, ichket = ichket, ichbra
             phase *=  (-1)**((Jket+Tket-Jbra-Tbra)//2)
             i, j, k, l, m, n = d, e, f, a, b, c
             Jij, Tij, Jlm, Tlm = Jde, Tde, Jab, Tab
@@ -361,8 +377,37 @@ class Operator:
 
     def get_0bme(self):
         return self.zero
+
     def get_1bme(self,a,b):
         return self.one[a-1,b-1]
+
+    def get_1bme_Mscheme(self, p, mdp, q, mdq):
+        if(not self.reduced):
+            print('Convert matrix elements to reduced one first')
+            return None
+        orbs = self.ms.orbits
+        o_p, o_q = orbs.get_orbit(p), orbs.get_orbit(q)
+        me = _clebsch_gordan(o_q.j*0.5, self.rankJ, o_p.j*0.5, mdq*0.5, (mdp-mdq)*0.5, mdp*0.5) / np.sqrt(o_p.j+1) * self.get_1bme(p, q)
+        return me
+
+    def get_1bme_Mscheme_nlms(self, nlmstz1, nlmstz2):
+        if(not self.reduced):
+            print('Convert matrix elements to reduced one first')
+            return None
+        orbs = self.ms.orbits
+        n1, l1, ml1, s1d, tz1d = nlmstz1
+        n2, l2, ml2, s2d, tz2d = nlmstz2
+        m1d = 2*ml1 + s1d
+        m2d = 2*ml2 + s2d
+        me = 0.0
+        for j1d, j2d in itertools.product(range(abs(2*l1-1),2*l1+3,2), range(abs(2*l2-1),2*l2+3,2)):
+            coef =  _clebsch_gordan(l1, 0.5, j1d*0.5, ml1, s1d*0.5, m1d*0.5) * \
+                    _clebsch_gordan(l2, 0.5, j2d*0.5, ml2, s2d*0.5, m2d*0.5)
+            i1 = orbs.get_orbit_index(n1, l1, j1d, tz1d)
+            i2 = orbs.get_orbit_index(n2, l2, j2d, tz2d)
+            me += self.get_1bme_Mscheme(i1, m1d, i2, m2d) * coef
+        return me
+
     def get_2bme_from_mat_indices(self,chbra,chket,bra,ket):
         if( chbra < chket ):
             if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
@@ -372,6 +417,7 @@ class Operator:
         except:
             if(self.verbose): print("Nothing here " + sys._getframe().f_code.co_name )
             return 0
+
     def get_2bme_from_indices( self, a, b, c, d, Jab, Jcd ):
         if(self.ms.rank <= 1): return 0
         two = self.ms.two
@@ -394,20 +440,18 @@ class Operator:
             if(self.verbose): print("Operator pn mismatch: return 0")
             return 0.0
         try:
-            ichbra_tmp = two.get_index(Jab,Pab,Zab)
-            ichket_tmp = two.get_index(Jcd,Pcd,Zcd)
+            ichbra = two.get_index(Jab,Pab,Zab)
+            ichket = two.get_index(Jcd,Pcd,Zcd)
         except:
             if(self.verbose): print("Warning: channel bra & ket index, " + sys._getframe().f_code.co_name )
             return 0.0
         phase = 1
-        if( ichbra_tmp >= ichket_tmp ):
-            ichbra = ichbra_tmp
-            ichket = ichket_tmp
+        if( ichbra >= ichket ):
             aa, bb, cc, dd, = a, b, c, d
         else:
-            ichbra = ichket_tmp
-            ichket = ichbra_tmp
+            ichbra, ichket = ichket, ichbra
             phase *=  (-1)**(Jcd-Jab)
+            if(self.skew): phase *= -1
             aa, bb, cc, dd, = c, d, a, b
         chbra = two.get_channel(ichbra)
         chket = two.get_channel(ichket)
@@ -419,6 +463,7 @@ class Operator:
             return 0.0
         phase *= chbra.phase_from_indices[(aa,bb)] * chket.phase_from_indices[(cc,dd)]
         return self.get_2bme_from_mat_indices(ichbra,ichket,bra,ket)*phase
+
     def get_2bme_from_orbits( self, oa, ob, oc, od, Jab, Jcd ):
         if(self.ms.rank <= 1): return 0.0
         orbits = self.ms.orbits
@@ -427,6 +472,7 @@ class Operator:
         c = orbits.orbit_index_from_orbit( oc )
         d = orbits.orbit_index_from_orbit( od )
         return self.get_2bme_from_indices( a, b, c, d, Jab, Jcd )
+
     def get_2bme_monopole(self, a, b, c, d):
         if(self.ms.rank <= 1): return 0.0
         norm = 1.0
@@ -448,12 +494,12 @@ class Operator:
             sumJ += (2*J+1)
         return sumV / sumJ * norm
 
-
     def get_3bme_from_mat_indices( self, chbra, chket, bra, ket ):
         if( chbra < chket ):
             if(self.verbose): print("Warning:" + sys._getframe().f_code.co_name )
             return
         return self.three[(chbra,chket)][(bra,ket)]
+
     def get_3bme_from_indices( self, a, b, c, Jab, Tab, d, e, f, Jde, Tde, Jbra, Tbra, Jket, Tket ):
         three = self.ms.three
         iorbits = three.orbits
@@ -476,18 +522,14 @@ class Operator:
         if( self._triag( Tbra, Tket, 2*self.rankZ) ):
             if(self.verbose): print("Warning: Z, " + sys._getframe().f_code.co_name )
             return
-        ichbra_tmp = three.get_index(Jbra,Pbra,Tbra)
-        ichket_tmp = three.get_index(Jket,Pket,Tket)
+        ichbra = three.get_index(Jbra,Pbra,Tbra)
+        ichket = three.get_index(Jket,Pket,Tket)
         phase = 1
-        if( ichbra_tmp >= ichket_tmp ):
-            ichbra = ichbra_tmp
-            ichket = ichket_tmp
+        if( ichbra >= ichket ):
             i, j, k, l, m, n = a, b, c, d, e, f
             Jij, Tij, Jlm, Tlm = Jab, Tab, Jde, Tde
         else:
-            print("flip")
-            ichbra = ichket_tmp
-            ichket = ichbra_tmp
+            ichbra, ichket = ichket, ichbra
             phase *=  (-1)**((Jket+Tket-Jbra-Tbra)//2)
             i, j, k, l, m, n = d, e, f, a, b, c
             Jij, Tij, Jlm, Tlm = Jde, Tde, Jab, Tab
@@ -1589,7 +1631,7 @@ class Operator:
         m4d = 2*ml4 + s4d
         me = 0.0
         for j1d, j2d, j3d, j4d in itertools.product(range(abs(2*l1-1),2*l1+3,2), range(abs(2*l2-1),2*l2+3,2), range(abs(2*l3-1),2*l3+3,2), range(abs(2*l4-1),2*l4+3,2)):
-            coef = _clebsch_gordan(l1, 0.5, j1d*0.5, ml1, s1d*0.5, m1d*0.5) * \
+            coef =  _clebsch_gordan(l1, 0.5, j1d*0.5, ml1, s1d*0.5, m1d*0.5) * \
                     _clebsch_gordan(l2, 0.5, j2d*0.5, ml2, s2d*0.5, m2d*0.5) * \
                     _clebsch_gordan(l3, 0.5, j3d*0.5, ml3, s3d*0.5, m3d*0.5) * \
                     _clebsch_gordan(l4, 0.5, j4d*0.5, ml4, s4d*0.5, m4d*0.5)
@@ -1597,8 +1639,38 @@ class Operator:
             i2 = orbs.get_orbit_index(n2, l2, j2d, tz2d)
             i3 = orbs.get_orbit_index(n3, l3, j3d, tz3d)
             i4 = orbs.get_orbit_index(n4, l4, j4d, tz4d)
+#            print(i1,i2,i3,i4,self.get_2bme_Mscheme(i1, m1d, i2, m2d, i3, m3d, i4, m4d, mud),coef)
             me += self.get_2bme_Mscheme(i1, m1d, i2, m2d, i3, m3d, i4, m4d, mud) * coef
         return me
+
+    def get_2bme_from_Mscheme(self, a, b, c, d, Jab, Jcd):
+        orbits = self.ms.orbits
+        oa, ob, oc, od = orbits.get_orbit(a), orbits.get_orbit(b), orbits.get_orbit(c), orbits.get_orbit(d)
+        me = 0.0
+        Mab, Mcd = 0, 0
+        if(abs(_clebsch_gordan(Jcd, self.rankJ, Jab, Mcd, Mab-Mcd, Mab)) < 1.e-8):
+            Mab, Mcd = Jab, Jcd
+        norm = 1
+        if(a==b): norm /= np.sqrt(2)
+        if(c==d): norm /= np.sqrt(2)
+        for mda, mdb, mdc, mdd in itertools.product(range(-oa.j, oa.j+2, 2), range(-ob.j, ob.j+2, 2), range(-oc.j, oc.j+2, 2), range(-od.j, od.j+2, 2)):
+            if((mda + mdb)//2 != Mab): continue
+            if((mdc + mdd)//2 != Mcd): continue
+            for sa, sb, sc, sd in itertools.product([-1,1], repeat=4):
+                mla, mlb, mlc, mld = (mda - sa)//2, (mdb - sb)//2, (mdc - sc)//2, (mdd - sd)//2
+                coef =  _clebsch_gordan(oa.l, 0.5, oa.j*0.5, mla, sa*0.5, mda*0.5) * \
+                        _clebsch_gordan(ob.l, 0.5, ob.j*0.5, mlb, sb*0.5, mdb*0.5) * \
+                        _clebsch_gordan(oc.l, 0.5, oc.j*0.5, mlc, sc*0.5, mdc*0.5) * \
+                        _clebsch_gordan(od.l, 0.5, od.j*0.5, mld, sd*0.5, mdd*0.5) * \
+                        _clebsch_gordan(oa.j*0.5, ob.j*0.5, Jab, mda*0.5, mdb*0.5, Mab) * \
+                        _clebsch_gordan(oc.j*0.5, od.j*0.5, Jcd, mdc*0.5, mdd*0.5, Mcd) * \
+                        np.sqrt(2*Jab+1) / _clebsch_gordan(Jcd, self.rankJ, Jab, Mcd, Mab-Mcd, Mab)
+                aa = [oa.n, oa.l, mla, sa, oa.z]
+                bb = [ob.n, ob.l, mlb, sb, ob.z]
+                cc = [oc.n, oc.l, mlc, sc, oc.z]
+                dd = [od.n, od.l, mld, sd, od.z]
+                me += coef * self.get_2bme_Mscheme_nlms(aa, bb, cc, dd, 2*(Mab-Mcd))
+        return me*norm
 
     def compare_operators(self, op, ax):
         orbs = self.ms.orbits
@@ -1969,7 +2041,7 @@ class Operator:
                     me *= norm * H
                     self.set_2bme_from_indices(a, b, c, d, J, J, me)
 
-    def set_QdotQ(self, hw, e_p=1, e_n=0):
+    def set_QdotQ(self, hw, e_p=1, e_n=0, full_space=True):
         """
         Similar to QQ force but it is O = [\sum_i Q_i x \sum_j Q_j]_0
         """
@@ -1986,12 +2058,17 @@ class Operator:
                 e = 0
                 if(op.z == -1): e = e_p
                 if(op.z ==  1): e = e_n
-                me = BasicFunctions.RadialInt(op.n, op.l, oq.n, oq.l, hw, 4) * np.sqrt(5) / (4*np.pi) * e
+                me = 0.0
+                if(full_space): me = BasicFunctions.RadialInt(op.n, op.l, oq.n, oq.l, hw, 4) * np.sqrt(5) / (4*np.pi) * e**2 # free-space
+                else:
+                    for o in orbits.orbits:
+                        i = orbits.get_orbit_index_from_orbit(o)
+                        me += (-1.0)**((o.j+op.j)//2+1) * E2.get_1bme(p,i) * E2.get_1bme(i,q) / float(op.j+1) / np.sqrt(5) # within the model space
                 self.set_1bme(p,q,me)
 
         def me_NA(a,b,c,d,J):
             oa, ob, oc, od = orbits.get_orbit(a), orbits.get_orbit(b), orbits.get_orbit(c), orbits.get_orbit(d)
-            me = (-1)**((ob.j + oc.j)/2+J) * float(wigner_6j(oa.j*0.5, ob.j*0.5, J, od.j*0.5, oc.j*0.5, 2)) * E2.get_1bme(a,c) * E2.get_1bme(b,d)
+            me = (-1.0)**((ob.j + oc.j)//2+J) * float(wigner_6j(oa.j*0.5, ob.j*0.5, J, od.j*0.5, oc.j*0.5, 2)) * E2.get_1bme(a,c) * E2.get_1bme(b,d)
             return me
 
         tbs = self.ms.two
@@ -2007,8 +2084,8 @@ class Operator:
                     if(a==b): norm /= np.sqrt(2.0)
                     if(c==d): norm /= np.sqrt(2.0)
                     me = me_NA(a,b,c,d,J)
-                    me -= me_NA(a,b,d,c,J) * (-1.0)**((oc.j+od.j)/2+J)
-                    me *= norm * 2 /np.sqrt(5)
+                    me -= me_NA(a,b,d,c,J) * (-1.0)**((oc.j+od.j)//2+J)
+                    me *= norm * 2 / np.sqrt(5)
                     self.set_2bme_from_indices(a, b, c, d, J, J, me)
 
     def set_pairing_QQ(self, hw, g_p=0, g_QQ=0):
