@@ -250,7 +250,7 @@ class Operator:
         if( self._triag(oa.j, ob.j, 2*self.rankJ)): raise ValueError("Operator rank mismatch")
         if( (-1)**(oa.l+ob.l) * self.rankP != 1): raise ValueError("Operator parity mismatch")
         if( abs(oa.z-ob.z) != 2*self.rankZ): raise ValueError("Operator pn mismatch")
-        if(self.skew and a==b and abs(me) > 1.e-16): raise ValueError("Diagonal matrix element has to be 0")
+        if(self.skew and a==b and abs(me) > 1.e-16): print("Diagonal matrix element has to be 0")
         self.one[a-1,b-1] = me
         self.one[b-1,a-1] = me * (-1)**( (ob.j-oa.j)//2 )
         if(self.skew): self.one[b-1,a-1] *= -1
@@ -1639,7 +1639,7 @@ class Operator:
             i2 = orbs.get_orbit_index(n2, l2, j2d, tz2d)
             i3 = orbs.get_orbit_index(n3, l3, j3d, tz3d)
             i4 = orbs.get_orbit_index(n4, l4, j4d, tz4d)
-#            print(i1,i2,i3,i4,self.get_2bme_Mscheme(i1, m1d, i2, m2d, i3, m3d, i4, m4d, mud),coef)
+#            print(i1,i2,i3,i4,m1d,m2d,m3d,m4d,self.get_2bme_Mscheme(i1, m1d, i2, m2d, i3, m3d, i4, m4d, mud),coef)
             me += self.get_2bme_Mscheme(i1, m1d, i2, m2d, i3, m3d, i4, m4d, mud) * coef
         return me
 

@@ -11,6 +11,7 @@ hc = physical_constants['reduced Planck constant times c in MeV fm'][0]
 m_n = physical_constants['neutron mass energy equivalent in MeV'][0]
 m_p = physical_constants['proton mass energy equivalent in MeV'][0]
 m_nucl = (m_p + m_n)*0.5
+pauli1 = np.array([[1,0],[0,1]])
 paulix = np.array([[0,1],[1,0]])
 pauliy = np.array([[0,-1j],[1j,0]])
 pauliz = np.array([[1,0],[0,-1]])
@@ -82,8 +83,18 @@ def sigma(m):
     if(m==-1): return (paulix - pauliy * 1j)/np.sqrt(2)
     if(m== 1): return -(paulix + pauliy * 1j)/np.sqrt(2)
 
-def Ylm(l, m, theta, phi):
+def Ylm(Q, l, m):
+    Ql, theta, phi = get_spherical(Q)
     return sph_harm(m, l, phi, theta)
+
+def YJLM(Q,J,L,M):
+    Ql, theta_Q, phi_Q = get_spherical(Q)
+    Yjlm = np.zeros(3,dtype=np.complex)
+    for lam in [-1,0,1]:
+        if(abs(M-lam)>L): continue
+        Yjlm += np.float(clebsch_gordan(L,1,J,M-lam,lam,M).evalf()) * Ylm(Q,L,M-lam) * e_sph(lam)
+    return Yjlm
+
 
 def VecYLM(Q,L,M):
     """
@@ -91,7 +102,7 @@ def VecYLM(Q,L,M):
     """
     Ql, theta_Q, phi_Q = get_spherical(Q)
     if(M > L): return np.zeros(3,dtype=np.complex)
-    return Ylm(L,M,theta_Q,phi_Q) * Q / Ql
+    return Ylm(Q,L,M) * Q / Ql
 
 def VecPsi(Q,L,M):
     """
@@ -101,10 +112,10 @@ def VecPsi(Q,L,M):
     Psi = np.zeros(3,dtype=np.complex)
     for lam in [-1,0,1]:
         if(abs(M-lam)>L-1): continue
-        Psi += np.float(clebsch_gordan(L-1,1,L,M-lam,lam,M).evalf()) * Ylm(L-1,M-lam,theta_Q,phi_Q) * e_sph(lam) * np.sqrt(L+1)
+        Psi += np.float(clebsch_gordan(L-1,1,L,M-lam,lam,M).evalf()) * Ylm(Q,L-1,M-lam) * e_sph(lam) * np.sqrt(L+1)
     for lam in [-1,0,1]:
         if(abs(M-lam)>L+1): continue
-        Psi += np.float(clebsch_gordan(L+1,1,L,M-lam,lam,M).evalf()) * Ylm(L+1,M-lam,theta_Q,phi_Q) * e_sph(lam) * np.sqrt(L)
+        Psi += np.float(clebsch_gordan(L+1,1,L,M-lam,lam,M).evalf()) * Ylm(Q,L+1,M-lam) * e_sph(lam) * np.sqrt(L)
     Psi *= np.sqrt(1/(2*L+1))
     return Psi
 
@@ -116,8 +127,19 @@ def VecPhi(Q,L,M):
     Phi = np.zeros(3,dtype=np.complex)
     for lam in [-1,0,1]:
         if(abs(M-lam)>L): continue
-        Phi += np.float(clebsch_gordan(L,1,L,M-lam,lam,M).evalf()) * Ylm(L,M-lam,theta_Q,phi_Q) * e_sph(lam)
+        Phi += np.float(clebsch_gordan(L,1,L,M-lam,lam,M).evalf()) * Ylm(Q,L,M-lam) * e_sph(lam)
     return Phi
+
+def Sig1(s1, s2):
+    return pauli1[(1-s1)//2, (1-s2)//2]
+def SigX(s1, s2):
+    return paulix[(1-s1)//2, (1-s2)//2]
+def SigY(s1, s2):
+    return pauliy[(1-s1)//2, (1-s2)//2]
+def SigZ(s1, s2):
+    return pauliz[(1-s1)//2, (1-s2)//2]
+def SigVec(s1, s2):
+    return np.array([SigX(s1,s2), SigY(s1,s2), SigZ(s1,s2)])
 
 if(__name__=="__main__"):
     print(HO_radial(0, 0, 0, 20))
