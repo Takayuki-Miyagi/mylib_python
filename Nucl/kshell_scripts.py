@@ -1545,6 +1545,45 @@ class transit_scripts:
                     continue
         return espe, sum_sfs
 
+    def exp_dag(self, fn_sfs, fn_dag, ksh_l, ksh_r, states):
+        """  
+        fn_sfs: S-factor file
+        fn_dag: dagger operator file
+        ksh_l, ksh_r: kshell_script class
+        states: bra and ket states, [('0','+',1),('1/2','+',1)]
+        """
+        def read_dag(fn):
+            fp = open(fn, 'r') 
+            lines = fp.readlines()
+            fp.close()
+
+            dag = {} 
+            for line in lines:
+                if(line[0]=='!'): continue
+                data = line.split()
+                if(len(data) != 2): raise ValueError("a^t a^t a type operatror is not implemented yet...")
+                dag[int(data[0])] = float(data[1])
+            return dag
+
+        state_l, state_r = states
+        sfs = self.read_sf_file(fn_sfs, ksh_bra=ksh_l, ksh_ket=ksh_r)
+        Ham = Operator(filename=ksh_l.fn_snt)
+        orbits = Ham.ms.orbits
+        dag = read_dag(fn_dag)
+        val = 0
+        for i in dag.keys():
+            oi = orbits.get_orbit(i)
+            if(oi.z==-1): pn = 'proton'
+            if(oi.z== 1): pn = 'neutron'
+            _ = sfs[(sfs['n']==oi.n) & (sfs['l']==oi.l) & (sfs['j']==f'{oi.j}/2') & (sfs['p/n']==pn) & 
+                    (sfs['J bra']==state_l[0]) & (sfs['Parity bra']==state_l[1]) & (sfs['n bra']==state_l[2]) &
+                    (sfs['J ket']==state_r[0]) & (sfs['Parity ket']==state_r[1]) & (sfs['n ket']==state_r[2])]
+            if(_.empty): continue
+            amp = np.sqrt(float(_['CS^2']))
+            val += amp * dag[i] / np.sqrt(oi.j+1)
+        return val
+
+
     def wf_overlap(self, ksh_l, ksh_r, header="", batch_cmd=None, run_cmd=None):
         Opl = Operator(filename=ksh_l.fn_snt)
         Opr = Operator(filename=ksh_r.fn_snt)
