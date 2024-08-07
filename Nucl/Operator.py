@@ -1863,7 +1863,6 @@ class Operator:
                 self.set_1bme(p,q,me)
         self.reduced=False
 
-
     def set_double_fermi_op(self):
         """
         set < pq:J || 1 || rs:J > < pp or nn | (tau tau)_+/- | nn or pp > = \sqrt{(2J+1)} 2
@@ -2194,6 +2193,13 @@ class Operator:
                     c, d = chket.get_indices(iket)
                     me = _me(a, b, c, d, chbra.J, chket.J)
                     self.set_2bme_from_indices(a, b, c, d, chbra.J, chket.J, me)
+    def set_density_at_r(self, r, iso=0):
+        pass
+    def set_kinetic_density_at_r(self, r, iso=0):
+        pass
+    def set_spin_orbit_density_at_r(self, r, iso=0):
+        pass
+
 
 def main():
     ms = ModelSpace.ModelSpace()
@@ -2201,6 +2207,8 @@ def main():
     op = Operator(verbose=False)
     op.allocate_operator(ms)
     op.print_operator()
+    ham = Operator(filename='XXX.snt')
+    c, ls, t = ham.spin_tensor_decomposition()
 if(__name__=="__main__"):
     main()
 

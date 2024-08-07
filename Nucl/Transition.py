@@ -115,7 +115,8 @@ def Q_sp(j,A):
 
 if(__name__=="__main__"):
     print(mu_sp(4,4.5,-1))
-    print(mu_sp(1,0.5,1))
+    print(mu_sp(1,0.5,-1))
     print(mu_sp(1,1.5,1))
-    print(mu_sp(3,2.5,1))
-    print(mu_sp(3,3.5,1))
+    #print(mu_sp(1,1.5,1))
+    #print(mu_sp(3,2.5,1))
+    #print(mu_sp(3,3.5,1))

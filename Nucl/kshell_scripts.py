@@ -1052,11 +1052,15 @@ class transit_scripts:
         if( ksh_l.Z < ksh_r.Z ):
             bra_side = ksh_r
             ket_side = ksh_l
-            flip=True
-        if( ksh_l.A < ksh_r.A ):
+            flip = True
+        elif( ksh_l.A < ksh_r.A ):
             bra_side = ksh_r
             ket_side = ksh_l
-            flip=True
+            flip = True
+        elif( state_l[1]=="-" and state_r[1]=="+"):
+            ksh_l, ksh_r = ksh_r, ksh_l
+            flip = True
+
         if(flip):
             wf_bra = bra_side.wfname_from_state(state_r)
             wf_ket = ket_side.wfname_from_state(state_l)
