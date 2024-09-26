@@ -25,8 +25,7 @@ class gGPR:
         k1 = ConstantKernel(constant_value=cbar2)
         k2 = RBF(length_scale=ell)
         kernel = k1 * k2
-        #self.gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=1, alpha=alpha)
-        self.gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=1, alpha=alpha, normalize_y=True)
+        self.gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=1, alpha=alpha)
         self.gpr.fit(x_train.reshape(-1,1), y_train)
 
     def get_kernel_scale(self):
@@ -96,7 +95,6 @@ class gGPR:
             covs += cov / len(params)
         return means, covs
 
-
 if(__name__=="__main__"):
     from scipy.special import spherical_jn
     def true_func(x, k=0):
@@ -120,7 +118,7 @@ if(__name__=="__main__"):
     x_train = np.linspace(1.e-4, 4.e-2 * np.pi, n_train)
     x_train = np.append(x_train,np.array([0.2,0.3,0.5]))
 
-    n_train = 20
+    n_train = 8
     x_train = np.linspace(1.e-4, 4.e0 * np.pi, n_train)
 
     y_train = true_func(x_train) 
@@ -157,7 +155,7 @@ if(__name__=="__main__"):
 
     ax.legend()
 
-    res = GP.get_hyperparameter_dist(n_sample=2000, width=0.01)
+    res = GP.get_hyperparameter_dist(n_sample=2000, width=0.05)
     df = pd.DataFrame({"c2":res[:,0], "l":res[:,1]})
 
     g = sns.PairGrid(df, corner=True, vars=["c2","l"])
