@@ -95,17 +95,29 @@ class Orbits:
         return self.nljz_idx[nljz]
     def get_num_orbits(self):
         return self.norbs
-    def set_orbits(self, emax=None, lmax=None, shell_model_space=None):
-        if( emax != None):
-            if( lmax==None ): lmax=emax
-            for N in range(emax+1):
-                for l in range(min(N+1,lmax)+1):
-                    if( (N-l)%2 == 1 ): continue
-                    n = (N-l)//2
-                    for j in [2*l-1, 2*l+1]:
-                        if( j<0 ): continue
-                        for z in [-1,1]:
-                            self.add_orbit( n,l,j,z )
+    def set_orbits(self, emax=None, lmax=None, shell_model_space=None, order_pn=False):
+        if(order_pn):
+            if( emax != None):
+                if( lmax==None ): lmax=emax
+                for z in [-1,1]:
+                    for N in range(emax+1):
+                        for l in range(min(N+1,lmax)+1):
+                            if( (N-l)%2 == 1 ): continue
+                            n = (N-l)//2
+                            for j in [2*l-1, 2*l+1]:
+                                if( j<0 ): continue
+                                self.add_orbit( n,l,j,z )
+        else:
+            if( emax != None):
+                if( lmax==None ): lmax=emax
+                for N in range(emax+1):
+                    for l in range(min(N+1,lmax)+1):
+                        if( (N-l)%2 == 1 ): continue
+                        n = (N-l)//2
+                        for j in [2*l-1, 2*l+1]:
+                            if( j<0 ): continue
+                            for z in [-1,1]:
+                                self.add_orbit( n,l,j,z )
         if( shell_model_space != None ):
             if( shell_model_space == "p-shell" ):
                 self.add_orbits_from_labels( "p0p3","p0p1","n0p3","n0p1" )

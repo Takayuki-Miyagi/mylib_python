@@ -13,7 +13,7 @@ def Rp2_to_Rch2( Rp2, Z, N, fs_corrections=None):
     output:
         mean squared charge radii
     """
-    if(f_corrections==None):
+    if(fs_corrections==None):
 #        rcp2 = 0.8783**2 # CODATA
 #        rcn2 = -0.115    # CODATA
 #        rcp2 = 0.709     # Nature 466, 213 (2010).
@@ -26,7 +26,7 @@ def Rp2_to_Rch2( Rp2, Z, N, fs_corrections=None):
     DF = 0.033
     return Rp2 + rcp2 + N/Z * rcn2 + DF
 def Rch2_to_Rp2( Rch2, Z, N, fs_corrections=None):
-    if(f_corrections==None):
+    if(fs_corrections==None):
 #        rcp2 = 0.8783**2 # CODATA
 #        rcn2 = -0.115    # CODATA
 #        rcp2 = 0.709     # Nature 466, 213 (2010).

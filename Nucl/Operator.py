@@ -204,21 +204,25 @@ class Operator:
                 if( self._triag( chbra.T, chket.T, 2*self.rankZ )): continue
                 self.three[(ichbra,ichket)] = {}
 
-    def count_nonzero_1bme(self):
+    def count_nonzero_1bme(self, lower_half=False):
         counter = 0
         norbs = self.ms.orbits.get_num_orbits()
         for i in range(norbs):
-            for j in range(norbs):
+            jmax = norbs
+            if(lower_half): jmax=i+1
+            for j in range(i+1):
                 if( abs( self.one[i,j] ) > 1.e-16 ): counter += 1
         return counter
 
-    def count_nonzero_2bme(self):
+    def count_nonzero_2bme(self, lower_half=False):
         counter = 0
         two = self.ms.two
         nch = two.get_number_channels()
         for i in range(nch):
             chbra = two.get_channel(i)
-            for j in range(i+1):
+            jmax = nch
+            if(lower_half):  jmax=i+1
+            for j in range(jmax):
                 chket = two.get_channel(j)
                 if( self._triag( chbra.J, chket.J, self.rankJ )): continue
                 if( chbra.P * chket.P * self.rankP != 1): continue
@@ -1106,9 +1110,10 @@ class Operator:
 
         norbs = orbits.get_num_orbits()+1
         prt += "! one-body part\n"
-        prt += "{0:5d} {1:3d}\n".format( self.count_nonzero_1bme(), 0 )
+        prt += "{0:5d} {1:3d}\n".format( self.count_nonzero_1bme(lower_half=True), 0 )
         for i in range(1,norbs):
-            for j in range(1,norbs):
+            #for j in range(1,norbs):
+            for j in range(1,i+1):
                 me = self.get_1bme(i,j)
                 if( abs(me) < 1.e-10): continue
                 prt += "{0:3d} {1:3d} {2:16.8e}\n".format( i, j, me )
@@ -1120,7 +1125,7 @@ class Operator:
             f.close()
             return
         prt += "! two-body part\n"
-        prt += "{:10d} ".format(self.count_nonzero_2bme())
+        prt += "{:10d} ".format(self.count_nonzero_2bme(lower_half=True))
         if(len(self.kshell_options)==0): prt += "{:3d} ".format(0)
         if(len(self.kshell_options)>0): prt += "{:3d} ".format(self.kshell_options[0])
         if(len(self.kshell_options)>1): prt += "{:3d} ".format(self.kshell_options[1])
@@ -1370,11 +1375,11 @@ class Operator:
         self.one = np.zeros( (orbits.get_num_orbits(), orbits.get_num_orbits() ))
 
     def truncate(self, ms_new):
-        op = Operator(ms=ms_new, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced)
+        op = Operator(ms=ms_new, rankJ=self.rankJ, rankP=self.rankP, rankZ=self.rankZ, reduced=self.reduced, p_core=self.p_core, n_core=self.n_core, skew=self.skew)
         op.kshell_options = self.kshell_options
         orb = self.ms.orbits
         orb_new = ms_new.orbits
-        self.set_0bme(op.get_0bme())
+        op.set_0bme(self.get_0bme())
         for i, j in itertools.product(list(range(1,orb_new.get_num_orbits()+1)), repeat=2):
             oi = orb_new.get_orbit(i)
             oj = orb_new.get_orbit(j)
