@@ -325,6 +325,11 @@ class TransitionDensity:
             if( self.count_nonzero_1btd() + self.count_nonzero_2btd() == 0):
                 print("The number of non-zero transition density matrix elements is 0 better to check: "+ filename + "!!")
             return
+        if( file_format=="me1j"):
+            self._read_me1j_density(filename)
+            if( self.count_nonzero_1btd() == 0):
+                print("The number of non-zero transition density matrix elements is 0 better to check: "+ filename + "!!")
+            return
 
     def _skip_comment(self,f,comment="#"):
         while True:
@@ -468,6 +473,53 @@ class TransitionDensity:
         print(" Jf = {0:6.2f}, nf = {1:3d}".format( self.Jbra, self.wflabel_bra ))
         print("----------------------------------------")
         f.close()
+
+    def _read_me1j_density(self, filename):
+        orbs = self.ms.orbits
+        emax, lmax = orbs.emax, orbs.lmax
+        orbits_remap = []
+        for e in range(emax+1):
+            lmin = e%2
+            for l in range(lmin, min(e,lmax)+1, 2):
+                n = (e-l)//2
+                for twoj in range(abs(2*l-1), 2*l+2, 2):
+                    for tz in [-1,1]:
+                        orbits_remap.append(orbs.get_orbit_index(n, l, twoj, tz))
+        nljmax = len(orbits_remap)
+        f = open(filename,'r')
+        line = f.readline()
+        line = f.readline()
+
+        icount = 0
+        data = f.readline().split()
+        for nlj1 in range(nljmax):
+            a = orbits_remap[nlj1]
+            o1 = orbs.get_orbit(a)
+            e1 = 2 * o1.n + o1.l;
+            if (e1 > emax): continue
+            for nlj2 in range(nlj1+1):
+                b = orbits_remap[nlj2]
+                o2 = orbs.get_orbit(b)
+                e2 = 2 * o2.n + o2.l;
+                if (e2 > emax): continue
+
+                me = float(data[icount%10])
+                if(icount%10 == 9): data = f.readline().split()
+                icount += 1
+                self.set_1btd(a,b,0,me)
+                self.set_1btd(b,a,0,me)
+        f.close()
+
+    def print_occupation(self, filename):
+        orbs = self.ms.orbits
+        prt = ''
+        for op in orbs.orbits:
+            p = orbs.get_orbit_index(op.n, op.l, op.j, op.z)
+            prt += f"{op.n:3d} {op.l:3d} {op.j:4d} {op.z:4d} {self.get_1btd(p,p,0):16.6e}\n"
+        f = open(filename, 'w')
+        f.write(prt)
+        f.close()
+        return
 
     def print_density(self):
         orbits = self.ms.orbits
