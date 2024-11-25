@@ -204,44 +204,38 @@ class Operator:
                 if( self._triag( chbra.T, chket.T, 2*self.rankZ )): continue
                 self.three[(ichbra,ichket)] = {}
 
-    def count_nonzero_1bme(self, lower_half=False):
+    def count_nonzero_1bme(self):
+        # count independent entries
+        orbits = self.ms.orbits
         counter = 0
-        norbs = self.ms.orbits.get_num_orbits()
-        for i in range(norbs):
-            jmax = norbs
-            if(lower_half): jmax=i+1
-            for j in range(i+1):
-                if( abs( self.one[i,j] ) > 1.e-16 ): counter += 1
+        for oa in orbits.orbits:
+            for ob in orbits.orbits:
+                a = orbits.get_orbit_index_from_orbit(oa)
+                b = orbits.get_orbit_index_from_orbit(ob)
+                if(b>a): continue
+                if(abs(self.one[a-1,b-1]) < 1.e-10): continue
+                counter += 1
         return counter
 
-    def count_nonzero_2bme(self, lower_half=False):
+    def count_nonzero_2bme(self):
+        # count independent entries
         counter = 0
-        two = self.ms.two
-        nch = two.get_number_channels()
-        for i in range(nch):
-            chbra = two.get_channel(i)
-            jmax = nch
-            if(lower_half):  jmax=i+1
-            for j in range(jmax):
-                chket = two.get_channel(j)
-                if( self._triag( chbra.J, chket.J, self.rankJ )): continue
-                if( chbra.P * chket.P * self.rankP != 1): continue
-                if( abs(chbra.Z-chket.Z) != self.rankZ): continue
-                counter += len( self.two[(i,j)] )
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                if(channels[0]==channels[1] and idxs[1]>idxs[0]): continue
+                if(abs(self.two[channels][idxs]) < 1.e-10): continue
+                counter += 1
+        print(counter)
         return counter
 
     def count_nonzero_3bme(self):
+        # count independent entries
         counter = 0
-        three = self.ms.three
-        nch = three.get_number_channels()
-        for i in range(nch):
-            chbra = three.get_channel(i)
-            for j in range(i+1):
-                chket = three.get_channel(j)
-                if( self._triag( chbra.J, chket.J, 2*self.rankJ )): continue
-                if( self._triag( chbra.T, chket.T, 2*self.rankZ )): continue
-                if( chbra.P * chket.P * self.rankP != 1): continue
-                counter += len( self.three[(i,j)] )
+        for channels in self.three.keys():
+            for idxs in self.three[channels].keys():
+                if(channels[0]==channels[1] and idxs[1]>idxs[0]): continue
+                if(abs(self.three[channels][idxs]) < 1.e-10): continue
+                counter += 1
         return counter
 
     def set_0bme( self, me ):
@@ -1110,13 +1104,15 @@ class Operator:
 
         norbs = orbits.get_num_orbits()+1
         prt += "! one-body part\n"
-        prt += "{0:5d} {1:3d}\n".format( self.count_nonzero_1bme(lower_half=True), 0 )
-        for i in range(1,norbs):
-            #for j in range(1,norbs):
-            for j in range(1,i+1):
-                me = self.get_1bme(i,j)
-                if( abs(me) < 1.e-10): continue
-                prt += "{0:3d} {1:3d} {2:16.8e}\n".format( i, j, me )
+        prt += "{0:5d} {1:3d}\n".format(self.count_nonzero_1bme(), 0)
+
+        for oa in orbits.orbits:
+            for ob in orbits.orbits:
+                a = orbits.get_orbit_index_from_orbit(oa)
+                b = orbits.get_orbit_index_from_orbit(ob)
+                if(b>a): continue
+                if(abs(self.get_1bme(a,b)) < 1.e-10): continue
+                prt += "{0:3d} {1:3d} {2:16.8e}\n".format(a, b, me)
         if( self.ms.rank==1 ):
             prt += "! two-body part\n"
             prt += "{0:10d} {1:3d}\n".format( 0, 0 )
@@ -1125,7 +1121,7 @@ class Operator:
             f.close()
             return
         prt += "! two-body part\n"
-        prt += "{:10d} ".format(self.count_nonzero_2bme(lower_half=True))
+        prt += "{:10d} ".format(self.count_nonzero_2bme())
         if(len(self.kshell_options)==0): prt += "{:3d} ".format(0)
         if(len(self.kshell_options)>0): prt += "{:3d} ".format(self.kshell_options[0])
         if(len(self.kshell_options)>1): prt += "{:3d} ".format(self.kshell_options[1])
@@ -1133,23 +1129,18 @@ class Operator:
         prt += "\n"
         scalar = False
         if(self.rankJ == 0 and self.rankZ == 0): scalar = True
-        two = self.ms.two
-        for ichbra in range(two.get_number_channels()):
-            chbra = two.get_channel(ichbra)
-            for ichket in range(ichbra+1):
-                chket = two.get_channel(ichket)
-                if( self._triag( chbra.J, chket.J, self.rankJ )): continue
-                if( chbra.P * chket.P * self.rankP != 1): continue
-                if( abs(chbra.Z-chket.Z) != self.rankZ): continue
-                for bra, ket in self.two[(ichbra,ichket)].keys():
-                    a = chbra.orbit1_index[bra]
-                    b = chbra.orbit2_index[bra]
-                    c = chket.orbit1_index[ket]
-                    d = chket.orbit2_index[ket]
-                    if(scalar):
-                        prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:16.8e}\n".format( a, b, c, d, chket.J, self.two[(ichbra,ichket)][(bra,ket)])
-                    else:
-                        prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d} {6:16.8e}\n".format( a, b, c, d, chbra.J, chket.J, self.two[(ichbra,ichket)][(bra,ket)])
+        for channels in self.two.keys():
+            for idxs in self.two[channels].keys():
+                if(channels[0]==channels[1] and idxs[1]>idxs[0]): continue
+                if(abs(self.two[channels][idxs]) < 1.e-10): continue
+                chbra = self.ms.two.get_channel(channels[0])
+                chket = self.ms.two.get_channel(channels[1])
+                a, b = chbra.get_indices(idxs[0])
+                c, d = chket.get_indices(idxs[1])
+                if(scalar):
+                    prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:16.8e}\n".format( a, b, c, d, chket.J, self.two[channels][idxs])
+                else:
+                    prt += "{0:3d} {1:3d} {2:3d} {3:3d} {4:3d} {5:3d} {6:16.8e}\n".format( a, b, c, d, chbra.J, chket.J, self.two[channels][idxs])
         f = open(filename, "w")
         f.write(prt)
         f.close()
