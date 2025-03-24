@@ -82,9 +82,6 @@ def RME_to_ME( RME, Jbra, lam, Jket, Mbra, mu, Mket):
 def ME_to_RME( ME, Jbra, lam, Jket, Mbra, mu, Mket):
     return ME / (-1)**(Jbra-Mbra) * N(wigner_3j(Jbra,lam,Jket,-Mbra,mu,Mket))
 
-if(__name__=="__main__"):
-    pass
-
 def mu_sp(l,j,tz,gs=None,gl=None):
     """
     inputs:

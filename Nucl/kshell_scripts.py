@@ -271,22 +271,6 @@ class kshell_scripts:
             res.append(tmp)
         return res
 
-
-    #def get_wf_idx_to_jpn(self):
-    #    if(len(self.fn_wfs)>1):
-    #        print("Warning, in get_wf_idx_to_jpn in kshell_scripts.py")
-    #    n=0
-    #    wf_idx_to_jpn = []
-    #    for state in self.fn_wfs.keys():
-    #        fn_wav = self.fn_wfs[state]
-    #        fn_log = "log_"+fn_wav.split(".wav")[0]+".txt"
-    #        jpn_to_idx = self.get_wf_index(self.summary_filename())
-    #        for key in jpn_to_idx.keys():
-    #            if(jpn_to_idx[key][0]==fn_log):
-    #                n += 1
-    #                wf_idx_to_jpn.append(key)
-    #    return wf_idx_to_jpn
-
     def wfname_from_state(self, state):
         """
         return the wave function name of the specified state.
@@ -1484,21 +1468,6 @@ class transit_scripts:
             if(mode=="aa a^ta^t" and target_spin!=_[6]): n += sfs[_][0]
         if(mode=="a^ta^t aa"): print("Number of occupied pairs in the model-space:   {:.2f}".format(n))
         if(mode=="aa a^ta^t"): print("Number of unoccupied pairs in the model-space: {:.2f}".format(n))
-
-    #def read_sfactors(self, fn, mode, N_states=None, Jinfo=True):
-    #    """
-    #    return spectroscopic factor in dictionary
-    #        key: (n, l, j, pn, J_bra, J_ket); j, J_bra, J_ket are double
-    #        val: spectroscopic factor; normalized such that the summation agrees with hole/particle numbers
-    #    """
-    #    full_results = self.read_sf_file(fn, mode, N_states)
-    #    sfactors = {}
-    #    for key in full_results.keys():
-    #        if(Jinfo): label = (*key[:4], key[4], key[6])
-    #        if(not Jinfo): label = key[:4]
-    #        if(label in sfactors): sfactors[label] += full_results[key][0]
-    #        else: sfactors[label] = full_results[key][0]
-    #    return sfactors
 
     def espe_sf_file(self, fn, Hm_bra, Hm_ket, mode, N_states=None):
         if(not os.path.exists(fn)):
