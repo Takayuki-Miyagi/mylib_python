@@ -1128,7 +1128,7 @@ class Operator:
         if(len(self.kshell_options)>2): prt += "{:10.6f} ".format(self.kshell_options[2])
         prt += "\n"
         scalar = False
-        if(self.rankJ == 0 and self.rankZ == 0): scalar = True
+        if(self.rankJ == 0 and self.rankZ == 0 and self.rankP==1): scalar = True
         for channels in self.two.keys():
             for idxs in self.two[channels].keys():
                 if(channels[0]==channels[1] and idxs[1]>idxs[0]): continue
@@ -1719,6 +1719,131 @@ class Operator:
                 if(normalization!=None): me /= normalization
                 self.set_1bme(p,q,me)
         self.reduced=False
+        
+    def set_hcm_op(self, hw, A):
+        #
+        # op = \vec{P}^2 / 2mA + A m omega^2 \vec{R}^2 / 2 - 3 hw / 2
+        # \vec{P} = \sum_{i} \vec{p}_{i}
+        # \vec{R} = (1/A) \sum_{i} \vec{r}_{i}
+        # \vec{P}^{2} = \sum_{i} \vec{p}_{i}^{2} + 2 \sum_{i<j} \vec{p}_{i} \cdot \vec{p}_{j}
+        # A^2 \vec{R}^{2} = \sum_{i} \vec{r}_{i}^{2} + 2 \sum_{i<j} \vec{r}_{i} \cdot \vec{r}_{j}
+        # zero-body part: - 3 hw / 2
+        # one-body part: (1/A) \sum_{i} [\vec{p}_{i}^{2} / 2m + m \omega^{2} \vec{r}_{i}^{2} / 2]
+        # two-body part: (1/A) \sum_{i<j} [\vec{p}_{i} \cdot \vec{p}_{j} / m + m \omega^{2} \vec{r}_{i} \cdot \vec{r}_{j}]
+        #
+        if(self.rankJ != 0): raise ValueError
+        if(self.rankP != 1): raise ValueError
+        if(self.rankZ != 0): raise ValueError
+        self.allocate_operator(self.ms)
+        self.zero = -1.5 * hw
+        orbits = self.ms.orbits
+        for p in range(1, orbits.get_num_orbits()+1):
+            op = orbits.get_orbit(p)
+            me = (2*op.n + op.l + 1.5) * hw / A
+            self.set_1bme(p,p,me)
+
+        op_pdotp = Operator(ms=self.ms)
+        op_rdotr = Operator(ms=self.ms)
+        op_pdotp.set_pdotp_op(hw)
+        op_rdotr.set_rdotr_op(hw)
+        tmp = (op_pdotp + op_rdotr)
+        for channels in tmp.two.keys():
+            for idxs in tmp.two[channels].keys():
+                me = tmp.two[channels][idxs] / A
+                self.set_2bme_from_mat_indices(*channels,*idxs,me)
+        self.reduced = False
+        
+    def set_pdotp_op(self, hw):
+        #
+        # op = \sum_{i<j} \frac{1}{m} \vec{p}_{i} \cdot \vec{p}_{j}
+        #
+        if(self.rankJ != 0): raise ValueError
+        if(self.rankP != 1): raise ValueError
+        if(self.rankZ != 0): raise ValueError
+        self.allocate_operator(self.ms)
+        orbits = self.ms.orbits
+
+        def _red_nab_l(n1, l1, n2, l2):
+            if(n1 == n2 and l1 == l2+1): me = -np.sqrt((l2 + 1)*(n2 + l2 + 1.5))
+            elif(n1 == n2-1 and l1 == l2+1): me = -np.sqrt((l2 + 1)*n2)
+            elif(n1 == n2 and l1 == l2-1): me = -np.sqrt(l2*(n2 + l2 + 0.5))
+            elif(n1 == n2+1 and l1==l2-1): me = -np.sqrt(l2*(n2 + 1))
+            else: me = 0
+            return me
+
+        def _red_nab_j(oa, ob):
+            if(oa.z != ob.z): return 0
+            me = (-1.0)**((3+ob.j)*0.5 + oa.l) * np.sqrt((oa.j+1) * (ob.j+1)) \
+                    * _sixj(oa.j*0.5, 1, ob.j*0.5, ob.l, 0.5, oa.l) * _red_nab_l(oa.n, oa.l, ob.n, ob.l)
+            return me
+
+        def _me_NA(a, b, c, d, J):
+            oa, ob, oc, od = orbits.get_orbit(a), orbits.get_orbit(b), orbits.get_orbit(c), orbits.get_orbit(d)
+            me = -(-1.0)**((ob.j+oc.j)*0.5+J) * _sixj(oa.j*0.5, ob.j*0.5, J, od.j*0.5, oc.j*0.5, 1) * _red_nab_j(oa,oc) * _red_nab_j(ob,od)
+            return me
+
+        tbs = self.ms.two
+        for tbc in tbs.channels:
+            J = tbc.J
+            for ibra in range(tbc.get_number_states()):
+                for iket in range(ibra+1):
+                    a, b = tbc.get_indices(ibra)
+                    c, d = tbc.get_indices(iket)
+                    norm = 1
+                    if(a==b): norm /= np.sqrt(2)
+                    if(c==d): norm /= np.sqrt(2)
+                    oa, ob = tbc.get_orbits(ibra)
+                    oc, od = tbc.get_orbits(iket)
+                    me = _me_NA(a, b, c, d, J) - (-1.0)**((oc.j+od.j)*0.5 - J) * _me_NA(a, b, d, c, J)
+                    me *= hw * norm
+                    self.set_2bme_from_indices(a, b, c, d, J, J, me)
+        self.reduced = False
+
+    def set_rdotr_op(self, hw):
+        #
+        # op = \sum_{i<j} m \omega^{2} \vec{r}_{i} \cdot \vec{r}_{j}
+        #
+        if(self.rankJ != 0): raise ValueError
+        if(self.rankP != 1): raise ValueError
+        if(self.rankZ != 0): raise ValueError
+        self.allocate_operator(self.ms)
+        orbits = self.ms.orbits
+
+        def _red_r_l(n1, l1, n2, l2):
+            if(n1 == n2 and l1 == l2-1): me = -np.sqrt(l2*(n2 + l2 + 0.5))
+            elif(n1 == n2-1 and l1 == l2+1): me = -np.sqrt((l2 + 1)*n2)
+            elif(n1 == n2+1 and l1 == l2-1): me = np.sqrt(l2*(n2  + 1))
+            elif(n1 == n2 and l1==l2+1): me = np.sqrt((l2+1)*(n2 +l2 + 1.5))
+            else: me = 0
+            return me
+
+        def _red_r_j(oa, ob):
+            if(oa.z != ob.z): return 0
+            me = (-1.0)**((3+ob.j)*0.5 + oa.l) * np.sqrt((oa.j+1) * (ob.j+1)) \
+                    * _sixj(oa.j*0.5, 1, ob.j*0.5, ob.l, 0.5, oa.l) * _red_r_l(oa.n, oa.l, ob.n, ob.l)
+            return me
+
+        def _me_NA(a, b, c, d, J):
+            oa, ob, oc, od = orbits.get_orbit(a), orbits.get_orbit(b), orbits.get_orbit(c), orbits.get_orbit(d)
+            me = (-1.0)**((ob.j+oc.j)*0.5+J) * _sixj(oa.j*0.5, ob.j*0.5, J, od.j*0.5, oc.j*0.5, 1) * _red_r_j(oa,oc) * _red_r_j(ob,od)
+            return me
+
+        tbs = self.ms.two
+        for tbc in tbs.channels:
+            J = tbc.J
+            for ibra in range(tbc.get_number_states()):
+                for iket in range(ibra+1):
+                    a, b = tbc.get_indices(ibra)
+                    c, d = tbc.get_indices(iket)
+                    norm = 1
+                    if(a==b): norm /= np.sqrt(2)
+                    if(c==d): norm /= np.sqrt(2)
+                    oa, ob = tbc.get_orbits(ibra)
+                    oc, od = tbc.get_orbits(iket)
+                    me = _me_NA(a, b, c, d, J) - (-1)**((oc.j+od.j)*0.5 - J) * _me_NA(a, b, d, c, J)
+                    me *= hw * norm
+                    self.set_2bme_from_indices(a, b, c, d, J, J, me)
+        self.reduced = False
 
     def set_electric_op(self, hw, e_p=1.0, e_n=0.0):
         """
